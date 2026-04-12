@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, Outlet } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,13 +14,11 @@ import AssignLeadsPage from "@/pages/AssignLeadsPage";
 import CallTrackerPage from "@/pages/CallTrackerPage";
 import AnalyticsPage from "@/pages/AnalyticsPage";
 import NotificationsPage from "@/pages/NotificationsPage";
-import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const ProtectedRoutes = () => {
+const ProtectedRoute = () => {
   const { user, loading } = useAuth();
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -28,23 +26,8 @@ const ProtectedRoutes = () => {
       </div>
     );
   }
-
   if (!user) return <Navigate to="/auth" replace />;
-
-  return (
-    <DashboardLayout>
-      <Routes>
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/leads/new" element={<AddLeadPage />} />
-        <Route path="/leads" element={<LeadsPage />} />
-        <Route path="/assign" element={<AssignLeadsPage />} />
-        <Route path="/calls" element={<CallTrackerPage />} />
-        <Route path="/analytics" element={<AnalyticsPage />} />
-        <Route path="/notifications" element={<NotificationsPage />} />
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    </DashboardLayout>
-  );
+  return <Outlet />;
 };
 
 const AuthGate = () => {
@@ -64,7 +47,19 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               <Route path="/auth" element={<AuthGate />} />
-              <Route path="/*" element={<ProtectedRoutes />} />
+              <Route element={<ProtectedRoute />}>
+                <Route element={<DashboardLayout />}>
+                  <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/leads/new" element={<AddLeadPage />} />
+                  <Route path="/leads" element={<LeadsPage />} />
+                  <Route path="/assign" element={<AssignLeadsPage />} />
+                  <Route path="/calls" element={<CallTrackerPage />} />
+                  <Route path="/analytics" element={<AnalyticsPage />} />
+                  <Route path="/notifications" element={<NotificationsPage />} />
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                </Route>
+              </Route>
+              <Route path="*" element={<Navigate to="/auth" replace />} />
             </Routes>
           </BrowserRouter>
         </TooltipProvider>
