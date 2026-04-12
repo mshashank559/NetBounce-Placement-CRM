@@ -14,16 +14,370 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      call_logs: {
+        Row: {
+          call_count: number
+          call_date: string
+          created_at: string
+          id: string
+          lead_id: string
+          user_id: string
+        }
+        Insert: {
+          call_count?: number
+          call_date?: string
+          created_at?: string
+          id?: string
+          lead_id: string
+          user_id: string
+        }
+        Update: {
+          call_count?: number
+          call_date?: string
+          created_at?: string
+          id?: string
+          lead_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_logs_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["unique_id"]
+          },
+        ]
+      }
+      concerns: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          lead_id: string
+          raised_by: string
+          resolved: boolean | null
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          lead_id: string
+          raised_by: string
+          resolved?: boolean | null
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          lead_id?: string
+          raised_by?: string
+          resolved?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "concerns_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["unique_id"]
+          },
+        ]
+      }
+      followups: {
+        Row: {
+          created_at: string
+          id: string
+          lead_id: string
+          notes: string
+          user_id: string
+          way_of_contact: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lead_id: string
+          notes: string
+          user_id: string
+          way_of_contact?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lead_id?: string
+          notes?: string
+          user_id?: string
+          way_of_contact?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "followups_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["unique_id"]
+          },
+        ]
+      }
+      lead_closures: {
+        Row: {
+          created_at: string
+          id: string
+          interview_plan: boolean
+          lead_id: string
+          payment_mode: Database["public"]["Enums"]["payment_mode"]
+          plan: Database["public"]["Enums"]["plan_type"]
+          slot1: boolean | null
+          slot1_amount: number | null
+          slot2: boolean | null
+          slot2_amount: number | null
+          upfront_amount: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          interview_plan?: boolean
+          lead_id: string
+          payment_mode: Database["public"]["Enums"]["payment_mode"]
+          plan: Database["public"]["Enums"]["plan_type"]
+          slot1?: boolean | null
+          slot1_amount?: number | null
+          slot2?: boolean | null
+          slot2_amount?: number | null
+          upfront_amount?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          interview_plan?: boolean
+          lead_id?: string
+          payment_mode?: Database["public"]["Enums"]["payment_mode"]
+          plan?: Database["public"]["Enums"]["plan_type"]
+          slot1?: boolean | null
+          slot1_amount?: number | null
+          slot2?: boolean | null
+          slot2_amount?: number | null
+          upfront_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_closures_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["unique_id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          assigned_to: string | null
+          comment: string | null
+          concern: boolean | null
+          created_at: string
+          date: string
+          email: string
+          highlight_color: string | null
+          lead_category: Database["public"]["Enums"]["lead_category"] | null
+          lead_generated_by: string | null
+          lead_source: string | null
+          lead_status: Database["public"]["Enums"]["lead_status"] | null
+          lead_type: Database["public"]["Enums"]["lead_type"] | null
+          linkedin_url: string | null
+          name: string
+          phone: string
+          referee_name: string | null
+          resume_url: string | null
+          technology: string | null
+          time_for_call: string | null
+          timezone: string | null
+          unique_id: string
+          university: string | null
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          comment?: string | null
+          concern?: boolean | null
+          created_at?: string
+          date?: string
+          email: string
+          highlight_color?: string | null
+          lead_category?: Database["public"]["Enums"]["lead_category"] | null
+          lead_generated_by?: string | null
+          lead_source?: string | null
+          lead_status?: Database["public"]["Enums"]["lead_status"] | null
+          lead_type?: Database["public"]["Enums"]["lead_type"] | null
+          linkedin_url?: string | null
+          name: string
+          phone: string
+          referee_name?: string | null
+          resume_url?: string | null
+          technology?: string | null
+          time_for_call?: string | null
+          timezone?: string | null
+          unique_id?: string
+          university?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          comment?: string | null
+          concern?: boolean | null
+          created_at?: string
+          date?: string
+          email?: string
+          highlight_color?: string | null
+          lead_category?: Database["public"]["Enums"]["lead_category"] | null
+          lead_generated_by?: string | null
+          lead_source?: string | null
+          lead_status?: Database["public"]["Enums"]["lead_status"] | null
+          lead_type?: Database["public"]["Enums"]["lead_type"] | null
+          linkedin_url?: string | null
+          name?: string
+          phone?: string
+          referee_name?: string | null
+          resume_url?: string | null
+          technology?: string | null
+          time_for_call?: string | null
+          timezone?: string | null
+          unique_id?: string
+          university?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          lead_id: string | null
+          message: string
+          read: boolean | null
+          title: string
+          type: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lead_id?: string | null
+          message: string
+          read?: boolean | null
+          title: string
+          type?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lead_id?: string | null
+          message?: string
+          read?: boolean | null
+          title?: string
+          type?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["unique_id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          department: string | null
+          email: string
+          full_name: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          department?: string | null
+          email: string
+          full_name: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          department?: string | null
+          email?: string
+          full_name?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_role: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role:
+        | "ADMIN"
+        | "PROCESS_ANALYST"
+        | "LEAD_TL"
+        | "LEAD_GEN"
+        | "SALES_TL"
+        | "SALES_TM"
+      lead_category: "Hot" | "Cold"
+      lead_status:
+        | "New"
+        | "DNR1"
+        | "DNR2"
+        | "DNR3"
+        | "Connected"
+        | "Qualified"
+        | "Hot Prospect"
+        | "Closed"
+        | "Non Interested"
+      lead_type: "New" | "Reference"
+      payment_mode: "Cash" | "Card" | "UPI" | "Bank Transfer" | "Other"
+      plan_type: "Starter" | "Premium" | "Elite"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +504,30 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: [
+        "ADMIN",
+        "PROCESS_ANALYST",
+        "LEAD_TL",
+        "LEAD_GEN",
+        "SALES_TL",
+        "SALES_TM",
+      ],
+      lead_category: ["Hot", "Cold"],
+      lead_status: [
+        "New",
+        "DNR1",
+        "DNR2",
+        "DNR3",
+        "Connected",
+        "Qualified",
+        "Hot Prospect",
+        "Closed",
+        "Non Interested",
+      ],
+      lead_type: ["New", "Reference"],
+      payment_mode: ["Cash", "Card", "UPI", "Bank Transfer", "Other"],
+      plan_type: ["Starter", "Premium", "Elite"],
+    },
   },
 } as const
