@@ -1,0 +1,101 @@
+import React from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+
+interface LeadDetailDialogProps {
+  lead: any;
+  open: boolean;
+  onClose: () => void;
+}
+
+const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose }) => {
+  const { data: followups } = useQuery({
+    queryKey: ['followups', lead.unique_id],
+    queryFn: async () => {
+      const { data } = await supabase.from('followups').select('*').eq('lead_id', lead.unique_id).order('created_at', { ascending: false });
+      return data || [];
+    },
+    enabled: open,
+  });
+
+  const { data: closure } = useQuery({
+    queryKey: ['closure', lead.unique_id],
+    queryFn: async () => {
+      const { data } = await supabase.from('lead_closures').select('*').eq('lead_id', lead.unique_id).maybeSingle();
+      return data;
+    },
+    enabled: open && lead.lead_status === 'Closed',
+  });
+
+  const Field = ({ label, value }: { label: string; value: any }) => (
+    value ? (
+      <div>
+        <span className="text-xs text-muted-foreground">{label}</span>
+        <p className="text-sm font-medium">{String(value)}</p>
+      </div>
+    ) : null
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-lg glass-card max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-display">{lead.name}</DialogTitle>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-4 mt-4">
+          <Field label="Email" value={lead.email} />
+          <Field label="Phone" value={lead.phone} />
+          <Field label="University" value={lead.university} />
+          <Field label="Technology" value={lead.technology} />
+          <Field label="LinkedIn" value={lead.linkedin_url} />
+          <Field label="Time for Call" value={lead.time_for_call} />
+          <Field label="Timezone" value={lead.timezone} />
+          <Field label="Category" value={lead.lead_category} />
+          <Field label="Type" value={lead.lead_type} />
+          <Field label="Source" value={lead.lead_source} />
+          <Field label="Status" value={lead.lead_status} />
+          <Field label="Concern" value={lead.concern ? 'Yes' : 'No'} />
+        </div>
+        {lead.comment && (
+          <div className="mt-4">
+            <span className="text-xs text-muted-foreground">Comment</span>
+            <p className="text-sm bg-accent/50 p-3 rounded-lg mt-1">{lead.comment}</p>
+          </div>
+        )}
+        {closure && (
+          <div className="mt-4 p-3 rounded-lg bg-green-500/5 border border-green-500/20">
+            <h4 className="text-sm font-semibold mb-2">Closure Details</h4>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <Field label="Plan" value={closure.plan} />
+              <Field label="Interview Plan" value={closure.interview_plan ? 'Yes' : 'No'} />
+              <Field label="Upfront Amount" value={`$${closure.upfront_amount}`} />
+              <Field label="Payment Mode" value={closure.payment_mode} />
+              {closure.slot1 && <Field label="Slot 1 Amount" value={`$${closure.slot1_amount}`} />}
+              {closure.slot2 && <Field label="Slot 2 Amount" value={`$${closure.slot2_amount}`} />}
+            </div>
+          </div>
+        )}
+        {followups && followups.length > 0 && (
+          <div className="mt-4">
+            <h4 className="text-sm font-semibold mb-2">Follow-ups</h4>
+            <div className="space-y-2">
+              {followups.map(f => (
+                <div key={f.id} className="p-2 bg-accent/50 rounded-lg text-sm">
+                  <div className="flex items-center justify-between">
+                    <Badge variant="secondary" className="text-xs">{f.way_of_contact}</Badge>
+                    <span className="text-xs text-muted-foreground">{new Date(f.created_at).toLocaleDateString()}</span>
+                  </div>
+                  <p className="mt-1">{f.notes}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default LeadDetailDialog;
