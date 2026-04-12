@@ -1,0 +1,224 @@
+import React, { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { motion } from 'framer-motion';
+import { toast } from 'sonner';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Phone, Eye, Filter } from 'lucide-react';
+import LeadDetailDialog from '@/components/LeadDetailDialog';
+import ClosureDialog from '@/components/ClosureDialog';
+
+const statusColors: Record<string, string> = {
+  'New': 'bg-primary/10 text-primary',
+  'DNR1': 'bg-orange-500/10 text-orange-600',
+  'DNR2': 'bg-orange-500/10 text-orange-600',
+  'DNR3': 'bg-orange-500/10 text-orange-600',
+  'Connected': 'bg-blue-500/10 text-blue-600',
+  'Qualified': 'bg-indigo-500/10 text-indigo-600',
+  'Hot Prospect': 'bg-amber-500/10 text-amber-600',
+  'Closed': 'bg-green-500/10 text-green-600',
+  'Non Interested': 'bg-destructive/10 text-destructive',
+};
+
+const allStatuses = ['New', 'DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', 'Hot Prospect', 'Closed', 'Non Interested'];
+
+const LeadsPage: React.FC = () => {
+  const { user, role } = useAuth();
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [selectedLead, setSelectedLead] = useState<any>(null);
+  const [closureLead, setClosureLead] = useState<any>(null);
+
+  const { data: leads, isLoading } = useQuery({
+    queryKey: ['leads'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('leads').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  const updateStatus = useMutation({
+    mutationFn: async ({ leadId, status }: { leadId: string; status: string }) => {
+      if (role !== 'SALES_TM' && role !== 'SALES_TL' && role !== 'ADMIN') {
+        throw new Error('Only Sales team can update lead status');
+      }
+      if (status === 'Closed') {
+        const lead = leads?.find(l => l.unique_id === leadId);
+        setClosureLead(lead);
+        return;
+      }
+      const { error } = await supabase.from('leads').update({ lead_status: status as any }).eq('unique_id', leadId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast.success('Status updated');
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const handleCall = useMutation({
+    mutationFn: async (leadId: string) => {
+      if (role !== 'SALES_TM' && role !== 'SALES_TL' && role !== 'ADMIN') {
+        throw new Error('Only Sales team can make calls');
+      }
+      const today = new Date().toISOString().split('T')[0];
+      const { data: existing } = await supabase
+        .from('call_logs')
+        .select('*')
+        .eq('user_id', user!.id)
+        .eq('lead_id', leadId)
+        .eq('call_date', today)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase.from('call_logs').update({ call_count: (existing.call_count || 0) + 1 }).eq('id', existing.id);
+      } else {
+        await supabase.from('call_logs').insert({ user_id: user!.id, lead_id: leadId, call_date: today, call_count: 1 });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard-calls'] });
+      toast.success('Call logged!');
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const filtered = leads?.filter(l => {
+    const matchesSearch = !search || l.name?.toLowerCase().includes(search.toLowerCase()) || l.email?.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || l.lead_status === statusFilter;
+    return matchesSearch && matchesStatus;
+  }) || [];
+
+  const canCall = role === 'SALES_TM' || role === 'SALES_TL' || role === 'ADMIN';
+  const canUpdateStatus = role === 'SALES_TM' || role === 'SALES_TL' || role === 'ADMIN';
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-display font-bold">Leads</h1>
+        <div className="flex items-center gap-3">
+          <Input
+            placeholder="Search by name or email..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-64"
+          />
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-40">
+              <Filter className="h-4 w-4 mr-2" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              {allStatuses.map(s => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <Card className="glass-card">
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-8 text-center text-muted-foreground">Loading leads...</div>
+          ) : filtered.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">No leads found</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left p-3 font-medium text-muted-foreground">Name</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Email</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Phone</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Category</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Status</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((lead, i) => (
+                    <motion.tr
+                      key={lead.unique_id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: i * 0.03 }}
+                      className="border-b border-border/50 hover:bg-accent/30 transition-colors"
+                      style={lead.highlight_color ? { backgroundColor: lead.highlight_color + '20' } : {}}
+                    >
+                      <td className="p-3 font-medium">{lead.name}</td>
+                      <td className="p-3 text-muted-foreground">{lead.email}</td>
+                      <td className="p-3 text-muted-foreground">{lead.phone}</td>
+                      <td className="p-3">
+                        <Badge variant="secondary" className={lead.lead_category === 'Hot' ? 'bg-amber-500/10 text-amber-600' : ''}>
+                          {lead.lead_category}
+                        </Badge>
+                      </td>
+                      <td className="p-3">
+                        {canUpdateStatus ? (
+                          <Select
+                            value={lead.lead_status || 'New'}
+                            onValueChange={v => updateStatus.mutate({ leadId: lead.unique_id, status: v })}
+                          >
+                            <SelectTrigger className="h-7 w-32 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {allStatuses.map(s => (
+                                <SelectItem key={s} value={s}>{s}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <span className={`text-xs px-2 py-1 rounded-full ${statusColors[lead.lead_status || 'New'] || ''}`}>
+                            {lead.lead_status}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        <div className="flex items-center gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => setSelectedLead(lead)}>
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                          {canCall && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleCall.mutate(lead.unique_id)}
+                              className="text-primary"
+                            >
+                              <Phone className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {selectedLead && (
+        <LeadDetailDialog lead={selectedLead} open={!!selectedLead} onClose={() => setSelectedLead(null)} />
+      )}
+      {closureLead && (
+        <ClosureDialog lead={closureLead} open={!!closureLead} onClose={() => { setClosureLead(null); queryClient.invalidateQueries({ queryKey: ['leads'] }); }} />
+      )}
+    </div>
+  );
+};
+
+export default LeadsPage;
