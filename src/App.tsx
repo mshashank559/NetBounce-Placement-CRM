@@ -14,6 +14,11 @@ import AssignLeadsPage from "@/pages/AssignLeadsPage";
 import CallTrackerPage from "@/pages/CallTrackerPage";
 import AnalyticsPage from "@/pages/AnalyticsPage";
 import NotificationsPage from "@/pages/NotificationsPage";
+import SalesTLDashboardPage from "@/pages/SalesTLDashboardPage";
+import RevenuePage from "@/pages/RevenuePage";
+import DNRFollowupsPage from "@/pages/DNRFollowupsPage";
+import BDTLDashboardPage from "@/pages/BDTLDashboardPage";
+import UserManagementPage from "@/pages/UserManagementPage";
 
 const queryClient = new QueryClient();
 
@@ -56,6 +61,11 @@ const App = () => (
                   <Route path="/calls" element={<CallTrackerPage />} />
                   <Route path="/analytics" element={<AnalyticsPage />} />
                   <Route path="/notifications" element={<NotificationsPage />} />
+                  <Route path="/sales-performance" element={<SalesTLDashboardPage />} />
+                  <Route path="/revenue" element={<RevenuePage />} />
+                  <Route path="/dnr-followups" element={<DNRFollowupsPage />} />
+                  <Route path="/bd-performance" element={<BDTLDashboardPage />} />
+                  <Route path="/users" element={<UserManagementPage />} />
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 </Route>
               </Route>
