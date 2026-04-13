@@ -176,6 +176,7 @@ export type Database = {
           concern: boolean | null
           created_at: string
           date: string
+          display_id: string | null
           email: string
           highlight_color: string | null
           lead_category: Database["public"]["Enums"]["lead_category"] | null
@@ -201,6 +202,7 @@ export type Database = {
           concern?: boolean | null
           created_at?: string
           date?: string
+          display_id?: string | null
           email: string
           highlight_color?: string | null
           lead_category?: Database["public"]["Enums"]["lead_category"] | null
@@ -226,6 +228,7 @@ export type Database = {
           concern?: boolean | null
           created_at?: string
           date?: string
+          display_id?: string | null
           email?: string
           highlight_color?: string | null
           lead_category?: Database["public"]["Enums"]["lead_category"] | null
@@ -376,7 +379,13 @@ export type Database = {
         | "Closed"
         | "Non Interested"
       lead_type: "New" | "Reference"
-      payment_mode: "Cash" | "Card" | "UPI" | "Bank Transfer" | "Other"
+      payment_mode:
+        | "Cash"
+        | "Card"
+        | "UPI"
+        | "Bank Transfer"
+        | "Other"
+        | "Stripe"
       plan_type: "Starter" | "Premium" | "Elite"
     }
     CompositeTypes: {
@@ -526,7 +535,7 @@ export const Constants = {
         "Non Interested",
       ],
       lead_type: ["New", "Reference"],
-      payment_mode: ["Cash", "Card", "UPI", "Bank Transfer", "Other"],
+      payment_mode: ["Cash", "Card", "UPI", "Bank Transfer", "Other", "Stripe"],
       plan_type: ["Starter", "Premium", "Elite"],
     },
   },
