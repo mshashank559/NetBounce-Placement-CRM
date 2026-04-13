@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
-import { Users, TrendingUp, Phone, CheckCircle, AlertCircle, Plus } from 'lucide-react';
+import { Users, TrendingUp, Phone, CheckCircle, Plus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const StatCard: React.FC<{
   title: string;
@@ -33,6 +34,12 @@ const StatCard: React.FC<{
 
 const DashboardPage: React.FC = () => {
   const { user, role, profile } = useAuth();
+  const [monthFilter, setMonthFilter] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  const [filterYear, filterMonth] = monthFilter.split('-').map(Number);
 
   const { data: leads } = useQuery({
     queryKey: ['dashboard-leads', user?.id],
@@ -56,21 +63,47 @@ const DashboardPage: React.FC = () => {
     enabled: !!user && (role === 'SALES_TM' || role === 'SALES_TL' || role === 'ADMIN'),
   });
 
-  const totalLeads = leads?.length || 0;
-  const newLeads = leads?.filter(l => l.lead_status === 'New').length || 0;
-  const closures = leads?.filter(l => l.lead_status === 'Closed').length || 0;
-  const activeLeads = leads?.filter(l => !['Closed', 'Non Interested'].includes(l.lead_status || '')).length || 0;
+  const monthLeads = leads?.filter(l => {
+    const d = new Date(l.created_at);
+    return d.getFullYear() === filterYear && d.getMonth() + 1 === filterMonth;
+  }) || [];
+
+  const totalLeads = monthLeads.length;
+  const newLeads = monthLeads.filter(l => l.lead_status === 'New').length;
+  const closures = monthLeads.filter(l => l.lead_status === 'Closed').length;
+  const activeLeads = monthLeads.filter(l => !['Closed', 'Non Interested'].includes(l.lead_status || '')).length;
   const todayCalls = callLogs?.reduce((sum, c) => sum + (c.call_count || 0), 0) || 0;
+
+  const monthOptions = [];
+  for (let i = 0; i < 12; i++) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    monthOptions.push({ val, label });
+  }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-display font-bold">
-          Welcome back, {profile?.full_name || 'User'}
-        </h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Here's your CRM overview for today
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-display font-bold">
+            Welcome back, {profile?.full_name || 'User'}
+          </h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Here's your CRM overview
+          </p>
+        </div>
+        <Select value={monthFilter} onValueChange={setMonthFilter}>
+          <SelectTrigger className="w-48">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {monthOptions.map(o => (
+              <SelectItem key={o.val} value={o.val}>{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -101,7 +134,10 @@ const DashboardPage: React.FC = () => {
                     className="flex items-center justify-between p-3 rounded-lg bg-accent/50 hover:bg-accent transition-colors"
                   >
                     <div>
-                      <p className="font-medium text-sm">{lead.name}</p>
+                      <p className="font-medium text-sm">
+                        <span className="text-xs font-mono text-muted-foreground mr-2">{(lead as any).display_id}</span>
+                        {lead.name}
+                      </p>
                       <p className="text-xs text-muted-foreground">{lead.email}</p>
                     </div>
                     <span className={`text-xs px-2 py-1 rounded-full font-medium ${
