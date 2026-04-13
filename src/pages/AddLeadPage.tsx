@@ -66,6 +66,24 @@ const AddLeadPage: React.FC = () => {
 
       const { error } = await supabase.from('leads').insert(leadData);
       if (error) throw error;
+
+      // Notify BD TL when BD member adds a lead
+      if (role === 'LEAD_GEN') {
+        const { data: bdTLs } = await supabase
+          .from('user_roles')
+          .select('user_id')
+          .eq('role', 'LEAD_TL');
+
+        if (bdTLs && bdTLs.length > 0) {
+          const notifs = bdTLs.map(tl => ({
+            user_id: tl.user_id,
+            title: 'New Lead Added',
+            message: `New lead "${form.name}" added. Please review and assign.`,
+            type: 'new_lead',
+          }));
+          await supabase.from('notifications').insert(notifs);
+        }
+      }
     },
     onSuccess: () => {
       toast.success('Lead added successfully!');
