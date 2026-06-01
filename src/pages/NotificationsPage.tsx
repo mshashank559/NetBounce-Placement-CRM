@@ -12,6 +12,14 @@ import { useNavigate } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 
+const chunkArray = <T,>(arr: T[], size: number): T[][] => {
+  const chunks: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+};
+
 const NotificationsPage: React.FC = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -51,8 +59,11 @@ const NotificationsPage: React.FC = () => {
 
   const bulkMarkRead = useMutation({
     mutationFn: async (ids: string[]) => {
-      const { error } = await supabase.from('notifications').update({ read: true }).in('id', ids);
-      if (error) throw error;
+      const chunks = chunkArray(ids, 100);
+      for (const chunk of chunks) {
+        const { error } = await supabase.from('notifications').update({ read: true }).in('id', chunk);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
@@ -68,8 +79,11 @@ const NotificationsPage: React.FC = () => {
 
   const bulkDelete = useMutation({
     mutationFn: async (ids: string[]) => {
-      const { error } = await supabase.from('notifications').delete().in('id', ids);
-      if (error) throw error;
+      const chunks = chunkArray(ids, 100);
+      for (const chunk of chunks) {
+        const { error } = await supabase.from('notifications').delete().in('id', chunk);
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
