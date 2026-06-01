@@ -456,11 +456,11 @@ const AssignLeadsPage: React.FC = () => {
                 {filteredUnassigned.map((lead) => (
                   <div
                     key={lead.unique_id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-accent/30"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-accent/30 gap-3"
                   >
-                    <div>
-                      <p className="font-medium text-sm">{lead.name}</p>
-                      <p className="text-xs text-muted-foreground">{lead.email} · {lead.phone}</p>
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">{lead.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{lead.email} · {lead.phone}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <Select
@@ -532,11 +532,11 @@ const AssignLeadsPage: React.FC = () => {
                 {filteredTeamQueue.map((lead) => (
                   <div
                     key={lead.unique_id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-accent/30"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-accent/30 gap-3"
                   >
-                    <div>
-                      <p className="font-medium text-sm">{lead.name}</p>
-                      <p className="text-xs text-muted-foreground">{lead.email} · {lead.phone}</p>
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">{lead.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{lead.email} · {lead.phone}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <Select

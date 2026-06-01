@@ -96,7 +96,7 @@ const UserManagementPage: React.FC = () => {
         </CardHeader>
         <CardContent>
           <form onSubmit={e => { e.preventDefault(); createUser.mutate(); }} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Full Name *</Label>
                 <Input value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} required />

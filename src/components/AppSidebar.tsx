@@ -33,7 +33,12 @@ const navItems: NavItem[] = [
   { label: 'User Management', icon: Shield, path: '/users', roles: ['ADMIN'] },
 ];
 
-const AppSidebar: React.FC = () => {
+interface AppSidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+const AppSidebar: React.FC<AppSidebarProps> = ({ isOpen = false, onClose }) => {
   const { role, signOut, profile } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
@@ -42,7 +47,19 @@ const AppSidebar: React.FC = () => {
   const filteredItems = navItems.filter(item => role && item.roles.includes(role));
 
   return (
-    <aside className="w-64 h-screen bg-sidebar flex flex-col border-r border-sidebar-border sticky top-0">
+    <>
+      {/* Mobile Sidebar Backdrop */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs md:hidden"
+          onClick={onClose}
+        />
+      )}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-64 h-screen bg-sidebar flex flex-col border-r border-sidebar-border transition-transform duration-300 md:sticky md:translate-x-0 ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
       <div className="p-5 flex items-center gap-3 border-b border-sidebar-border">
         <img
           src={logo}
@@ -62,7 +79,10 @@ const AppSidebar: React.FC = () => {
           return (
             <button
               key={item.path}
-              onClick={() => navigate(item.path)}
+              onClick={() => {
+                navigate(item.path);
+                if (onClose) onClose();
+              }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${
                 isActive
                   ? 'bg-sidebar-primary text-sidebar-primary-foreground nb-glow'
@@ -89,7 +109,10 @@ const AppSidebar: React.FC = () => {
           {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
         </button>
         <button
-          onClick={signOut}
+          onClick={() => {
+            signOut();
+            if (onClose) onClose();
+          }}
           className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-destructive hover:bg-sidebar-accent transition-all"
         >
           <LogOut className="h-4 w-4" />
@@ -97,6 +120,7 @@ const AppSidebar: React.FC = () => {
         </button>
       </div>
     </aside>
+    </>
   );
 };
 

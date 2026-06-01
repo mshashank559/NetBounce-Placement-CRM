@@ -182,7 +182,7 @@ const AddLeadPage: React.FC = () => {
         </CardHeader>
         <CardContent>
           <form onSubmit={e => { e.preventDefault(); mutation.mutate(); }} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Name *</Label>
                 <Input value={form.name} onChange={e => set('name', e.target.value)} required placeholder="Candidate Name" />

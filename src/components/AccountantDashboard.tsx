@@ -1137,7 +1137,7 @@ function LedgerDialog({ open, onClose, lead, user, onSuccess }: any) {
           <DialogTitle className="font-display">Payment Ledger â€” {lead?.name}</DialogTitle>
         </DialogHeader>
         <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(); }} className="space-y-4 mt-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-xs">Total Amount ($)</Label>
               <Input type="number" className="bg-background/50 h-9" value={form.total_amount} onChange={e => setForm({...form, total_amount: cleanNumberString(e.target.value)})} />
@@ -1162,7 +1162,7 @@ function LedgerDialog({ open, onClose, lead, user, onSuccess }: any) {
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4 border-t border-border/10 pt-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-border/10 pt-4">
             <div className="space-y-2">
               <Label className="text-xs text-primary">Next Payment Amt</Label>
               <Input type="number" className="bg-background/50 h-9" value={form.next_payment_amount} onChange={e => setForm({...form, next_payment_amount: cleanNumberString(e.target.value)})} />

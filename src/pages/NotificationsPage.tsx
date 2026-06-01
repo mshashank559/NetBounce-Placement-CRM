@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Check, ExternalLink, Filter, Trash2, CheckCheck } from 'lucide-react';
+import { Bell, ExternalLink, Filter, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
@@ -87,9 +87,7 @@ const NotificationsPage: React.FC = () => {
     if (!n.read) {
       markRead.mutate(n.id);
     }
-    if (n.lead_id) {
-      navigate('/leads');
-    }
+    toggleSelection(n.id);
   };
 
   const filteredNotifications = notifications?.filter(n => {
@@ -237,14 +235,15 @@ const NotificationsPage: React.FC = () => {
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.03 }}
-                  className={`flex items-start gap-3 p-3 rounded-lg transition-colors hover:bg-accent/80 ${
+                  onClick={() => handleNotificationClick(n)}
+                  className={`flex items-start gap-3 p-3 rounded-lg transition-all duration-250 hover:bg-accent/80 cursor-pointer select-none ${
                     n.type === 'accountant_update'
                       ? n.read
                         ? 'bg-purple-500/5 border-l-2 border-purple-400/40'
-                        : 'bg-purple-500/10 border-l-2 border-purple-500'
+                        : 'bg-purple-500/10 border-l-2 border-purple-500 shadow-sm'
                       : n.read
                         ? 'bg-accent/20'
-                        : 'bg-accent/50 border-l-2 border-primary'
+                        : 'bg-accent/50 border-l-2 border-primary shadow-sm'
                   }`}
                 >
                   {/* Checkbox */}
@@ -254,32 +253,35 @@ const NotificationsPage: React.FC = () => {
                       onCheckedChange={() => toggleSelection(n.id)}
                     />
                   </div>
-                  {/* Content - clickable */}
-                  <div
-                    className="flex-1 cursor-pointer min-w-0"
-                    onClick={() => handleNotificationClick(n)}
-                  >
-                    <p className="text-sm font-medium flex items-center gap-2">
-                      {n.title}
-                      {n.lead_id && <ExternalLink className="h-3 w-3 text-muted-foreground" />}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{n.message}</p>
-                    <span className="text-xs text-muted-foreground/60 mt-1 block">
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-4">
+                      <p className="text-sm font-semibold text-foreground">
+                        {n.title}
+                      </p>
+                      {n.lead_id && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs gap-1 text-primary hover:text-primary-foreground hover:bg-primary shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!n.read) {
+                              markRead.mutate(n.id);
+                            }
+                            navigate('/leads');
+                          }}
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          View Lead
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{n.message}</p>
+                    <span className="text-[10px] text-muted-foreground/60 mt-1.5 block">
                       {new Date(n.created_at).toLocaleString()}
                     </span>
                   </div>
-                  {!n.read && (
-                    <Button 
-                      size="sm" 
-                      variant="ghost" 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        markRead.mutate(n.id);
-                      }}
-                    >
-                      <Check className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
                 </motion.div>
               ))}
             </div>
