@@ -2,6 +2,7 @@ import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { fetchAllLeads } from '@/lib/leads';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { motion } from 'framer-motion';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Funnel, FunnelChart, LabelList } from 'recharts';
@@ -13,10 +14,7 @@ const AnalyticsPage: React.FC = () => {
 
   const { data: leads } = useQuery({
     queryKey: ['analytics-leads'],
-    queryFn: async () => {
-      const { data } = await supabase.from('leads').select('*');
-      return data || [];
-    },
+    queryFn: fetchAllLeads,
     enabled: !!user,
   });
 

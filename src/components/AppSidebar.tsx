@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import logo from '@/assets/logo.png';
 
-type AppRole = 'ADMIN' | 'PROCESS_ANALYST' | 'LEAD_TL' | 'LEAD_GEN' | 'SALES_TL' | 'SALES_TM';
+type AppRole = 'ADMIN' | 'PROCESS_ANALYST' | 'LEAD_TL' | 'LEAD_GEN' | 'SALES_TL' | 'SALES_TM' | 'ACCOUNTANT';
 
 interface NavItem {
   label: string;
@@ -18,17 +18,18 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', roles: ['ADMIN', 'PROCESS_ANALYST', 'LEAD_TL', 'LEAD_GEN', 'SALES_TL', 'SALES_TM'] },
+  { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', roles: ['ADMIN', 'PROCESS_ANALYST', 'LEAD_TL', 'LEAD_GEN', 'SALES_TL', 'SALES_TM', 'ACCOUNTANT'] },
+  { label: 'Leads View', icon: Users, path: '/leads-view', roles: ['ACCOUNTANT'] },
   { label: 'Add Lead', icon: Plus, path: '/leads/new', roles: ['ADMIN', 'LEAD_GEN', 'LEAD_TL', 'SALES_TM', 'SALES_TL'] },
   { label: 'Leads', icon: Users, path: '/leads', roles: ['ADMIN', 'PROCESS_ANALYST', 'LEAD_TL', 'LEAD_GEN', 'SALES_TL', 'SALES_TM'] },
   { label: 'Assign Leads', icon: UserCog, path: '/assign', roles: ['ADMIN', 'LEAD_TL', 'SALES_TL'] },
-  { label: 'Call Tracker', icon: Phone, path: '/calls', roles: ['SALES_TM', 'SALES_TL', 'ADMIN'] },
+  { label: 'Call Tracker', icon: Phone, path: '/calls', roles: ['SALES_TM', 'SALES_TL', 'ADMIN', 'PROCESS_ANALYST'] },
   { label: 'Sales Performance', icon: UsersRound, path: '/sales-performance', roles: ['SALES_TL', 'ADMIN'] },
   { label: 'BD Performance', icon: UsersRound, path: '/bd-performance', roles: ['LEAD_TL', 'ADMIN'] },
   { label: 'Revenue', icon: DollarSign, path: '/revenue', roles: ['ADMIN', 'SALES_TL'] },
   { label: 'DNR Follow-ups', icon: AlertCircle, path: '/dnr-followups', roles: ['ADMIN', 'LEAD_GEN', 'LEAD_TL', 'SALES_TL', 'SALES_TM'] },
   { label: 'Analytics', icon: BarChart3, path: '/analytics', roles: ['ADMIN', 'PROCESS_ANALYST', 'LEAD_TL', 'SALES_TL'] },
-  { label: 'Notifications', icon: Bell, path: '/notifications', roles: ['ADMIN', 'PROCESS_ANALYST', 'LEAD_TL', 'LEAD_GEN', 'SALES_TL', 'SALES_TM'] },
+  { label: 'Notifications', icon: Bell, path: '/notifications', roles: ['ADMIN', 'PROCESS_ANALYST', 'LEAD_TL', 'LEAD_GEN', 'SALES_TL', 'SALES_TM', 'ACCOUNTANT'] },
   { label: 'User Management', icon: Shield, path: '/users', roles: ['ADMIN'] },
 ];
 

@@ -124,6 +124,7 @@ export type Database = {
           created_at: string
           id: string
           interview_plan: boolean
+          interviews_guaranteed: number | null
           lead_id: string
           payment_mode: Database["public"]["Enums"]["payment_mode"]
           plan: Database["public"]["Enums"]["plan_type"]
@@ -132,11 +133,16 @@ export type Database = {
           slot2: boolean | null
           slot2_amount: number | null
           upfront_amount: number
+          amount: number | null
+          percentage: number | null
+          slot1_due_date: string | null
+          next_slot_due_date: string | null
         }
         Insert: {
           created_at?: string
           id?: string
           interview_plan?: boolean
+          interviews_guaranteed?: number | null
           lead_id: string
           payment_mode: Database["public"]["Enums"]["payment_mode"]
           plan: Database["public"]["Enums"]["plan_type"]
@@ -145,11 +151,16 @@ export type Database = {
           slot2?: boolean | null
           slot2_amount?: number | null
           upfront_amount?: number
+          amount?: number | null
+          percentage?: number | null
+          slot1_due_date?: string | null
+          next_slot_due_date?: string | null
         }
         Update: {
           created_at?: string
           id?: string
           interview_plan?: boolean
+          interviews_guaranteed?: number | null
           lead_id?: string
           payment_mode?: Database["public"]["Enums"]["payment_mode"]
           plan?: Database["public"]["Enums"]["plan_type"]
@@ -158,6 +169,10 @@ export type Database = {
           slot2?: boolean | null
           slot2_amount?: number | null
           upfront_amount?: number
+          amount?: number | null
+          percentage?: number | null
+          slot1_due_date?: string | null
+          next_slot_due_date?: string | null
         }
         Relationships: [
           {
@@ -171,12 +186,18 @@ export type Database = {
       }
       leads: {
         Row: {
+          agreement_sent_at: string | null
+          agreement_status: Database["public"]["Enums"]["agreement_status"] | null
           assigned_to: string | null
+          assignment_type: string | null
           comment: string | null
           concern: boolean | null
           created_at: string
           date: string
           display_id: string | null
+          dnr_followup_done: boolean | null
+          dnr_followup_done_at: string | null
+          dnr_followup_done_by: string | null
           email: string
           highlight_color: string | null
           lead_category: Database["public"]["Enums"]["lead_category"] | null
@@ -192,17 +213,24 @@ export type Database = {
           technology: string | null
           time_for_call: string | null
           timezone: string | null
+          team_lead_id: string | null
           unique_id: string
           university: string | null
           updated_at: string
         }
         Insert: {
+          agreement_sent_at?: string | null
+          agreement_status?: Database["public"]["Enums"]["agreement_status"] | null
           assigned_to?: string | null
+          assignment_type?: string | null
           comment?: string | null
           concern?: boolean | null
           created_at?: string
           date?: string
           display_id?: string | null
+          dnr_followup_done?: boolean | null
+          dnr_followup_done_at?: string | null
+          dnr_followup_done_by?: string | null
           email: string
           highlight_color?: string | null
           lead_category?: Database["public"]["Enums"]["lead_category"] | null
@@ -218,17 +246,24 @@ export type Database = {
           technology?: string | null
           time_for_call?: string | null
           timezone?: string | null
+          team_lead_id?: string | null
           unique_id?: string
           university?: string | null
           updated_at?: string
         }
         Update: {
+          agreement_sent_at?: string | null
+          agreement_status?: Database["public"]["Enums"]["agreement_status"] | null
           assigned_to?: string | null
+          assignment_type?: string | null
           comment?: string | null
           concern?: boolean | null
           created_at?: string
           date?: string
           display_id?: string | null
+          dnr_followup_done?: boolean | null
+          dnr_followup_done_at?: string | null
+          dnr_followup_done_by?: string | null
           email?: string
           highlight_color?: string | null
           lead_category?: Database["public"]["Enums"]["lead_category"] | null
@@ -244,11 +279,144 @@ export type Database = {
           technology?: string | null
           time_for_call?: string | null
           timezone?: string | null
+          team_lead_id?: string | null
           unique_id?: string
           university?: string | null
           updated_at?: string
         }
         Relationships: []
+      }
+      lead_history_logs: {
+        Row: {
+          action_type: string
+          changed_by: string
+          comments: string | null
+          created_at: string
+          id: string
+          lead_id: string
+          new_value: string | null
+          old_value: string | null
+        }
+        Insert: {
+          action_type: string
+          changed_by: string
+          comments?: string | null
+          created_at?: string
+          id?: string
+          lead_id: string
+          new_value?: string | null
+          old_value?: string | null
+        }
+        Update: {
+          action_type?: string
+          changed_by?: string
+          comments?: string | null
+          created_at?: string
+          id?: string
+          lead_id?: string
+          new_value?: string | null
+          old_value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_history_logs_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["unique_id"]
+          }
+        ]
+      }
+      payment_ledgers: {
+        Row: {
+          created_at: string
+          id: string
+          lead_id: string
+          managed_by: string | null
+          next_payment_amount: number | null
+          next_payment_date: string | null
+          payment_status: string | null
+          total_amount: number
+          total_due: number
+          total_paid: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lead_id: string
+          managed_by?: string | null
+          next_payment_amount?: number | null
+          next_payment_date?: string | null
+          payment_status?: string | null
+          total_amount?: number
+          total_due?: number
+          total_paid?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lead_id?: string
+          managed_by?: string | null
+          next_payment_amount?: number | null
+          next_payment_date?: string | null
+          payment_status?: string | null
+          total_amount?: number
+          total_due?: number
+          total_paid?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_ledgers_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["unique_id"]
+          }
+        ]
+      }
+      performas: {
+        Row: {
+          amount: number | null
+          created_at: string
+          document_url: string | null
+          id: string
+          lead_id: string
+          notes: string | null
+          sent_by: string
+          type: Database["public"]["Enums"]["performa_type"]
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          document_url?: string | null
+          id?: string
+          lead_id: string
+          notes?: string | null
+          sent_by: string
+          type: Database["public"]["Enums"]["performa_type"]
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          document_url?: string | null
+          id?: string
+          lead_id?: string
+          notes?: string | null
+          sent_by?: string
+          type?: Database["public"]["Enums"]["performa_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "performas_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["unique_id"]
+          }
+        ]
       }
       notifications: {
         Row: {
@@ -299,6 +467,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          reports_to: string | null
           updated_at: string
           user_id: string
         }
@@ -309,6 +478,7 @@ export type Database = {
           email: string
           full_name: string
           id?: string
+          reports_to?: string | null
           updated_at?: string
           user_id: string
         }
@@ -319,6 +489,7 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          reports_to?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -360,6 +531,7 @@ export type Database = {
       }
     }
     Enums: {
+      agreement_status: "Not Started" | "Review Doc Sent" | "Final Agreement Sent" | "Agreement Signed"
       app_role:
         | "ADMIN"
         | "PROCESS_ANALYST"
@@ -367,6 +539,7 @@ export type Database = {
         | "LEAD_GEN"
         | "SALES_TL"
         | "SALES_TM"
+        | "ACCOUNTANT"
       lead_category: "Hot" | "Cold"
       lead_status:
         | "New"
@@ -386,7 +559,8 @@ export type Database = {
         | "Bank Transfer"
         | "Other"
         | "Stripe"
-      plan_type: "Starter" | "Premium" | "Elite"
+      performa_type: "Pre-Performa" | "Post-Performa"
+      plan_type: "Starter" | "Premium" | "Elite" | "Pro" | "Custom"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -514,6 +688,12 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      agreement_status: [
+        "Not Started",
+        "Review Doc Sent",
+        "Final Agreement Sent",
+        "Agreement Signed"
+      ],
       app_role: [
         "ADMIN",
         "PROCESS_ANALYST",
@@ -521,6 +701,7 @@ export const Constants = {
         "LEAD_GEN",
         "SALES_TL",
         "SALES_TM",
+        "ACCOUNTANT",
       ],
       lead_category: ["Hot", "Cold"],
       lead_status: [
@@ -536,7 +717,8 @@ export const Constants = {
       ],
       lead_type: ["New", "Reference"],
       payment_mode: ["Cash", "Card", "UPI", "Bank Transfer", "Other", "Stripe"],
-      plan_type: ["Starter", "Premium", "Elite"],
+      performa_type: ["Pre-Performa", "Post-Performa"],
+      plan_type: ["Starter", "Premium", "Elite", "Pro", "Custom"],
     },
   },
 } as const

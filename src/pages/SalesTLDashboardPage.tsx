@@ -6,22 +6,30 @@ import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Phone, Users, CheckCircle, DollarSign } from 'lucide-react';
+import { Phone, Users, CheckCircle, DollarSign, RefreshCw, Eye, LayoutDashboard, User } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const SalesTLDashboardPage: React.FC = () => {
   const { user, role } = useAuth();
+  const [viewMode, setViewMode] = useState('team'); // 'personal' or 'team'
   const [monthFilter, setMonthFilter] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
 
   const { data: salesMembers } = useQuery({
-    queryKey: ['sales-members-perf'],
+    queryKey: ['sales-members-perf', user?.id],
     queryFn: async () => {
-      const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('role', ['SALES_TM']);
+      const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('role', ['SALES_TM', 'SALES_TL']);
       if (!roles) return [];
       const userIds = roles.map(r => r.user_id);
-      const { data: profiles } = await supabase.from('profiles').select('*').in('user_id', userIds);
+      
+      let query = supabase.from('profiles').select('*').in('user_id', userIds);
+      if (role !== 'ADMIN') {
+        query = query.or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
+      }
+      
+      const { data: profiles } = await query;
       return profiles || [];
     },
     enabled: !!user,
@@ -102,6 +110,13 @@ const SalesTLDashboardPage: React.FC = () => {
     });
   }, [salesMembers, allLeads, callLogs, closures, today, filterYear, filterMonth]);
 
+  const displayedStats = useMemo(() => {
+    if (viewMode === 'personal') {
+      return memberStats.filter(m => m.user_id === user?.id);
+    }
+    return memberStats.filter(m => m.user_id !== user?.id);
+  }, [memberStats, viewMode, user?.id]);
+
   if (role !== 'SALES_TL' && role !== 'ADMIN') {
     return <div className="text-center text-muted-foreground p-8">Access denied</div>;
   }
@@ -118,9 +133,17 @@ const SalesTLDashboardPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <h1 className="text-2xl font-display font-bold">Sales Team Performance</h1>
-        <Select value={monthFilter} onValueChange={setMonthFilter}>
+        <div className="flex items-center gap-3">
+          <Tabs value={viewMode} onValueChange={setViewMode} className="w-[200px]">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="personal">My View</TabsTrigger>
+              <TabsTrigger value="team">Team View</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <Select value={monthFilter} onValueChange={setMonthFilter}>
           <SelectTrigger className="w-48">
             <SelectValue />
           </SelectTrigger>
@@ -131,9 +154,10 @@ const SalesTLDashboardPage: React.FC = () => {
           </SelectContent>
         </Select>
       </div>
+    </div>
 
-      <div className="space-y-4">
-        {memberStats.map((m, i) => (
+    <div className="space-y-4">
+        {displayedStats.map((m, i) => (
           <motion.div key={m.user_id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
             <Card className="glass-card">
               <CardHeader>
@@ -215,10 +239,11 @@ const SalesTLDashboardPage: React.FC = () => {
             </Card>
           </motion.div>
         ))}
-        {memberStats.length === 0 && (
-          <p className="text-center text-muted-foreground py-8">No sales team members found</p>
+        {displayedStats.length === 0 && (
+          <p className="text-center text-muted-foreground py-8">No {viewMode} performance data found</p>
         )}
       </div>
+
     </div>
   );
 };

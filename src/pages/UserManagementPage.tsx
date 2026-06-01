@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { UserPlus, Trash2 } from 'lucide-react';
 
-const ROLES = ['ADMIN', 'PROCESS_ANALYST', 'LEAD_TL', 'LEAD_GEN', 'SALES_TL', 'SALES_TM'] as const;
+const ROLES = ['ADMIN', 'PROCESS_ANALYST', 'LEAD_TL', 'LEAD_GEN', 'SALES_TL', 'SALES_TM', 'ACCOUNTANT'] as const;
 
 const UserManagementPage: React.FC = () => {
   const { role } = useAuth();
@@ -24,6 +24,7 @@ const UserManagementPage: React.FC = () => {
     full_name: '',
     role: '' as string,
     department: '',
+    reports_to: '',
   });
 
   const { data: users } = useQuery({
@@ -33,8 +34,22 @@ const UserManagementPage: React.FC = () => {
       const { data: roles } = await supabase.from('user_roles').select('*');
       const roleMap: Record<string, string> = {};
       roles?.forEach(r => { roleMap[r.user_id] = r.role; });
-      return profiles?.map(p => ({ ...p, role: roleMap[p.user_id] || 'Unknown' })) || [];
+      return profiles?.map(p => ({ 
+        ...p, 
+        role: roleMap[p.user_id] || 'Unknown',
+        reports_to_name: profiles.find(rp => rp.user_id === p.reports_to)?.full_name || '—'
+      })) || [];
     },
+  });
+
+  const { data: teamLeads } = useQuery({
+    queryKey: ['team-leads'],
+    queryFn: async () => {
+      const { data: roles } = await supabase.from('user_roles').select('user_id').eq('role', 'SALES_TL');
+      if (!roles) return [];
+      const { data: profiles } = await supabase.from('profiles').select('*').in('user_id', roles.map(r => r.user_id));
+      return profiles || [];
+    }
   });
 
   const createUser = useMutation({
@@ -51,6 +66,7 @@ const UserManagementPage: React.FC = () => {
             full_name: form.full_name,
             role: form.role,
             department: form.department,
+            reports_to: form.reports_to || null,
           },
         },
       });
@@ -59,7 +75,7 @@ const UserManagementPage: React.FC = () => {
     onSuccess: () => {
       toast.success('User created successfully! They need to verify their email.');
       queryClient.invalidateQueries({ queryKey: ['all-users'] });
-      setForm({ email: '', password: '', full_name: '', role: '', department: '' });
+      setForm({ email: '', password: '', full_name: '', role: '', department: '', reports_to: '' });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -108,6 +124,19 @@ const UserManagementPage: React.FC = () => {
                 <Label>Department</Label>
                 <Input value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value }))} placeholder="Optional" />
               </div>
+              {form.role === 'SALES_TM' && (
+                <div>
+                  <Label>Reports To (Sales TL) *</Label>
+                  <Select value={form.reports_to} onValueChange={v => setForm(f => ({ ...f, reports_to: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select Team Lead" /></SelectTrigger>
+                    <SelectContent>
+                      {teamLeads?.map(tl => (
+                        <SelectItem key={tl.user_id} value={tl.user_id}>{tl.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
             <Button type="submit" className="nb-gradient" disabled={createUser.isPending}>
               {createUser.isPending ? 'Creating...' : 'Create User'}
@@ -129,6 +158,7 @@ const UserManagementPage: React.FC = () => {
                   <th className="text-left p-3 font-medium text-muted-foreground">Email</th>
                   <th className="text-left p-3 font-medium text-muted-foreground">Role</th>
                   <th className="text-left p-3 font-medium text-muted-foreground">Department</th>
+                  <th className="text-left p-3 font-medium text-muted-foreground">Reports To</th>
                 </tr>
               </thead>
               <tbody>
@@ -146,6 +176,7 @@ const UserManagementPage: React.FC = () => {
                       <Badge variant="secondary">{u.role}</Badge>
                     </td>
                     <td className="p-3 text-muted-foreground">{u.department || '—'}</td>
+                    <td className="p-3 text-muted-foreground">{u.reports_to_name}</td>
                   </motion.tr>
                 ))}
               </tbody>

@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import tailwindAnimate from "tailwindcss-animate";
 
 export default {
   darkMode: ["class"],
@@ -78,13 +79,24 @@ export default {
           "0%, 100%": { boxShadow: "0 0 20px hsla(222, 100%, 50%, 0.3)" },
           "50%": { boxShadow: "0 0 40px hsla(222, 100%, 50%, 0.6)" },
         },
+        "bell-shake": {
+          "0%, 100%": { transform: "rotate(0deg)" },
+          "10%": { transform: "rotate(-15deg)" },
+          "20%": { transform: "rotate(15deg)" },
+          "30%": { transform: "rotate(-10deg)" },
+          "40%": { transform: "rotate(10deg)" },
+          "50%": { transform: "rotate(-5deg)" },
+          "60%": { transform: "rotate(5deg)" },
+          "70%": { transform: "rotate(0deg)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "pulse-glow": "pulse-glow 2s ease-in-out infinite",
+        "bell-shake": "bell-shake 1s ease-in-out infinite",
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [tailwindAnimate],
 } satisfies Config;

@@ -55,6 +55,7 @@ const App = () => (
               <Route element={<ProtectedRoute />}>
                 <Route element={<DashboardLayout />}>
                   <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/leads-view" element={<DashboardPage />} />
                   <Route path="/leads/new" element={<AddLeadPage />} />
                   <Route path="/leads" element={<LeadsPage />} />
                   <Route path="/assign" element={<AssignLeadsPage />} />

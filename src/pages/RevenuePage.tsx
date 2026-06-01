@@ -14,9 +14,13 @@ const RevenuePage: React.FC = () => {
   const [yearFilter, setYearFilter] = useState(String(currentYear));
 
   const { data: closures } = useQuery({
-    queryKey: ['revenue-closures'],
+    queryKey: ['revenue-closures', user?.id, role],
     queryFn: async () => {
-      const { data } = await supabase.from('lead_closures').select('*');
+      let query = supabase.from('lead_closures').select('*, leads!inner(team_lead_id, assigned_to)');
+      if (role === 'SALES_TL') {
+        query = query.or(`team_lead_id.eq.${user!.id},assigned_to.eq.${user!.id}`, { foreignTable: 'leads' });
+      }
+      const { data } = await query;
       return data || [];
     },
     enabled: !!user,

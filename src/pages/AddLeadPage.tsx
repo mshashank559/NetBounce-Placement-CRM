@@ -18,6 +18,16 @@ const AddLeadPage: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  // ── ROLE GUARD ──────────────────────────────────────────────
+  // PROCESS_ANALYST is analytics-only — cannot add leads
+  if (role === 'PROCESS_ANALYST') {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-muted-foreground">Access denied — Process Analysts cannot add leads.</p>
+      </div>
+    );
+  }
+
   const [form, setForm] = useState({
     name: '', email: '', phone: '', university: '', technology: '',
     linkedin_url: '', time_for_call: '', timezone: '',
@@ -31,43 +41,73 @@ const AddLeadPage: React.FC = () => {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      // Duplicate check
+      // ── Duplicate check ──────────────────────────────────────
       const { data: emailDup } = await supabase.from('leads').select('unique_id').eq('email', form.email).maybeSingle();
       if (emailDup) throw new Error('A lead with this email already exists');
 
       const { data: phoneDup } = await supabase.from('leads').select('unique_id').eq('phone', form.phone).maybeSingle();
       if (phoneDup) throw new Error('A lead with this phone number already exists');
 
+      // ── Mandatory field validation ───────────────────────────
+      if (!form.technology.trim()) throw new Error('Technology / Domain is mandatory');
+      if (!form.lead_source.trim()) throw new Error('Lead Source is mandatory');
+
       // BD must add comment
       if ((role === 'LEAD_GEN' || role === 'LEAD_TL') && !form.comment.trim()) {
         throw new Error('Comment is mandatory for BD team');
       }
 
+      // ── Auto-generate NBC ID (NBC001, NBC002, ...) ────────────
+      const { count: totalLeads } = await supabase
+        .from('leads')
+        .select('*', { count: 'exact', head: true });
+      const nextNum = (totalLeads ?? 0) + 1;
+      const displayId = `NBC${String(nextNum).padStart(3, '0')}`;
+
       const leadData: any = {
+        display_id: displayId,
         name: form.name,
         email: form.email,
         phone: form.phone,
         university: form.university || null,
-        technology: form.technology || null,
+        technology: form.technology,
         linkedin_url: form.linkedin_url || null,
         time_for_call: form.time_for_call || null,
         timezone: form.timezone || null,
         lead_category: form.lead_category,
         lead_type: form.lead_type,
         referee_name: form.lead_type === 'Reference' ? form.referee_name : null,
-        lead_source: form.lead_source || null,
+        lead_source: form.lead_source,
         resume_url: form.resume_url || null,
         comment: form.comment || null,
         concern: form.concern,
         lead_generated_by: user?.id,
-        // Sales auto-assign to self, BD leaves null
+        // Sales auto-assign to self; BD leaves null
         assigned_to: (role === 'SALES_TM' || role === 'SALES_TL') ? user?.id : null,
       };
 
-      const { error } = await supabase.from('leads').insert(leadData);
+      const { data: insertedLead, error } = await supabase
+        .from('leads')
+        .insert(leadData)
+        .select('unique_id')
+        .single();
       if (error) throw error;
+      const leadId = insertedLead.unique_id;
 
-      // Notify BD TL when BD member adds a lead
+      // ── Create concern entry in database ─────────────────────
+      if (form.concern) {
+        const { error: concernError } = await supabase
+          .from('concerns')
+          .insert({
+            lead_id: leadId,
+            raised_by: user!.id,
+            description: form.comment || 'Initial concern raised on lead creation',
+            resolved: false,
+          });
+        if (concernError) throw concernError;
+      }
+
+      // ── Notify BD TL when BD member adds a lead ──────────────
       if (role === 'LEAD_GEN') {
         const { data: bdTLs } = await supabase
           .from('user_roles')
@@ -80,9 +120,47 @@ const AddLeadPage: React.FC = () => {
             title: 'New Lead Added',
             message: `New lead "${form.name}" added. Please review and assign.`,
             type: 'new_lead',
+            lead_id: leadId,
           }));
           await supabase.from('notifications').insert(notifs);
         }
+      }
+
+      // ── Notify BD TL, ADMIN, PA when concern is raised ───────
+      if (form.concern) {
+        const { data: targets } = await supabase
+          .from('user_roles')
+          .select('user_id')
+          .in('role', ['ADMIN', 'LEAD_TL', 'PROCESS_ANALYST']);
+
+        if (targets && targets.length > 0) {
+          const concernNotifs = targets.map(t => ({
+            user_id: t.user_id,
+            title: '⚠️ Concern Raised',
+            message: `A concern has been raised while adding lead "${form.name}". Please review.`,
+            type: 'concern',
+            lead_id: leadId,
+          }));
+          await supabase.from('notifications').insert(concernNotifs);
+        }
+      }
+
+      // ── Notify Process Analyst when lead is added ─────────────
+      const { data: analysts } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'PROCESS_ANALYST');
+
+      if (analysts && analysts.length > 0) {
+        await supabase.from('notifications').insert(
+          analysts.map(a => ({
+            user_id: a.user_id,
+            title: 'New Lead Added',
+            message: `Lead "${form.name}" was added to the system.`,
+            type: 'lead_added',
+            lead_id: leadId,
+          }))
+        );
       }
     },
     onSuccess: () => {
@@ -122,8 +200,8 @@ const AddLeadPage: React.FC = () => {
                 <Input value={form.university} onChange={e => set('university', e.target.value)} placeholder="University Name" />
               </div>
               <div>
-                <Label>Technology / Domain</Label>
-                <Input value={form.technology} onChange={e => set('technology', e.target.value)} placeholder="Data Analyst, ML, etc." />
+                <Label>Technology / Domain *</Label>
+                <Input value={form.technology} onChange={e => set('technology', e.target.value)} required placeholder="Data Analyst, ML, etc." />
               </div>
               <div>
                 <Label>LinkedIn Profile</Label>
@@ -167,13 +245,13 @@ const AddLeadPage: React.FC = () => {
               </div>
               {form.lead_type === 'Reference' && (
                 <div>
-                  <Label>Referee Name</Label>
+                  <Label>Candidate Name (Referee)</Label>
                   <Input value={form.referee_name} onChange={e => set('referee_name', e.target.value)} placeholder="Referee name" />
                 </div>
               )}
               <div>
-                <Label>Lead Source</Label>
-                <Input value={form.lead_source} onChange={e => set('lead_source', e.target.value)} placeholder="LinkedIn, OPT Nation, etc." />
+                <Label>Lead Source *</Label>
+                <Input value={form.lead_source} onChange={e => set('lead_source', e.target.value)} required placeholder="LinkedIn, OPT Nation, etc." />
               </div>
             </div>
 
