@@ -36,17 +36,23 @@ const NotificationsPage: React.FC = () => {
 
   const markRead = useMutation({
     mutationFn: async (id: string) => {
-      await supabase.from('notifications').update({ read: true }).eq('id', id);
+      const { error } = await supabase.from('notifications').update({ read: true }).eq('id', id);
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
       queryClient.invalidateQueries({ queryKey: ['unread-count'] });
     },
+    onError: (error: any) => {
+      console.error('Failed to mark notification as read:', error);
+      toast.error(error.message || 'Failed to mark notification as read');
+    },
   });
 
   const bulkMarkRead = useMutation({
     mutationFn: async (ids: string[]) => {
-      await supabase.from('notifications').update({ read: true }).in('id', ids);
+      const { error } = await supabase.from('notifications').update({ read: true }).in('id', ids);
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
@@ -54,12 +60,16 @@ const NotificationsPage: React.FC = () => {
       setSelectedIds(new Set());
       toast.success('Selected notifications marked as read');
     },
-    onError: () => toast.error('Failed to mark notifications as read'),
+    onError: (error: any) => {
+      console.error('Failed to bulk mark notifications as read:', error);
+      toast.error(error.message || 'Failed to mark notifications as read');
+    },
   });
 
   const bulkDelete = useMutation({
     mutationFn: async (ids: string[]) => {
-      await supabase.from('notifications').delete().in('id', ids);
+      const { error } = await supabase.from('notifications').delete().in('id', ids);
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
@@ -67,7 +77,10 @@ const NotificationsPage: React.FC = () => {
       setSelectedIds(new Set());
       toast.success('Selected notifications deleted');
     },
-    onError: () => toast.error('Failed to delete notifications'),
+    onError: (error: any) => {
+      console.error('Failed to delete notifications:', error);
+      toast.error(error.message || 'Failed to delete notifications');
+    },
   });
 
   const handleNotificationClick = (n: any) => {
