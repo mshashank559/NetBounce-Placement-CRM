@@ -270,27 +270,29 @@ const SalesTLDashboard: React.FC = () => {
       </div>
 
       {/* SECTION 1: KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Active Leads', value: activeLeads, icon: TrendingUp, color: 'text-primary' },
-          { label: 'Closures', value: closures, icon: CheckCircle, color: 'text-green-500' },
-          { label: "Today's Calls", value: todayCalls, icon: Phone, color: 'text-blue-500' },
-          { label: 'Revenue', value: `$${revenue.toLocaleString()}`, icon: DollarSign, color: 'text-amber-500' },
-        ].map(({ label, value, icon: Icon, color }, i) => (
-          <motion.div key={label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
-            <Card className="glass-card hover:nb-glow transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-                <Icon className={`h-4 w-4 ${color}`} />
-              </CardHeader>
-              <CardContent><div className="text-3xl font-display font-bold">{value}</div></CardContent>
-            </Card>
-          </motion.div>
-        ))}
-      </div>
+      {viewMode !== 'global' && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { label: 'Active Leads', value: activeLeads, icon: TrendingUp, color: 'text-primary' },
+            { label: 'Closures', value: closures, icon: CheckCircle, color: 'text-green-500' },
+            { label: "Today's Calls", value: todayCalls, icon: Phone, color: 'text-blue-500' },
+            { label: 'Revenue', value: `$${revenue.toLocaleString()}`, icon: DollarSign, color: 'text-amber-500' },
+          ].map(({ label, value, icon: Icon, color }, i) => (
+            <motion.div key={label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
+              <Card className="glass-card hover:nb-glow transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+                  <Icon className={`h-4 w-4 ${color}`} />
+                </CardHeader>
+                <CardContent><div className="text-3xl font-display font-bold">{value}</div></CardContent>
+              </Card>
+            </motion.div>
+          ))}
+        </div>
+      )}
 
       {/* SLA Alerts & Concerns */}
-      {(staleLeads.length > 0 || sameDayInactive.length > 0 || concernLeads.length > 0) && (
+      {viewMode !== 'global' && (staleLeads.length > 0 || sameDayInactive.length > 0 || concernLeads.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {staleLeads.length > 0 && (
             <Card className="border-red-500/50 bg-red-500/5">
@@ -347,37 +349,39 @@ const SalesTLDashboard: React.FC = () => {
       )}
 
       {/* SECTION 3: Analytics */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="glass-card lg:col-span-2">
-          <CardHeader><CardTitle className="text-sm font-medium">Call Activity Trend (Last 7 Days)</CardTitle></CardHeader>
-          <CardContent className="h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData.callTrend} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} />
-                <Tooltip />
-                <Line type="monotone" dataKey="calls" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+      {viewMode !== 'global' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Card className="glass-card lg:col-span-2">
+            <CardHeader><CardTitle className="text-sm font-medium">Call Activity Trend (Last 7 Days)</CardTitle></CardHeader>
+            <CardContent className="h-[220px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData.callTrend} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="calls" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
 
-        <Card className="glass-card">
-          <CardHeader><CardTitle className="text-sm font-medium">Lead Status Funnel</CardTitle></CardHeader>
-          <CardContent className="h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData.funnelData} layout="vertical" margin={{ top: 0, right: 10, left: 60, bottom: 0 }}>
-                <XAxis type="number" tick={{ fontSize: 9 }} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} />
-                <Tooltip />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                  {chartData.funnelData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
+          <Card className="glass-card">
+            <CardHeader><CardTitle className="text-sm font-medium">Lead Status Funnel</CardTitle></CardHeader>
+            <CardContent className="h-[220px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData.funnelData} layout="vertical" margin={{ top: 0, right: 10, left: 60, bottom: 0 }}>
+                  <XAxis type="number" tick={{ fontSize: 9 }} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} />
+                  <Tooltip />
+                  <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                    {chartData.funnelData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* SECTION 2: Team Performance */}
       {viewMode === 'team' && (
@@ -424,7 +428,7 @@ const SalesTLDashboard: React.FC = () => {
       )}
 
       {/* SECTION 5: Assign Pool Leads to Team */}
-      {poolLeads.length > 0 && (
+      {viewMode !== 'global' && poolLeads.length > 0 && (
         <Card className="glass-card">
           <CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><UserPlus className="h-5 w-5 text-primary" /> Assign Leads to Team ({poolLeads.length} pending)</CardTitle></CardHeader>
           <CardContent>
@@ -449,25 +453,27 @@ const SalesTLDashboard: React.FC = () => {
       )}
 
       {/* SECTION 7: Revenue Dashboard */}
-      <Card className="glass-card">
-        <CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><DollarSign className="h-5 w-5 text-amber-500" /> Revenue Dashboard</CardTitle></CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="p-4 rounded-lg bg-accent/30 text-center">
-              <p className="text-xs text-muted-foreground">Total Revenue</p>
-              <p className="text-2xl font-bold text-amber-500">${revenue.toLocaleString()}</p>
+      {viewMode !== 'global' && (
+        <Card className="glass-card">
+          <CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><DollarSign className="h-5 w-5 text-amber-500" /> Revenue Dashboard</CardTitle></CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div className="p-4 rounded-lg bg-accent/30 text-center">
+                <p className="text-xs text-muted-foreground">Total Revenue</p>
+                <p className="text-2xl font-bold text-amber-500">${revenue.toLocaleString()}</p>
+              </div>
+              <div className="p-4 rounded-lg bg-accent/30 text-center">
+                <p className="text-xs text-muted-foreground">Upfront Collected</p>
+                <p className="text-2xl font-bold text-green-500">${closureData.reduce((s, c) => s + (c.upfront_amount || 0), 0).toLocaleString()}</p>
+              </div>
+              <div className="p-4 rounded-lg bg-accent/30 text-center">
+                <p className="text-xs text-muted-foreground">Pending (Slot 1+2)</p>
+                <p className="text-2xl font-bold text-blue-500">${closureData.reduce((s, c) => s + (c.slot1_amount || 0) + (c.slot2_amount || 0), 0).toLocaleString()}</p>
+              </div>
             </div>
-            <div className="p-4 rounded-lg bg-accent/30 text-center">
-              <p className="text-xs text-muted-foreground">Upfront Collected</p>
-              <p className="text-2xl font-bold text-green-500">${closureData.reduce((s, c) => s + (c.upfront_amount || 0), 0).toLocaleString()}</p>
-            </div>
-            <div className="p-4 rounded-lg bg-accent/30 text-center">
-              <p className="text-xs text-muted-foreground">Pending (Slot 1+2)</p>
-              <p className="text-2xl font-bold text-blue-500">${closureData.reduce((s, c) => s + (c.slot1_amount || 0) + (c.slot2_amount || 0), 0).toLocaleString()}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* SECTION 4: All Team Leads Table */}
       <Card className="glass-card">

@@ -278,73 +278,77 @@ const BDMemberDashboard: React.FC = () => {
       </div>
 
       {/* ── SECTION 1: KPI Cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Total Leads', value: totalLeads, icon: Users, color: 'text-primary' },
-          { label: 'Added Today', value: newToday, icon: Plus, color: 'text-blue-500' },
-          { label: 'Assigned to Sales', value: assignedLeads, icon: UserPlus, color: 'text-amber-500' },
-          { label: 'Closures', value: closures, icon: CheckCircle, color: 'text-green-500' },
-        ].map(({ label, value, icon: Icon, color }, i) => (
-          <motion.div key={label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
-            <Card className="glass-card hover:nb-glow transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-                <Icon className={`h-4 w-4 ${color}`} />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-display font-bold">{value}</div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
-      </div>
+      {viewMode !== 'global' && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { label: 'Total Leads', value: totalLeads, icon: Users, color: 'text-primary' },
+            { label: 'Added Today', value: newToday, icon: Plus, color: 'text-blue-500' },
+            { label: 'Assigned to Sales', value: assignedLeads, icon: UserPlus, color: 'text-amber-500' },
+            { label: 'Closures', value: closures, icon: CheckCircle, color: 'text-green-500' },
+          ].map(({ label, value, icon: Icon, color }, i) => (
+            <motion.div key={label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
+              <Card className="glass-card hover:nb-glow transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+                  <Icon className={`h-4 w-4 ${color}`} />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-display font-bold">{value}</div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
+        </div>
+      )}
 
       {/* ── SECTION 2 & 3: Analytics Charts ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Daily Trend - spans 2 cols */}
-        <Card className="glass-card lg:col-span-2">
-          <CardHeader><CardTitle className="text-sm font-medium">Daily Lead Addition Trend</CardTitle></CardHeader>
-          <CardContent className="h-[220px]">
-            {chartData.dailyTrend.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No data for selected filters</div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData.dailyTrend} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                  <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
+      {viewMode !== 'global' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Daily Trend - spans 2 cols */}
+          <Card className="glass-card lg:col-span-2">
+            <CardHeader><CardTitle className="text-sm font-medium">Daily Lead Addition Trend</CardTitle></CardHeader>
+            <CardContent className="h-[220px]">
+              {chartData.dailyTrend.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No data for selected filters</div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData.dailyTrend} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip />
+                    <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
 
-        {/* Source + Category */}
-        <Card className="glass-card">
-          <CardHeader><CardTitle className="text-sm font-medium">Lead Source & Category</CardTitle></CardHeader>
-          <CardContent className="h-[220px] flex flex-col gap-2">
-            <ResponsiveContainer width="100%" height="50%">
-              <PieChart>
-                <Pie data={chartData.sourceBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={40}>
-                  {chartData.sourceBreakdown.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Pie>
-                <Tooltip />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '9px' }} />
-              </PieChart>
-            </ResponsiveContainer>
-            <ResponsiveContainer width="100%" height="50%">
-              <PieChart>
-                <Pie data={chartData.categoryData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={20} outerRadius={40}>
-                  <Cell fill="#ef4444" /><Cell fill="#3b82f6" />
-                </Pie>
-                <Tooltip />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '9px' }} />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
+          {/* Source + Category */}
+          <Card className="glass-card">
+            <CardHeader><CardTitle className="text-sm font-medium">Lead Source & Category</CardTitle></CardHeader>
+            <CardContent className="h-[220px] flex flex-col gap-2">
+              <ResponsiveContainer width="100%" height="50%">
+                <PieChart>
+                  <Pie data={chartData.sourceBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={40}>
+                    {chartData.sourceBreakdown.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: '9px' }} />
+                </PieChart>
+              </ResponsiveContainer>
+              <ResponsiveContainer width="100%" height="50%">
+                <PieChart>
+                  <Pie data={chartData.categoryData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={20} outerRadius={40}>
+                    <Cell fill="#ef4444" /><Cell fill="#3b82f6" />
+                  </Pie>
+                  <Tooltip />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: '9px' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* ── SECTION 4: My Leads Table ── */}
       <Card className="glass-card">

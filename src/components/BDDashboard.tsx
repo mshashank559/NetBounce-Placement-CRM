@@ -338,15 +338,17 @@ const BDDashboard: React.FC = () => {
       </div>
 
       {/* ── SECTION 1: KPI Cards ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="glass-card nb-glow"><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Total Leads</CardTitle><Users className="h-4 w-4 text-primary absolute right-4 top-4" /></CardHeader><CardContent><div className="text-3xl font-display font-bold">{totalLeads}</div></CardContent></Card>
-        <Card className="glass-card"><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Unassigned Leads</CardTitle><Plus className="h-4 w-4 text-blue-500 absolute right-4 top-4" /></CardHeader><CardContent><div className="text-3xl font-display font-bold">{newLeads}</div></CardContent></Card>
-        <Card className="glass-card"><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Assigned Leads</CardTitle><UserPlus className="h-4 w-4 text-amber-500 absolute right-4 top-4" /></CardHeader><CardContent><div className="text-3xl font-display font-bold">{assignedLeads}</div></CardContent></Card>
-        <Card className="glass-card"><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Closures</CardTitle><CheckCircle className="h-4 w-4 text-green-500 absolute right-4 top-4" /></CardHeader><CardContent><div className="text-3xl font-display font-bold">{closures}</div></CardContent></Card>
-      </div>
+      {viewMode !== 'global' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="glass-card nb-glow"><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Total Leads</CardTitle><Users className="h-4 w-4 text-primary absolute right-4 top-4" /></CardHeader><CardContent><div className="text-3xl font-display font-bold">{totalLeads}</div></CardContent></Card>
+          <Card className="glass-card"><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Unassigned Leads</CardTitle><Plus className="h-4 w-4 text-blue-500 absolute right-4 top-4" /></CardHeader><CardContent><div className="text-3xl font-display font-bold">{newLeads}</div></CardContent></Card>
+          <Card className="glass-card"><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Assigned Leads</CardTitle><UserPlus className="h-4 w-4 text-amber-500 absolute right-4 top-4" /></CardHeader><CardContent><div className="text-3xl font-display font-bold">{assignedLeads}</div></CardContent></Card>
+          <Card className="glass-card"><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Closures</CardTitle><CheckCircle className="h-4 w-4 text-green-500 absolute right-4 top-4" /></CardHeader><CardContent><div className="text-3xl font-display font-bold">{closures}</div></CardContent></Card>
+        </div>
+      )}
 
       {/* ── SLA & Concerns Alerts (Sections 5 & 7) ── */}
-      {(concernLeads.length > 0 || staleLeads.length > 0 || sameDayInactive.length > 0) && (
+      {viewMode !== 'global' && (concernLeads.length > 0 || staleLeads.length > 0 || sameDayInactive.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {concernLeads.length > 0 && (
             <Card className="border-orange-500/50 bg-orange-500/5 shadow-[0_0_15px_rgba(249,115,22,0.1)]">
@@ -399,37 +401,39 @@ const BDDashboard: React.FC = () => {
       )}
 
       {/* ── SECTION 3: Analytics Charts ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="glass-card">
-          <CardHeader><CardTitle className="text-sm font-medium">Daily Lead Addition Trend</CardTitle></CardHeader>
-          <CardContent className="h-[250px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData.dailyTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <XAxis dataKey="date" tick={{fontSize: 10}} />
-                <YAxis tick={{fontSize: 10}} />
-                <Tooltip />
-                <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+      {viewMode !== 'global' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card className="glass-card">
+            <CardHeader><CardTitle className="text-sm font-medium">Daily Lead Addition Trend</CardTitle></CardHeader>
+            <CardContent className="h-[250px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData.dailyTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <XAxis dataKey="date" tick={{fontSize: 10}} />
+                  <YAxis tick={{fontSize: 10}} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
 
-        <Card className="glass-card">
-          <CardHeader><CardTitle className="text-sm font-medium">Lead Categories Breakdown</CardTitle></CardHeader>
-          <CardContent className="h-[250px] flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={chartData.categoryBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5}>
-                  <Cell fill="#ef4444" />
-                  <Cell fill="#3b82f6" />
-                </Pie>
-                <Tooltip />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: '11px' }} />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
+          <Card className="glass-card">
+            <CardHeader><CardTitle className="text-sm font-medium">Lead Categories Breakdown</CardTitle></CardHeader>
+            <CardContent className="h-[250px] flex items-center justify-center">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={chartData.categoryBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5}>
+                    <Cell fill="#ef4444" />
+                    <Cell fill="#3b82f6" />
+                  </Pie>
+                  <Tooltip />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: '11px' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* ── SECTION 2: Team Performance Overview ── */}
       {viewMode === 'team' && (

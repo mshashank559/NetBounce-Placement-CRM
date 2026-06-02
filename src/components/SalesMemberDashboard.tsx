@@ -368,27 +368,29 @@ const SalesMemberDashboard: React.FC = () => {
       </div>
 
       {/* SECTION 1: KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Active Leads', value: activeLeads, icon: TrendingUp, color: 'text-primary' },
-          { label: 'Closures', value: closures, icon: CheckCircle, color: 'text-green-500' },
-          { label: "Today's Calls", value: todayCalls, icon: Phone, color: 'text-blue-500' },
-          { label: 'Monthly Calls', value: monthlyCalls, icon: Calendar, color: 'text-amber-500' },
-        ].map(({ label, value, icon: Icon, color }, i) => (
-          <motion.div key={label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
-            <Card className="glass-card hover:nb-glow transition-shadow">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-                <Icon className={`h-4 w-4 ${color}`} />
-              </CardHeader>
-              <CardContent><div className="text-3xl font-display font-bold">{value}</div></CardContent>
-            </Card>
-          </motion.div>
-        ))}
-      </div>
+      {viewMode !== 'global' && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { label: 'Active Leads', value: activeLeads, icon: TrendingUp, color: 'text-primary' },
+            { label: 'Closures', value: closures, icon: CheckCircle, color: 'text-green-500' },
+            { label: "Today's Calls", value: todayCalls, icon: Phone, color: 'text-blue-500' },
+            { label: 'Monthly Calls', value: monthlyCalls, icon: Calendar, color: 'text-amber-500' },
+          ].map(({ label, value, icon: Icon, color }, i) => (
+            <motion.div key={label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
+              <Card className="glass-card hover:nb-glow transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+                  <Icon className={`h-4 w-4 ${color}`} />
+                </CardHeader>
+                <CardContent><div className="text-3xl font-display font-bold">{value}</div></CardContent>
+              </Card>
+            </motion.div>
+          ))}
+        </div>
+      )}
 
       {/* SLA Alert */}
-      {staleLeads.length > 0 && (
+      {viewMode !== 'global' && staleLeads.length > 0 && (
         <Card className="border-red-500/50 bg-red-500/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-red-600 flex items-center gap-2">
@@ -407,44 +409,46 @@ const SalesMemberDashboard: React.FC = () => {
       )}
 
       {/* SECTION 2: Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="glass-card">
-          <CardHeader><CardTitle className="text-sm font-medium">Daily Call Trend (Last 7 Days)</CardTitle></CardHeader>
-          <CardContent className="h-[200px]">
-            {chartData.callTrend.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No calls logged yet</div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData.callTrend} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                  <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="calls" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
+      {viewMode !== 'global' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card className="glass-card">
+            <CardHeader><CardTitle className="text-sm font-medium">Daily Call Trend (Last 7 Days)</CardTitle></CardHeader>
+            <CardContent className="h-[200px]">
+              {chartData.callTrend.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No calls logged yet</div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData.callTrend} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="calls" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
 
-        <Card className="glass-card">
-          <CardHeader><CardTitle className="text-sm font-medium">Lead Status Breakdown</CardTitle></CardHeader>
-          <CardContent className="h-[200px]">
-            {chartData.statusBreakdown.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No leads yet</div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={chartData.statusBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70}>
-                    {chartData.statusBreakdown.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: '10px' }} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+          <Card className="glass-card">
+            <CardHeader><CardTitle className="text-sm font-medium">Lead Status Breakdown</CardTitle></CardHeader>
+            <CardContent className="h-[200px]">
+              {chartData.statusBreakdown.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No leads yet</div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={chartData.statusBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70}>
+                      {chartData.statusBreakdown.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: '10px' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* SECTION 3 & 4: My Leads Table */}
       <Card className="glass-card">
@@ -585,7 +589,7 @@ const SalesMemberDashboard: React.FC = () => {
       </Card>
 
       {/* SECTION 7: Follow-up History */}
-      {followups.length > 0 && (
+      {viewMode !== 'global' && followups.length > 0 && (
         <Card className="glass-card">
           <CardHeader><CardTitle className="text-sm font-medium">Recent Follow-up Activity</CardTitle></CardHeader>
           <CardContent>
