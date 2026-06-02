@@ -45,13 +45,23 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
     enabled: open && !!lead.lead_generated_by,
   });
 
+  // Fetch profiles to map user_id -> full_name for status history
+  const { data: profiles = [] } = useQuery({
+    queryKey: ['profiles-map-detail'],
+    queryFn: async () => {
+      const { data } = await supabase.from('profiles').select('user_id, full_name');
+      return data || [];
+    },
+    enabled: open,
+  });
+
   // Status history from logs table
   const { data: statusHistory } = useQuery({
     queryKey: ['lead-status-history', lead.unique_id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('lead_history_logs')
-        .select('*, profiles:changed_by (full_name)')
+        .select('*')
         .eq('lead_id', lead.unique_id)
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -187,7 +197,7 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
             {statusHistory && statusHistory.length > 0 ? (
               <div className="relative border-l border-accent/30 pl-4 space-y-5 py-2 max-h-[50vh] overflow-y-auto pr-1">
                 {statusHistory.map((log) => {
-                  const author = (log.profiles as any)?.full_name || 'System';
+                  const author = profiles.find(p => p.user_id === log.changed_by)?.full_name || 'System';
                   return (
                     <div key={log.id} className="relative">
                       {/* Timeline Dot */}
