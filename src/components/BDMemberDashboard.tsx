@@ -25,11 +25,12 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 const BDMemberDashboard: React.FC = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, role } = useAuth();
   const queryClient = useQueryClient();
 
   // ── Filters ────────────────────────────────────────────────
   const [viewMode, setViewMode] = useState<'personal' | 'global'>('personal');
+  const [detailsLead, setDetailsLead] = useState<any>(null);
   const [monthFilter, setMonthFilter] = useState(() => String(new Date().getMonth() + 1));
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -148,7 +149,7 @@ const BDMemberDashboard: React.FC = () => {
 
   // ── Fetch Concern Recipients ──────────────────────────────────
   const { data: concernRecipients = [] } = useQuery({
-    queryKey: ['concern-recipients-bd', user?.id, profile?.role],
+    queryKey: ['concern-recipients-bd', user?.id, role],
     queryFn: async () => {
       if (!user) return [];
 
