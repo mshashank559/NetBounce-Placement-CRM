@@ -90,7 +90,14 @@ const SalesTLDashboard: React.FC = () => {
       if (monthFilter !== 'all' && d.getMonth() + 1 !== parseInt(monthFilter)) return false;
       if (dateFrom && d < new Date(dateFrom)) return false;
       if (dateTo && d > new Date(dateTo + 'T23:59:59')) return false;
-      if (nameSearch && !l.name?.toLowerCase().includes(nameSearch.toLowerCase())) return false;
+      if (nameSearch) {
+        const query = nameSearch.toLowerCase();
+        const matchesName = l.name?.toLowerCase().includes(query);
+        const matchesEmail = l.email?.toLowerCase().includes(query);
+        const matchesPhone = l.phone?.toLowerCase().includes(query);
+        const matchesId = String(l.display_id || '').toLowerCase().includes(query) || String(l.unique_id || '').toLowerCase().includes(query);
+        if (!matchesName && !matchesEmail && !matchesPhone && !matchesId) return false;
+      }
       if (statusFilter !== 'all' && l.lead_status !== statusFilter) return false;
       return true;
     });
@@ -243,7 +250,7 @@ const SalesTLDashboard: React.FC = () => {
               <TabsTrigger value="global">Global View</TabsTrigger>
             </TabsList>
           </Tabs>
-          <Input placeholder="Search name..." value={nameSearch} onChange={e => setNameSearch(e.target.value)} className="w-40" />
+          <Input placeholder="Search name, id, email, phone..." value={nameSearch} onChange={e => setNameSearch(e.target.value)} className="w-56" />
           <Select value={monthFilter} onValueChange={setMonthFilter}>
             <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
             <SelectContent>

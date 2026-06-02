@@ -30,6 +30,7 @@ const BDDashboard: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [bdMemberFilter, setBdMemberFilter] = useState('all');
   const [queueTab, setQueueTab] = useState('pending'); // 'pending' or 'all'
+  const [nameSearch, setNameSearch] = useState('');
 
   // ── Data Fetching ───────────────────────────────────────
   const { data: leads, isLoading } = useQuery({
@@ -99,9 +100,18 @@ const BDDashboard: React.FC = () => {
         if (!matchesSource && !matchesCreator) return false;
       }
 
+      if (nameSearch) {
+        const query = nameSearch.toLowerCase();
+        const matchesName = l.name?.toLowerCase().includes(query);
+        const matchesEmail = l.email?.toLowerCase().includes(query);
+        const matchesPhone = l.phone?.toLowerCase().includes(query);
+        const matchesId = String(l.display_id || '').toLowerCase().includes(query) || String(l.unique_id || '').toLowerCase().includes(query);
+        if (!matchesName && !matchesEmail && !matchesPhone && !matchesId) return false;
+      }
+
       return true;
     });
-  }, [leads, viewMode, monthFilter, dateFrom, dateTo, statusFilter, bdMemberFilter, profiles, user?.id]);
+  }, [leads, viewMode, monthFilter, dateFrom, dateTo, statusFilter, bdMemberFilter, profiles, user?.id, nameSearch]);
 
   // ── KPI Calculations (Section 1) ─────────────────────────
   // Total Leads = all leads in the system
@@ -295,6 +305,8 @@ const BDDashboard: React.FC = () => {
               <TabsTrigger value="global">Global View</TabsTrigger>
             </TabsList>
           </Tabs>
+
+          <Input placeholder="Search name, id, email, phone..." value={nameSearch} onChange={e => setNameSearch(e.target.value)} className="w-56" />
 
           <Select value={monthFilter} onValueChange={setMonthFilter}>
             <SelectTrigger className="w-32"><SelectValue placeholder="Month" /></SelectTrigger>
