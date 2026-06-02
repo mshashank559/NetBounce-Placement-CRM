@@ -86,6 +86,15 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
           .update({ lead_status: newStatus as any })
           .eq('unique_id', lead.unique_id);
 
+        await supabase.from('lead_history_logs').insert({
+          lead_id: lead.unique_id,
+          changed_by: user!.id,
+          action_type: 'STATUS_CHANGE',
+          old_value: currentStatus,
+          new_value: newStatus,
+          comments: notes.trim() || null
+        });
+
         // Notify BD member on DNR / Non Interested
         if (['DNR1', 'DNR2', 'DNR3', 'Non Interested'].includes(newStatus) && lead.lead_generated_by) {
           await supabase.from('notifications').insert({

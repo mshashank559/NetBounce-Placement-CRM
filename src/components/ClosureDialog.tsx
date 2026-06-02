@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ClosureDialogProps {
   lead: any;
@@ -16,6 +17,7 @@ interface ClosureDialogProps {
 }
 
 const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) => {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [form, setForm] = useState({
     plan: '' as 'Starter' | 'Premium' | 'Elite' | 'Pro' | 'Custom' | '',
@@ -49,6 +51,15 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
 
       // Update lead status to Closed
       await supabase.from('leads').update({ lead_status: 'Closed' as any }).eq('unique_id', lead.unique_id);
+
+      await supabase.from('lead_history_logs').insert({
+        lead_id: lead.unique_id,
+        changed_by: user!.id,
+        action_type: 'STATUS_CHANGE',
+        old_value: lead.lead_status || 'New',
+        new_value: 'Closed',
+        comments: form.movement.trim() || null
+      });
 
       // Build closure payload with new fields
       const closurePayload: any = {

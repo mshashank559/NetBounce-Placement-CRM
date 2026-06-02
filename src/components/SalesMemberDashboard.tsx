@@ -99,12 +99,22 @@ const SalesMemberDashboard: React.FC = () => {
         setClosureLead(lead);
         return;
       }
+      const lead = myLeads.find(l => l.unique_id === leadId);
+      const oldStatus = lead?.lead_status || 'New';
+
       const { error } = await supabase.from('leads')
         .update({ lead_status: status as any, comment })
         .eq('unique_id', leadId);
       if (error) throw error;
 
-      const lead = myLeads.find(l => l.unique_id === leadId);
+      await supabase.from('lead_history_logs').insert({
+        lead_id: leadId,
+        changed_by: user!.id,
+        action_type: 'STATUS_CHANGE',
+        old_value: oldStatus,
+        new_value: status,
+        comments: comment || null
+      });
 
       // Notify BD member on DNR / Non Interested
       if (['DNR1', 'DNR2', 'DNR3', 'Non Interested'].includes(status) && lead?.lead_generated_by) {
