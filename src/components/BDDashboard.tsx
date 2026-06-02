@@ -500,7 +500,9 @@ const BDDashboard: React.FC = () => {
               <thead>
                 <tr className="border-b border-border">
                   <th className="text-left p-2 text-muted-foreground font-medium">Name</th>
-                  <th className="text-left p-2 text-muted-foreground font-medium">Contact</th>
+                  <th className="text-left p-2 text-muted-foreground font-medium">Email</th>
+                  <th className="text-left p-2 text-muted-foreground font-medium">Phone</th>
+                  <th className="text-left p-2 text-muted-foreground font-medium">LinkedIn</th>
                   <th className="text-left p-2 text-muted-foreground font-medium">Tech / Uni</th>
                   <th className="text-left p-2 text-muted-foreground font-medium">Source</th>
                   <th className="text-left p-2 text-muted-foreground font-medium">Category</th>
@@ -513,7 +515,7 @@ const BDDashboard: React.FC = () => {
               <tbody>
                 {displayedLeads.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <td colSpan={11} className="text-center py-8 text-muted-foreground">
                       No leads in this queue.
                     </td>
                   </tr>
@@ -524,9 +526,12 @@ const BDDashboard: React.FC = () => {
                         <div className="font-medium">{lead.name}</div>
                         <div className="text-xs text-muted-foreground">ID: {(lead as any).display_id}</div>
                       </td>
-                      <td className="p-2">
-                        <div className="text-xs">{lead.email}</div>
-                        <div className="text-xs text-muted-foreground">{lead.phone}</div>
+                      <td className="p-2 text-xs">{lead.email}</td>
+                      <td className="p-2 text-xs">{lead.phone || '—'}</td>
+                      <td className="p-2 text-xs">
+                        {lead.linkedin_url ? (
+                          <a href={lead.linkedin_url} target="_blank" rel="noreferrer" className="text-primary underline text-xs">View</a>
+                        ) : '—'}
                       </td>
                       <td className="p-2">
                         <div className="text-xs">{lead.technology || '—'}</div>

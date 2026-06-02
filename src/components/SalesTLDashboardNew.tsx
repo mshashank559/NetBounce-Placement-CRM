@@ -487,41 +487,54 @@ const SalesTLDashboard: React.FC = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  {['ID','Name','Email','Tech','Status','Assigned To','Source','Last Activity', ...(viewMode === 'global' ? [] : ['Payment']), 'Actions'].map(h => (
+                  {['ID','Name','Email','Phone','LinkedIn','Tech','Status','Assigned To','Source','Last Activity', ...(viewMode === 'global' ? [] : ['Payment']), 'Actions'].map(h => (
                     <th key={h} className="text-left p-2 text-muted-foreground font-medium whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {filteredLeads.slice(0, 50).map(lead => {
-                  const closure = closureData.find(c => c.lead_id === lead.unique_id);
-                  const hoursSince = (Date.now() - new Date(lead.updated_at).getTime()) / 3600000;
-                  const isStale = hoursSince > 48 && !['Closed','Non Interested'].includes(lead.lead_status || '');
-                  const isDNR = lead.lead_status?.startsWith('DNR');
-                  return (
-                    <tr key={lead.unique_id} className={`border-b border-border/50 hover:bg-accent/30 ${isStale ? 'bg-red-500/5' : isDNR ? 'bg-orange-500/5' : ''}`}>
-                      <td className="p-2 font-mono text-xs text-primary font-bold">{(lead as any).display_id || '—'}</td>
-                      <td className="p-2 font-medium">{lead.name}</td>
-                      <td className="p-2 text-xs text-muted-foreground">{lead.email}</td>
-                      <td className="p-2 text-xs">{lead.technology || '—'}</td>
-                      <td className="p-2">
-                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                          lead.lead_status === 'Closed' ? 'bg-green-500/10 text-green-600' :
-                          isDNR ? 'bg-orange-500/10 text-orange-600' :
-                          lead.lead_status === 'Non Interested' ? 'bg-destructive/10 text-destructive' :
-                          'bg-secondary text-secondary-foreground'
-                        }`}>{lead.lead_status}</span>
-                        {isStale && <span className="ml-1 text-red-500 text-xs">⚠</span>}
-                      </td>
-                      <td className="p-2 text-xs">{getName(lead.assigned_to)}</td>
-                      <td className="p-2 text-xs">{lead.lead_source || '—'}</td>
-                      <td className="p-2 text-xs">{new Date(lead.updated_at).toLocaleDateString()}</td>
-                      {viewMode !== 'global' && (
+                {filteredLeads.length === 0 ? (
+                  <tr>
+                    <td colSpan={viewMode === 'global' ? 11 : 12} className="text-center py-8 text-muted-foreground">
+                      No leads found.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredLeads.slice(0, 50).map(lead => {
+                    const closure = closureData.find(c => c.lead_id === lead.unique_id);
+                    const hoursSince = (Date.now() - new Date(lead.updated_at).getTime()) / 3600000;
+                    const isStale = hoursSince > 48 && !['Closed','Non Interested'].includes(lead.lead_status || '');
+                    const isDNR = lead.lead_status?.startsWith('DNR');
+                    return (
+                      <tr key={lead.unique_id} className={`border-b border-border/50 hover:bg-accent/30 ${isStale ? 'bg-red-500/5' : isDNR ? 'bg-orange-500/5' : ''}`}>
+                        <td className="p-2 font-mono text-xs text-primary font-bold">{(lead as any).display_id || '—'}</td>
+                        <td className="p-2 font-medium">{lead.name}</td>
+                        <td className="p-2 text-xs text-muted-foreground">{lead.email}</td>
+                        <td className="p-2 text-xs">{lead.phone || '—'}</td>
                         <td className="p-2 text-xs">
-                          {closure ? <span className="text-green-500 font-medium">${((closure.upfront_amount||0)+(closure.slot1_amount||0)+(closure.slot2_amount||0)).toLocaleString()}</span> : '—'}
+                          {lead.linkedin_url ? (
+                            <a href={lead.linkedin_url} target="_blank" rel="noreferrer" className="text-primary underline text-xs">View</a>
+                          ) : '—'}
                         </td>
-                      )}
-                      <td className="p-2">
+                        <td className="p-2 text-xs">{lead.technology || '—'}</td>
+                        <td className="p-2">
+                          <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                            lead.lead_status === 'Closed' ? 'bg-green-500/10 text-green-600' :
+                            isDNR ? 'bg-orange-500/10 text-orange-600' :
+                            lead.lead_status === 'Non Interested' ? 'bg-destructive/10 text-destructive' :
+                            'bg-secondary text-secondary-foreground'
+                          }`}>{lead.lead_status}</span>
+                          {isStale && <span className="ml-1 text-red-500 text-xs">⚠</span>}
+                        </td>
+                        <td className="p-2 text-xs">{getName(lead.assigned_to)}</td>
+                        <td className="p-2 text-xs">{lead.lead_source || '—'}</td>
+                        <td className="p-2 text-xs">{new Date(lead.updated_at).toLocaleDateString()}</td>
+                        {viewMode !== 'global' && (
+                          <td className="p-2 text-xs">
+                            {closure ? <span className="text-green-500 font-medium">${((closure.upfront_amount||0)+(closure.slot1_amount||0)+(closure.slot2_amount||0)).toLocaleString()}</span> : '—'}
+                          </td>
+                        )}
+                        <td className="p-2">
                         <Button
                           size="sm"
                           variant="ghost"
@@ -534,7 +547,7 @@ const SalesTLDashboard: React.FC = () => {
                       </td>
                     </tr>
                   );
-                })}
+                }))}
               </tbody>
             </table>
           </div>

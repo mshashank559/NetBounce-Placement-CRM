@@ -365,14 +365,14 @@ const BDMemberDashboard: React.FC = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  {['ID', 'Name', 'Email', 'Phone', 'Uni', 'Tech', 'Source', 'Category', 'Date Added', 'Status', 'Assigned To', 'Comment', 'DNR Follow-up', 'Actions'].map(h => (
+                  {['ID', 'Name', 'Email', 'Phone', 'LinkedIn', 'Uni', 'Tech', 'Source', 'Category', 'Date Added', 'Status', 'Assigned To', 'Comment', 'DNR Follow-up', 'Actions'].map(h => (
                     <th key={h} className="text-left p-2 text-muted-foreground font-medium whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filteredLeads.length === 0 ? (
-                  <tr><td colSpan={13} className="text-center py-8 text-muted-foreground">No leads found. Start by adding leads!</td></tr>
+                  <tr><td colSpan={15} className="text-center py-8 text-muted-foreground">No leads found. Start by adding leads!</td></tr>
                 ) : filteredLeads.map(lead => (
                   <tr
                     key={lead.unique_id}
@@ -382,6 +382,11 @@ const BDMemberDashboard: React.FC = () => {
                     <td className="p-2 font-medium whitespace-nowrap">{lead.name}</td>
                     <td className="p-2 text-xs">{lead.email}</td>
                     <td className="p-2 text-xs">{lead.phone}</td>
+                    <td className="p-2 text-xs">
+                      {lead.linkedin_url ? (
+                        <a href={lead.linkedin_url} target="_blank" rel="noreferrer" className="text-primary underline text-xs">View</a>
+                      ) : '—'}
+                    </td>
                     <td className="p-2 text-xs">{lead.university || '—'}</td>
                     <td className="p-2 text-xs">{lead.technology || '—'}</td>
                     <td className="p-2 text-xs">{lead.lead_source || '—'}</td>
