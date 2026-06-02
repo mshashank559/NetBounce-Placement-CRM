@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { History, CalendarDays, FileText, Info, MessageSquare, CheckCircle2 } from 'lucide-react';
+import { History, CalendarDays, FileText, Info, MessageSquare, CheckCircle2, Phone } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface LeadDetailDialogProps {
@@ -112,12 +112,15 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
         </DialogHeader>
 
         <Tabs defaultValue="general" className="w-full mt-4">
-          <TabsList className="grid w-full grid-cols-3 bg-background/50 border border-accent/20 p-1 rounded-lg">
+          <TabsList className="grid w-full grid-cols-4 bg-background/50 border border-accent/20 p-1 rounded-lg">
             <TabsTrigger value="general" className="text-xs font-medium flex items-center gap-1.5">
               <Info className="h-3.5 w-3.5" /> Info
             </TabsTrigger>
             <TabsTrigger value="history" className="text-xs font-medium flex items-center gap-1.5">
               <History className="h-3.5 w-3.5" /> Status History ({statusHistory?.length || 0})
+            </TabsTrigger>
+            <TabsTrigger value="calls" className="text-xs font-medium flex items-center gap-1.5">
+              <Phone className="h-3.5 w-3.5" /> Call History ({followups?.length || 0})
             </TabsTrigger>
             <TabsTrigger value="documents" className="text-xs font-medium flex items-center gap-1.5">
               <FileText className="h-3.5 w-3.5" /> Documents ({submittedDocs?.length || 0})
@@ -173,23 +176,6 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                 </div>
               </div>
             )}
-
-            {followups && followups.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-sm font-semibold mb-2">Follow-ups</h4>
-                <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                  {followups.map(f => (
-                    <div key={f.id} className="p-2.5 bg-accent/30 border border-accent/10 rounded-lg text-sm">
-                      <div className="flex items-center justify-between mb-1">
-                        <Badge variant="secondary" className="text-[10px]">{f.way_of_contact}</Badge>
-                        <span className="text-xs text-muted-foreground">{new Date(f.created_at).toLocaleDateString()}</span>
-                      </div>
-                      <p className="text-foreground/90">{f.notes}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </TabsContent>
 
           {/* Tab 2: Status History logs */}
@@ -235,7 +221,48 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
             )}
           </TabsContent>
 
-          {/* Tab 3: Submitted Documents */}
+          {/* Tab 3: Call History */}
+          <TabsContent value="calls" className="mt-4 outline-none">
+            {followups && followups.length > 0 ? (
+              <div className="relative border-l border-accent/30 pl-4 space-y-5 py-2 max-h-[50vh] overflow-y-auto pr-1">
+                {followups.map((log) => {
+                  const author = profiles.find(p => p.user_id === log.user_id)?.full_name || 'System';
+                  return (
+                    <div key={log.id} className="relative">
+                      {/* Timeline Dot */}
+                      <span className="absolute -left-[21px] top-1 h-3.5 w-3.5 rounded-full border-2 border-primary bg-background shadow-sm flex items-center justify-center">
+                        <Phone className="h-2.5 w-2.5 text-primary" />
+                      </span>
+                      
+                      <div className="bg-background/40 p-3 rounded-lg border border-accent/10">
+                        <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-foreground/80">{author}</span>
+                            <span className="text-xs text-muted-foreground font-normal">contacted candidate</span>
+                            <span className="text-xs font-semibold text-foreground/80">{lead.name}</span>
+                            <Badge variant="secondary" className="text-[10px] ml-1 px-1 py-0">{log.way_of_contact || 'Call'}</Badge>
+                          </div>
+                          <span className="text-[11px] text-muted-foreground">{new Date(log.created_at).toLocaleString()}</span>
+                        </div>
+
+                        {log.notes && (
+                          <p className="mt-2 text-sm text-foreground/90 bg-accent/20 p-2 rounded leading-relaxed border-l-2 border-primary/50">
+                            {log.notes}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-10 text-muted-foreground text-sm bg-accent/5 rounded-lg border border-dashed border-accent/20">
+                No call/follow-up history recorded for this lead.
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Tab 4: Submitted Documents */}
           <TabsContent value="documents" className="mt-4 outline-none">
             {submittedDocs && submittedDocs.length > 0 ? (
               <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
