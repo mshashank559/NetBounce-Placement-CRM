@@ -21,6 +21,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useLocation } from 'react-router-dom';
 import LeadDetailDialog from './LeadDetailDialog';
+import AgreementDialog from './AgreementDialog';
 import { 
   AreaChart, Area, PieChart, Pie, Cell, 
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend 
@@ -114,6 +115,9 @@ export default function AccountantDashboard() {
 
   // Document history dialog state
   const [historyLead, setHistoryLead] = useState<any>(null);
+
+  // Agreement Workflow state
+  const [agreementLead, setAgreementLead] = useState<any>(null);
 
   // Fetch closed leads with payment data OR leads with performas
   const { data: closures, isLoading } = useQuery({
@@ -713,6 +717,15 @@ export default function AccountantDashboard() {
                               >
                                 <Send className="h-4 w-4" />
                               </Button>
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="h-8 w-8 p-0 rounded-full hover:bg-blue-500/10 hover:text-blue-500 border-accent/20"
+                                onClick={() => setAgreementLead(lead)}
+                                title="Agreement Workflow"
+                              >
+                                <FileSignature className="h-4 w-4" />
+                              </Button>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -851,6 +864,17 @@ export default function AccountantDashboard() {
                               >
                                 <Send className="h-4 w-4" />
                               </Button>
+                              {lead.lead_status === 'Closed' && (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="h-8 w-8 p-0 rounded-full hover:bg-blue-500/10 hover:text-blue-500 border-accent/20"
+                                  onClick={() => setAgreementLead(lead)}
+                                  title="Agreement Workflow"
+                                >
+                                  <FileSignature className="h-4 w-4" />
+                                </Button>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -988,6 +1012,19 @@ export default function AccountantDashboard() {
           open={detailsLead !== null}
           onClose={() => setDetailsLead(null)}
           lead={detailsLead}
+        />
+      )}
+
+      {/* Dialog for Agreement Workflow */}
+      {agreementLead && (
+        <AgreementDialog
+          lead={agreementLead}
+          open={!!agreementLead}
+          onClose={() => {
+            setAgreementLead(null);
+            refetchAllLeads();
+            queryClient.invalidateQueries({ queryKey: ['account-closures'] });
+          }}
         />
       )}
 

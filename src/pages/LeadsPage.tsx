@@ -689,7 +689,7 @@ const LeadsPage: React.FC = () => {
                             )}
 
                             {/* Agreement Button for Closed Leads */}
-                            {currentStatus === 'Closed' && role !== 'SALES_TM' && role !== 'SALES_TL' && (
+                            {currentStatus === 'Closed' && (role === 'ADMIN' || role === 'PROCESS_ANALYST') && (
                               <Button
                                 size="sm"
                                 variant="ghost"
