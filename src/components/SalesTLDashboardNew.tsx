@@ -487,7 +487,7 @@ const SalesTLDashboard: React.FC = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  {['ID','Name','Email','Tech','Status','Assigned To','Source','Last Activity','Payment', 'Actions'].map(h => (
+                  {['ID','Name','Email','Tech','Status','Assigned To','Source','Last Activity', ...(viewMode === 'global' ? [] : ['Payment']), 'Actions'].map(h => (
                     <th key={h} className="text-left p-2 text-muted-foreground font-medium whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -516,9 +516,11 @@ const SalesTLDashboard: React.FC = () => {
                       <td className="p-2 text-xs">{getName(lead.assigned_to)}</td>
                       <td className="p-2 text-xs">{lead.lead_source || '—'}</td>
                       <td className="p-2 text-xs">{new Date(lead.updated_at).toLocaleDateString()}</td>
-                      <td className="p-2 text-xs">
-                        {closure ? <span className="text-green-500 font-medium">${((closure.upfront_amount||0)+(closure.slot1_amount||0)+(closure.slot2_amount||0)).toLocaleString()}</span> : '—'}
-                      </td>
+                      {viewMode !== 'global' && (
+                        <td className="p-2 text-xs">
+                          {closure ? <span className="text-green-500 font-medium">${((closure.upfront_amount||0)+(closure.slot1_amount||0)+(closure.slot2_amount||0)).toLocaleString()}</span> : '—'}
+                        </td>
+                      )}
                       <td className="p-2">
                         <Button
                           size="sm"
