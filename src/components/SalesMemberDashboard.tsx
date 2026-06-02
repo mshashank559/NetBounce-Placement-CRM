@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { motion } from 'framer-motion';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TrendingUp, CheckCircle, Phone, Calendar, Eye, AlertTriangle, CheckCircle2, Clock, FileText as FileTextIcon, Send, MessageSquare } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import LeadDetailDialog from '@/components/LeadDetailDialog';
@@ -61,6 +62,7 @@ const SalesMemberDashboard: React.FC = () => {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
 
+  const [viewMode, setViewMode] = useState<'personal' | 'global'>('personal');
   const [monthFilter, setMonthFilter] = useState(() => String(new Date().getMonth() + 1));
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -238,12 +240,15 @@ const SalesMemberDashboard: React.FC = () => {
 
   // ── My assigned leads ──
   const { data: myLeads = [] } = useQuery({
-    queryKey: ['sm-leads', user?.id],
+    queryKey: ['sm-leads', user?.id, viewMode],
     queryFn: async () => {
-      const { data } = await supabase.from('leads').select('*')
-        .eq('assigned_to', user!.id)
-        .neq('assignment_type', 'Team') // Ensure Team leads don't show here
-        .order('created_at', { ascending: false });
+      let query = supabase.from('leads').select('*');
+      if (viewMode === 'personal') {
+        query = query.eq('assigned_to', user!.id).neq('assignment_type', 'Team');
+      } else {
+        query = query.not('assigned_to', 'is', null);
+      }
+      const { data } = await query.order('created_at', { ascending: false });
       return data || [];
     },
     enabled: !!user,
@@ -330,6 +335,12 @@ const SalesMemberDashboard: React.FC = () => {
           <p className="text-sm text-muted-foreground">Your personal execution dashboard</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <Tabs value={viewMode} onValueChange={(v: any) => setViewMode(v)} className="w-[200px]">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="personal">My View</TabsTrigger>
+              <TabsTrigger value="global">Global View</TabsTrigger>
+            </TabsList>
+          </Tabs>
           <Input placeholder="Search name..." value={nameSearch} onChange={e => setNameSearch(e.target.value)} className="w-40" />
           <Select value={monthFilter} onValueChange={setMonthFilter}>
             <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
@@ -491,6 +502,7 @@ const SalesMemberDashboard: React.FC = () => {
                           <Select
                             value={lead.lead_status || 'New'}
                             onValueChange={v => handleStatusChangeRequest(lead, v)}
+                            disabled={lead.assigned_to !== user?.id}
                           >
                             <SelectTrigger className="h-7 w-36 text-xs">
                               <SelectValue />
@@ -521,7 +533,7 @@ const SalesMemberDashboard: React.FC = () => {
                               size="sm"
                               variant="outline"
                               className="h-7 px-2 text-xs border-green-500/40 text-green-600 hover:bg-green-500/10"
-                              disabled={dnrDoneMutation.isPending}
+                              disabled={dnrDoneMutation.isPending || lead.assigned_to !== user?.id}
                               onClick={() => dnrDoneMutation.mutate(lead)}
                             >
                               <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Mark Done
@@ -534,7 +546,7 @@ const SalesMemberDashboard: React.FC = () => {
                           <Button size="sm" variant="ghost" title="View" onClick={() => setSelectedLead(lead)}>
                             <Eye className="h-3.5 w-3.5" />
                           </Button>
-                          {lead.lead_status !== 'Closed' && lead.lead_status !== 'Non Interested' && (
+                          {lead.lead_status !== 'Closed' && lead.lead_status !== 'Non Interested' && lead.assigned_to === user?.id && (
                             <Button
                               size="sm"
                               variant="ghost"
@@ -551,7 +563,7 @@ const SalesMemberDashboard: React.FC = () => {
                               <Phone className="h-3.5 w-3.5" />
                             </Button>
                           )}
-                          {lead.lead_status === 'Hot Prospect' && (
+                          {lead.lead_status === 'Hot Prospect' && lead.assigned_to === user?.id && (
                             <Button
                               size="sm"
                               variant="ghost"

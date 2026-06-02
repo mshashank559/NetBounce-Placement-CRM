@@ -12,7 +12,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
-import { Users, Plus, CheckCircle, UserPlus, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
+import { Users, Plus, CheckCircle, UserPlus, AlertTriangle, CheckCircle2, Clock, Eye } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import LeadDetailDialog from './LeadDetailDialog';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend
@@ -27,6 +29,7 @@ const BDMemberDashboard: React.FC = () => {
   const queryClient = useQueryClient();
 
   // ── Filters ────────────────────────────────────────────────
+  const [viewMode, setViewMode] = useState<'personal' | 'global'>('personal');
   const [monthFilter, setMonthFilter] = useState(() => String(new Date().getMonth() + 1));
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -37,15 +40,15 @@ const BDMemberDashboard: React.FC = () => {
   const [concernText, setConcernText] = useState('');
   const [concernRecipient, setConcernRecipient] = useState('');
 
-  // ── Fetch MY leads only ──────────────────────────────────
+  // ── Fetch leads ──────────────────────────────────
   const { data: myLeads = [], isLoading } = useQuery({
-    queryKey: ['bd-member-leads', user?.id],
+    queryKey: ['bd-member-leads', user?.id, viewMode],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('leads')
-        .select('*')
-        .eq('lead_generated_by', user!.id)
-        .order('created_at', { ascending: false });
+      let query = supabase.from('leads').select('*');
+      if (viewMode === 'personal') {
+        query = query.eq('lead_generated_by', user!.id);
+      }
+      const { data } = await query.order('created_at', { ascending: false });
       return data || [];
     },
     enabled: !!user,
@@ -245,6 +248,12 @@ const BDMemberDashboard: React.FC = () => {
           <p className="text-sm text-muted-foreground">Your personal lead generation dashboard</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <Tabs value={viewMode} onValueChange={(v: any) => setViewMode(v)} className="w-[200px]">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="personal">My View</TabsTrigger>
+              <TabsTrigger value="global">Global View</TabsTrigger>
+            </TabsList>
+          </Tabs>
           <Input
             placeholder="Search by name..."
             value={nameSearch}
@@ -340,8 +349,10 @@ const BDMemberDashboard: React.FC = () => {
       <Card className="glass-card">
         <CardHeader>
           <CardTitle className="text-lg font-display flex items-center justify-between">
-            My Leads ({filteredLeads.length})
-            <span className="text-xs text-muted-foreground font-normal">You can only see leads you created</span>
+            {viewMode === 'global' ? 'Global Leads' : 'My Leads'} ({filteredLeads.length})
+            <span className="text-xs text-muted-foreground font-normal">
+              {viewMode === 'global' ? 'Viewing all system leads' : 'You can only see leads you created'}
+            </span>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -406,7 +417,7 @@ const BDMemberDashboard: React.FC = () => {
                             size="sm"
                             variant="outline"
                             className="h-7 px-2 text-xs border-green-500/40 text-green-600 hover:bg-green-500/10"
-                            disabled={dnrDoneMutation.isPending}
+                            disabled={dnrDoneMutation.isPending || lead.lead_generated_by !== user?.id}
                             onClick={() => dnrDoneMutation.mutate(lead)}
                           >
                             <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Mark Done
@@ -417,20 +428,33 @@ const BDMemberDashboard: React.FC = () => {
                     </td>
                     {/* Actions */}
                     <td className="p-2">
-                      {!lead.concern ? (
+                      <div className="flex items-center gap-1">
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="text-orange-500 hover:text-orange-600 hover:bg-orange-500/10 text-xs h-7 px-2"
-                          onClick={() => { setConcernLead(lead); setConcernText(''); setConcernRecipient(''); }}
+                          className="h-7 w-7 p-0"
+                          onClick={() => setDetailsLead(lead)}
+                          title="View Details"
                         >
-                          <AlertTriangle className="h-3 w-3 mr-1" /> Concern
+                          <Eye className="h-4 w-4" />
                         </Button>
-                      ) : (
-                        <span className="text-xs text-orange-500 font-medium flex items-center gap-1">
-                          <AlertTriangle className="h-3 w-3" /> Raised
-                        </span>
-                      )}
+                        {lead.lead_generated_by === user?.id && (
+                          !lead.concern ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-orange-500 hover:text-orange-600 hover:bg-orange-500/10 text-xs h-7 px-2"
+                              onClick={() => { setConcernLead(lead); setConcernText(''); setConcernRecipient(''); }}
+                            >
+                              <AlertTriangle className="h-3 w-3 mr-1" /> Concern
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-orange-500 font-medium flex items-center gap-1">
+                              <AlertTriangle className="h-3 w-3" /> Raised
+                            </span>
+                          )
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -499,6 +523,15 @@ const BDMemberDashboard: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Lead Detail Dialog */}
+      {detailsLead && (
+        <LeadDetailDialog
+          open={detailsLead !== null}
+          onClose={() => setDetailsLead(null)}
+          lead={detailsLead}
+        />
+      )}
     </div>
   );
 };

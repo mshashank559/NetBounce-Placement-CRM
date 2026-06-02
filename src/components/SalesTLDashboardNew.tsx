@@ -11,7 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
-import { TrendingUp, CheckCircle, Phone, DollarSign, AlertTriangle, Clock, UserPlus } from 'lucide-react';
+import { TrendingUp, CheckCircle, Phone, DollarSign, AlertTriangle, Clock, UserPlus, Eye } from 'lucide-react';
+import LeadDetailDialog from './LeadDetailDialog';
 import {
   LineChart, Line, BarChart, Bar, FunnelChart, Funnel, LabelList,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Cell
@@ -25,7 +26,8 @@ const SalesTLDashboard: React.FC = () => {
   const { user, profile, role } = useAuth();
   const queryClient = useQueryClient();
 
-  const [viewMode, setViewMode] = useState('team');
+  const [viewMode, setViewMode] = useState('team'); // 'personal', 'team', or 'global'
+  const [selectedLead, setSelectedLead] = useState<any>(null);
   const [monthFilter, setMonthFilter] = useState(() => String(new Date().getMonth() + 1));
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -83,6 +85,7 @@ const SalesTLDashboard: React.FC = () => {
     return leads.filter(l => {
       if (viewMode === 'personal' && l.assigned_to !== user?.id) return false;
       if (viewMode === 'team' && l.assigned_to && !myTeamIds.has(l.assigned_to) && l.assigned_to !== user?.id) return false;
+      if (viewMode === 'global' && !l.assigned_to) return false;
       const d = new Date(l.created_at);
       if (monthFilter !== 'all' && d.getMonth() + 1 !== parseInt(monthFilter)) return false;
       if (dateFrom && d < new Date(dateFrom)) return false;
@@ -233,10 +236,11 @@ const SalesTLDashboard: React.FC = () => {
           <p className="text-sm text-muted-foreground">Full team execution control & revenue tracking</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Tabs value={viewMode} onValueChange={setViewMode} className="w-[200px]">
-            <TabsList className="grid w-full grid-cols-2">
+          <Tabs value={viewMode} onValueChange={setViewMode} className="w-[300px]">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="personal">My View</TabsTrigger>
               <TabsTrigger value="team">Team View</TabsTrigger>
+              <TabsTrigger value="global">Global View</TabsTrigger>
             </TabsList>
           </Tabs>
           <Input placeholder="Search name..." value={nameSearch} onChange={e => setNameSearch(e.target.value)} className="w-40" />
@@ -467,13 +471,17 @@ const SalesTLDashboard: React.FC = () => {
 
       {/* SECTION 4: All Team Leads Table */}
       <Card className="glass-card">
-        <CardHeader><CardTitle className="text-lg font-display">Team Leads ({filteredLeads.length})</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-lg font-display">
+            {viewMode === 'global' ? 'Global Leads' : 'Team Leads'} ({filteredLeads.length})
+          </CardTitle>
+        </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  {['ID','Name','Email','Tech','Status','Assigned To','Source','Last Activity','Payment'].map(h => (
+                  {['ID','Name','Email','Tech','Status','Assigned To','Source','Last Activity','Payment', 'Actions'].map(h => (
                     <th key={h} className="text-left p-2 text-muted-foreground font-medium whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -505,6 +513,17 @@ const SalesTLDashboard: React.FC = () => {
                       <td className="p-2 text-xs">
                         {closure ? <span className="text-green-500 font-medium">${((closure.upfront_amount||0)+(closure.slot1_amount||0)+(closure.slot2_amount||0)).toLocaleString()}</span> : '—'}
                       </td>
+                      <td className="p-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0"
+                          onClick={() => setSelectedLead(lead)}
+                          title="View Details"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -513,6 +532,14 @@ const SalesTLDashboard: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+      {/* Lead Detail Dialog */}
+      {selectedLead && (
+        <LeadDetailDialog
+          open={selectedLead !== null}
+          onClose={() => setSelectedLead(null)}
+          lead={selectedLead}
+        />
+      )}
     </div>
   );
 };
