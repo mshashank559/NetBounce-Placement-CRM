@@ -32,7 +32,7 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
       const { data } = await supabase.from('lead_closures').select('*').eq('lead_id', lead.unique_id).maybeSingle();
       return data;
     },
-    enabled: open && lead.lead_status?.toLowerCase() === 'closed',
+    enabled: open && !!lead.unique_id,
   });
 
   const { data: generatedByProfile } = useQuery({
