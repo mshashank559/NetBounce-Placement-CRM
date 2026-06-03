@@ -45,17 +45,26 @@ const SalesTLDashboard: React.FC = () => {
   const { data: salesMembers = [] } = useQuery({
     queryKey: ['sales-team-members', user?.id, role],
     queryFn: async () => {
-      const { data: roles } = await supabase.from('user_roles').select('user_id').eq('role', 'SALES_TM');
+      const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('role', ['SALES_TM', 'SALES_TL']);
       if (!roles?.length) return [];
-      const ids = roles.map(r => r.user_id);
       
-      const { data: profs } = await supabase.from('profiles').select('*').in('user_id', ids);
-      if (!profs) return [];
+      const tlIds = roles.filter(r => r.role === 'SALES_TL').map(r => r.user_id);
+      const tmIds = roles.filter(r => r.role === 'SALES_TM').map(r => r.user_id);
       
+      const { data: tlProfiles } = await supabase.from('profiles').select('*').in('user_id', tlIds);
+      
+      let tmQuery = supabase.from('profiles').select('*').in('user_id', tmIds) as any;
       if (role === 'SALES_TL') {
-        return profs.filter((p: any) => p.reports_to === user!.id);
+        tmQuery = tmQuery.eq('reports_to', user!.id);
       }
-      return profs;
+      const { data: tmProfiles } = await tmQuery;
+      
+      const combined = [...(tlProfiles || []), ...(tmProfiles || [])];
+      const uniqueMap: Record<string, any> = {};
+      combined.forEach(p => {
+        uniqueMap[p.user_id] = p;
+      });
+      return Object.values(uniqueMap);
     },
     enabled: !!user,
   });

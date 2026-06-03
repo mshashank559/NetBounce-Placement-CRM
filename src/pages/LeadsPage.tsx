@@ -140,19 +140,28 @@ const LeadsPage: React.FC = () => {
 
   // ── Team members list (for TL/Admin member filter) ───────────
   const { data: teamMembers } = useQuery({
-    queryKey: ['team-members-list', user?.id],
+    queryKey: ['team-members-list', user?.id, role],
     queryFn: async () => {
       const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('role', ['SALES_TM', 'SALES_TL']);
       if (!roles) return [];
-      const userIds = roles.map(r => r.user_id);
       
-      let query = supabase.from('profiles').select('user_id, full_name').in('user_id', userIds) as any;
+      const tlIds = roles.filter(r => r.role === 'SALES_TL').map(r => r.user_id);
+      const tmIds = roles.filter(r => r.role === 'SALES_TM').map(r => r.user_id);
+      
+      const { data: tlProfiles } = await supabase.from('profiles').select('user_id, full_name').in('user_id', tlIds);
+      
+      let tmQuery = supabase.from('profiles').select('user_id, full_name').in('user_id', tmIds) as any;
       if (role === 'SALES_TL') {
-        query = query.eq('reports_to', user!.id);
+        tmQuery = tmQuery.eq('reports_to', user!.id);
       }
+      const { data: tmProfiles } = await tmQuery;
       
-      const { data } = await query;
-      return data || [];
+      const combined = [...(tlProfiles || []), ...(tmProfiles || [])];
+      const uniqueMap: Record<string, any> = {};
+      combined.forEach(p => {
+        uniqueMap[p.user_id] = p;
+      });
+      return Object.values(uniqueMap);
     },
     enabled: !!user && (role === 'ADMIN' || role === 'SALES_TL' || role === 'LEAD_TL'),
   });
