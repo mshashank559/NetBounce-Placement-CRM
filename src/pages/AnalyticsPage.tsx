@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { fetchAllLeads } from '@/lib/leads';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { motion } from 'framer-motion';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Funnel, FunnelChart, LabelList } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LabelList } from 'recharts';
 
 const COLORS = ['hsl(222, 100%, 50%)', 'hsl(222, 100%, 65%)', 'hsl(222, 80%, 40%)', 'hsl(222, 60%, 75%)', 'hsl(200, 80%, 50%)'];
 

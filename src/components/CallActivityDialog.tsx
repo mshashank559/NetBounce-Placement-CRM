@@ -70,17 +70,16 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
   interface AdditionalSlot {
     amount: string;
     due_date: string;
-    paid?: boolean;
   }
   const [additionalSlots, setAdditionalSlots] = useState<AdditionalSlot[]>([]);
 
   const addSlot = () => {
-    setAdditionalSlots(prev => [...prev, { amount: '', due_date: '', paid: false }]);
+    setAdditionalSlots(prev => [...prev, { amount: '', due_date: '' }]);
   };
   const removeSlot = (index: number) => {
     setAdditionalSlots(prev => prev.filter((_, i) => i !== index));
   };
-  const updateSlot = (index: number, field: keyof AdditionalSlot, value: any) => {
+  const updateSlot = (index: number, field: keyof AdditionalSlot, value: string) => {
     setAdditionalSlots(prev => prev.map((s, i) => i === index ? { ...s, [field]: value } : s));
   };
 
@@ -113,8 +112,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
       const parsedAdditionalSlots = Array.isArray(closure.additional_slots)
         ? (closure.additional_slots as any[]).map(s => ({
             amount: s.amount ? String(s.amount) : '',
-            due_date: s.due_date || '',
-            paid: !!s.paid
+            due_date: s.due_date || ''
           }))
         : [];
       setAdditionalSlots(parsedAdditionalSlots);
@@ -208,8 +206,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
             additional_slots: additionalSlots.map((s, idx) => ({
               slot_number: idx + 3,
               amount: parseFloat(s.amount) || 0,
-              due_date: s.due_date || null,
-              paid: !!s.paid
+              due_date: s.due_date || null
             }))
           };
 
@@ -650,18 +647,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
                 {additionalSlots.map((slot, index) => (
                   <div key={index} className="space-y-2 pl-6 border-l-2 border-primary/20 relative">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-muted-foreground font-display font-semibold">Slot {index + 3}</span>
-                        <div className="flex items-center gap-1.5">
-                          <Checkbox
-                            id={`add-slot-paid-ca-${index}`}
-                            checked={!!slot.paid}
-                            onCheckedChange={v => updateSlot(index, 'paid', !!v)}
-                            className="h-3.5 w-3.5"
-                          />
-                          <label htmlFor={`add-slot-paid-ca-${index}`} className="text-[10px] text-muted-foreground cursor-pointer select-none">Paid</label>
-                        </div>
-                      </div>
+                      <span className="text-xs font-medium text-muted-foreground">Slot {index + 3}</span>
                       <Button
                         type="button"
                         variant="ghost"

@@ -128,14 +128,12 @@ const ProcessAnalystDashboard: React.FC = () => {
     },
   });
 
-  const { data: dbRevenueStats } = useQuery({
-    queryKey: ['pa-revenue-stats', monthFilter],
+  const { data: leadClosures } = useQuery({
+    queryKey: ['all-closures-pa'],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_revenue_stats', {
-        p_month_filter: monthFilter === 'all' ? null : monthFilter,
-      });
+      const { data, error } = await supabase.from('lead_closures').select('*');
       if (error) throw error;
-      return data as any;
+      return data || [];
     },
   });
 
@@ -170,12 +168,14 @@ const ProcessAnalystDashboard: React.FC = () => {
 
   // Filtering Logic
   const filteredData = useMemo(() => {
-    if (!leads) return { leads: [] };
+    if (!leads || !leadClosures) return { leads: [], closures: [] };
     let fLeads = leads;
+    let fClosures = leadClosures;
 
     if (monthFilter && monthFilter !== 'all') {
       const [year, month] = monthFilter.split('-').map(Number);
       fLeads = fLeads.filter(l => { const d = new Date(l.created_at); return d.getFullYear() === year && d.getMonth() + 1 === month; });
+      fClosures = fClosures.filter(c => { const d = new Date(c.created_at); return d.getFullYear() === year && d.getMonth() + 1 === month; });
     }
     if (statusFilter !== 'all') fLeads = fLeads.filter(l => l.lead_status === statusFilter);
     if (teamFilter !== 'all') {
@@ -186,19 +186,34 @@ const ProcessAnalystDashboard: React.FC = () => {
       const q = searchQuery.toLowerCase();
       fLeads = fLeads.filter(l => l.name.toLowerCase().includes(q) || l.email.toLowerCase().includes(q) || (l.display_id || '').toLowerCase().includes(q));
     }
-    return { leads: fLeads };
-  }, [leads, monthFilter, statusFilter, teamFilter, searchQuery, allUsers]);
+    return { leads: fLeads, closures: fClosures };
+  }, [leads, leadClosures, monthFilter, statusFilter, teamFilter, searchQuery, allUsers]);
 
   // Revenue Calculations
   const revenueStats = useMemo(() => {
+    const calcRevenue = (closure: any) => {
+      const upfront = Number(closure.upfront_amount) || 0;
+      const s1 = closure.slot1 ? (Number(closure.slot1_amount) || 0) : 0;
+      const s2 = closure.slot2 ? (Number(closure.slot2_amount) || 0) : 0;
+      let additional = 0;
+      if (Array.isArray(closure.additional_slots)) {
+        closure.additional_slots.forEach((slot: any) => {
+          additional += Number(slot.amount) || 0;
+        });
+      }
+      return upfront + s1 + s2 + additional;
+    };
+    const total = filteredData.closures.reduce((sum, c) => sum + calcRevenue(c), 0);
+    const salesTeamIds = allUsers.filter(u => u.team === 'Sales').map(u => u.user_id);
+    const leadGenTeamIds = allUsers.filter(u => u.team === 'Lead Gen').map(u => u.user_id);
     return {
-      total: dbRevenueStats?.total_revenue || 0,
+      total,
       team: {
-        Sales: dbRevenueStats?.sales_revenue || 0,
-        LeadGen: dbRevenueStats?.lead_gen_revenue || 0
+        Sales: filteredData.closures.filter(c => salesTeamIds.includes(leads?.find(l => l.unique_id === c.lead_id)?.assigned_to || '')).reduce((sum, c) => sum + calcRevenue(c), 0),
+        LeadGen: filteredData.closures.filter(c => leadGenTeamIds.includes(leads?.find(l => l.unique_id === c.lead_id)?.lead_generated_by || '')).reduce((sum, c) => sum + calcRevenue(c), 0)
       }
     };
-  }, [dbRevenueStats]);
+  }, [filteredData.closures, allUsers, leads]);
 
   const analyticsData = useMemo(() => {
     const last15Days = Array.from({ length: 15 }).map((_, i) => {

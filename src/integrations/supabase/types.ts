@@ -521,17 +521,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_revenue_stats: {
-        Args: {
-          p_month_filter?: string | null
-          p_start_date?: string | null
-          p_end_date?: string | null
-          p_year_filter?: number | null
-          p_view_mode?: string | null
-          p_assigned_to?: string | null
-        }
-        Returns: Json
-      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
