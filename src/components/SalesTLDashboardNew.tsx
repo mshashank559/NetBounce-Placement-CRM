@@ -51,7 +51,11 @@ const SalesTLDashboard: React.FC = () => {
       const tlIds = roles.filter(r => r.role === 'SALES_TL').map(r => r.user_id);
       const tmIds = roles.filter(r => r.role === 'SALES_TM').map(r => r.user_id);
       
-      const { data: tlProfiles } = await supabase.from('profiles').select('*').in('user_id', tlIds);
+      let tlQuery = supabase.from('profiles').select('*').in('user_id', tlIds) as any;
+      if (role === 'SALES_TL') {
+        tlQuery = tlQuery.eq('user_id', user!.id);
+      }
+      const { data: tlProfiles } = await tlQuery;
       
       let tmQuery = supabase.from('profiles').select('*').in('user_id', tmIds) as any;
       if (role === 'SALES_TL') {
