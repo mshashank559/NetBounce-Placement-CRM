@@ -200,10 +200,7 @@ const BDDashboard: React.FC = () => {
     return hoursSinceUpdate > 48 && !['Closed', 'Non Interested'].includes(l.lead_status || '');
   });
 
-  const sameDayInactive = filteredLeads.filter(l => {
-    const isToday = l.created_at.startsWith(new Date().toISOString().split('T')[0]);
-    return isToday && l.lead_status === 'New' && !l.assigned_to;
-  });
+
 
   // ── Mutations ─────────────────────────────────────────────
   const assignMutation = useMutation({
@@ -360,8 +357,8 @@ const BDDashboard: React.FC = () => {
       )}
 
       {/* ── SLA & Concerns Alerts (Sections 5 & 7) ── */}
-      {viewMode !== 'global' && (concernLeads.length > 0 || staleLeads.length > 0 || sameDayInactive.length > 0) && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {viewMode !== 'global' && (concernLeads.length > 0 || staleLeads.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {concernLeads.length > 0 && (
             <Card className="border-orange-500/50 bg-orange-500/5 shadow-[0_0_15px_rgba(249,115,22,0.1)]">
               <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-orange-600 flex items-center"><AlertTriangle className="h-4 w-4 mr-2" /> Unresolved Concerns ({concernLeads.length})</CardTitle></CardHeader>
@@ -391,19 +388,6 @@ const BDDashboard: React.FC = () => {
                 {staleLeads.map(l => (
                   <div key={l.unique_id} className="text-xs p-2 bg-background rounded border border-red-500/20">
                     <span className="font-semibold">{l.name}</span> — No update &gt; 48h
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {sameDayInactive.length > 0 && (
-            <Card className="border-amber-500/50 bg-amber-500/5 shadow-[0_0_15px_rgba(245,158,11,0.1)]">
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-amber-600 flex items-center"><AlertTriangle className="h-4 w-4 mr-2" /> Same-Day Inactive ({sameDayInactive.length})</CardTitle></CardHeader>
-              <CardContent className="space-y-2 max-h-40 overflow-y-auto">
-                {sameDayInactive.map(l => (
-                  <div key={l.unique_id} className="text-xs p-2 bg-background rounded border border-amber-500/20">
-                    <span className="font-semibold">{l.name}</span> — Added today, untouched.
                   </div>
                 ))}
               </CardContent>

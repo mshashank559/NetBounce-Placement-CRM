@@ -4,11 +4,10 @@ import { useAuth } from '@/contexts/AuthContext';
 
 /**
  * SLA Hook — runs on every session load.
- * Rule 1: New Lead Touch SLA (untouched > 24 hours) -> notify TL + Admin
- * Rule 2: Same-Day Sales Update Rule (no update today for active/assigned) -> notify TL + Admin
- * Rule 3: Document Dispatch SLA (no review doc sent within 24h of closure) -> notify Accountant + PA + Admin
- * Rule 4: Payment due today -> notify Accountant + Admin
- * Rule 5: Payment Pending SLA -> escalate to Admin if overdue 3+ days
+ * Rule 1: Same-Day Sales Update Rule (no update today for active/assigned) -> notify TL + Admin
+ * Rule 2: Document Dispatch SLA (no review doc sent within 24h of closure) -> notify Accountant + PA + Admin
+ * Rule 3: Payment due today -> notify Accountant + Admin
+ * Rule 4: Payment Pending SLA -> escalate to Admin if overdue 3+ days
  */
 export const useSLA = () => {
   const { user, role } = useAuth();
@@ -32,67 +31,7 @@ export const useSLA = () => {
         return data?.map(r => r.user_id) || [];
       };
 
-      // ── Rule 1: New Lead Touch SLA (untouched > 24 hours) ──
-      const { data: newLeads } = (await supabase
-        .from('leads')
-        .select('unique_id, name, assigned_to, team_lead_id' as any)
-        .eq('lead_status', 'New')
-        .lt('updated_at', twentyFourHoursAgo)) as { data: any[] | null };
-
-      if (newLeads && newLeads.length > 0) {
-        const admins = await getRoleUserIds(['ADMIN']);
-        const bdTLs = await getRoleUserIds(['LEAD_TL']);
-
-        for (const lead of newLeads) {
-          // Double check there are no followups or call logs in the last 24 hours
-          const { data: followups } = await supabase
-            .from('followups')
-            .select('id')
-            .eq('lead_id', lead.unique_id)
-            .gte('created_at', twentyFourHoursAgo)
-            .limit(1);
-
-          const { data: calls } = await supabase
-            .from('call_logs')
-            .select('id')
-            .eq('lead_id', lead.unique_id)
-            .gte('created_at', twentyFourHoursAgo)
-            .limit(1);
-
-          if ((!followups || followups.length === 0) && (!calls || calls.length === 0)) {
-            // Check if we already sent this SLA notification today to avoid spam
-            const { data: existing } = await supabase
-              .from('notifications')
-              .select('id')
-              .eq('lead_id', lead.unique_id)
-              .eq('type', 'sla_no_action')
-              .gte('created_at', `${today}T00:00:00`)
-              .limit(1);
-
-            if (!existing || existing.length === 0) {
-              const targets = new Set<string>([...admins]);
-              if (lead.team_lead_id) {
-                targets.add(lead.team_lead_id);
-              } else {
-                bdTLs.forEach(id => targets.add(id));
-              }
-
-              if (targets.size > 0) {
-                const notifs = Array.from(targets).map(userId => ({
-                  user_id: userId,
-                  title: '⚠️ SLA Alert: New Lead Untouched',
-                  message: `Lead "${lead.name}" has been in "New" status for over 24 hours without any action.`,
-                  type: 'sla_no_action',
-                  lead_id: lead.unique_id,
-                }));
-                await supabase.from('notifications').insert(notifs);
-              }
-            }
-          }
-        }
-      }
-
-      // ── Rule 2: Same-Day Sales Update Rule ──
+      // ── Rule 1: Same-Day Sales Update Rule ──
       const todayStart = `${today}T00:00:00`;
       const { data: activeAssignedLeads } = (await supabase
         .from('leads')
@@ -137,7 +76,7 @@ export const useSLA = () => {
         }
       }
 
-      // ── Rule 3: Document Dispatch SLA ──
+      // ── Rule 2: Document Dispatch SLA ──
       const { data: closures } = await supabase
         .from('leads')
         .select('unique_id, name, agreement_status, agreement_sent_at')
@@ -195,7 +134,7 @@ export const useSLA = () => {
         }
       }
 
-      // ── Rule 4: Payment due today (Notify Account Person) ──
+      // ── Rule 3: Payment due today (Notify Account Person) ──
       const { data: dueToday } = await supabase
         .from('payment_ledgers')
         .select('*, leads(name)')
@@ -229,7 +168,7 @@ export const useSLA = () => {
         }
       }
 
-      // ── Rule 5: Payment Pending SLA (Escalate to Admin if overdue 3+ days) ──
+      // ── Rule 4: Payment Pending SLA (Escalate to Admin if overdue 3+ days) ──
       const { data: overdueLeads } = await supabase
         .from('payment_ledgers')
         .select('*, leads(name)')

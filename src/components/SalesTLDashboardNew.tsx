@@ -141,12 +141,7 @@ const SalesTLDashboard: React.FC = () => {
     });
   }, [leads, myTeamIds, user?.id]);
 
-  const sameDayInactive = useMemo(() => {
-    return leads.filter(l => {
-      if (l.assigned_to !== user?.id && !myTeamIds.has(l.assigned_to)) return false;
-      return l.created_at.startsWith(today) && l.lead_status === 'New';
-    });
-  }, [leads, myTeamIds, user?.id, today]);
+
 
   // ── Chart Data ──
   const chartData = useMemo(() => {
@@ -299,8 +294,8 @@ const SalesTLDashboard: React.FC = () => {
       )}
 
       {/* SLA Alerts & Concerns */}
-      {viewMode !== 'global' && (staleLeads.length > 0 || sameDayInactive.length > 0 || concernLeads.length > 0) && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {viewMode !== 'global' && (staleLeads.length > 0 || concernLeads.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {staleLeads.length > 0 && (
             <Card className="border-red-500/50 bg-red-500/5">
               <CardHeader className="pb-2"><CardTitle className="text-sm text-red-600 flex items-center gap-2"><Clock className="h-4 w-4" /> Stale Leads — No Update &gt;24h ({staleLeads.length})</CardTitle></CardHeader>
@@ -334,19 +329,6 @@ const SalesTLDashboard: React.FC = () => {
                     >
                       Resolve
                     </Button>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {sameDayInactive.length > 0 && (
-            <Card className="border-amber-500/50 bg-amber-500/5">
-              <CardHeader className="pb-2"><CardTitle className="text-sm text-amber-600 flex items-center gap-2"><AlertTriangle className="h-4 w-4" /> Same-Day Inactive ({sameDayInactive.length})</CardTitle></CardHeader>
-              <CardContent className="space-y-1 max-h-40 overflow-y-auto">
-                {sameDayInactive.map(l => (
-                  <div key={l.unique_id} className="text-xs p-2 bg-background rounded border border-amber-500/20">
-                    <b>{l.name}</b> — Added today, no action yet
                   </div>
                 ))}
               </CardContent>
