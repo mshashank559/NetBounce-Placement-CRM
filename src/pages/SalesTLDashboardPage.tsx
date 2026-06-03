@@ -36,30 +36,52 @@ const SalesTLDashboardPage: React.FC = () => {
   });
 
   const { data: allLeads } = useQuery({
-    queryKey: ['sales-tl-leads'],
+    queryKey: ['sales-tl-leads', salesMembers?.map(m => m.user_id)],
     queryFn: async () => {
-      const { data } = await supabase.from('leads').select('*');
+      if (!salesMembers?.length) return [];
+      const userIds = salesMembers.map(m => m.user_id);
+      const { data } = await supabase
+        .from('leads')
+        .select('*')
+        .in('assigned_to', userIds);
       return data || [];
     },
-    enabled: !!user,
+    enabled: !!salesMembers?.length,
   });
 
   const { data: callLogs } = useQuery({
-    queryKey: ['sales-tl-calls'],
+    queryKey: ['sales-tl-calls', salesMembers?.map(m => m.user_id)],
     queryFn: async () => {
-      const { data } = await supabase.from('call_logs').select('*');
+      if (!salesMembers?.length) return [];
+      const userIds = salesMembers.map(m => m.user_id);
+      const { data } = await supabase
+        .from('call_logs')
+        .select('*')
+        .in('user_id', userIds);
       return data || [];
     },
-    enabled: !!user,
+    enabled: !!salesMembers?.length,
   });
 
   const { data: closures } = useQuery({
-    queryKey: ['sales-tl-closures'],
+    queryKey: ['sales-tl-closures', salesMembers?.map(m => m.user_id)],
     queryFn: async () => {
-      const { data } = await supabase.from('lead_closures').select('*');
+      if (!salesMembers?.length) return [];
+      const userIds = salesMembers.map(m => m.user_id);
+      const { data: leadsInTeam } = await supabase
+        .from('leads')
+        .select('unique_id')
+        .in('assigned_to', userIds);
+      const teamLeadIds = leadsInTeam?.map(l => l.unique_id) || [];
+      if (teamLeadIds.length === 0) return [];
+      
+      const { data } = await supabase
+        .from('lead_closures')
+        .select('*')
+        .in('lead_id', teamLeadIds);
       return data || [];
     },
-    enabled: !!user,
+    enabled: !!salesMembers?.length,
   });
 
   const today = new Date().toISOString().split('T')[0];
@@ -93,12 +115,14 @@ const SalesTLDashboardPage: React.FC = () => {
 
       const totalRevenue = memberClosures.reduce((s, c) => {
         const upfront = Number(c.upfront_amount) || 0;
-        const s1 = c.slot1 ? (Number(c.slot1_amount) || 0) : 0;
-        const s2 = c.slot2 ? (Number(c.slot2_amount) || 0) : 0;
+        const s1 = c.slot1 === true ? (Number(c.slot1_amount) || 0) : 0;
+        const s2 = c.slot2 === true ? (Number(c.slot2_amount) || 0) : 0;
         let additional = 0;
         if (Array.isArray(c.additional_slots)) {
           c.additional_slots.forEach((slot: any) => {
-            additional += Number(slot.amount) || 0;
+            if (slot.paid === true) {
+              additional += Number(slot.amount) || 0;
+            }
           });
         }
         return s + upfront + s1 + s2 + additional;

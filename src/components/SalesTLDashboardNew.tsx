@@ -85,27 +85,18 @@ const SalesTLDashboard: React.FC = () => {
     queryFn: async () => { const { data } = await supabase.from('call_logs').select('*'); return data || []; }
   });
 
-  // ── Closures with payment ──
-  const { data: closureData = [] } = useQuery({
-    queryKey: ['all-closures', user?.id, role],
+  // ── Database aggregated revenue stats ──
+  const { data: dbRevenueStats } = useQuery({
+    queryKey: ['tl-revenue-stats', viewMode, monthFilter, dateFrom, dateTo, user?.id],
     queryFn: async () => {
-      let query = supabase.from('lead_closures').select('*');
-      if (role === 'SALES_TL') {
-        const { data: teamProfiles } = await supabase
-          .from('profiles')
-          .select('user_id')
-          .or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
-        const teamUserIds = teamProfiles?.map(p => p.user_id) || [user!.id];
-        const { data: leadsInTeam } = await supabase
-          .from('leads')
-          .select('unique_id')
-          .in('assigned_to', teamUserIds);
-        const teamLeadIds = leadsInTeam?.map(l => l.unique_id) || [];
-        if (teamLeadIds.length === 0) return [];
-        query = query.in('lead_id', teamLeadIds);
-      }
-      const { data } = await query;
-      return data || [];
+      const { data, error } = await supabase.rpc('get_revenue_stats', {
+        p_month_filter: monthFilter === 'all' ? null : monthFilter,
+        p_start_date: dateFrom || null,
+        p_end_date: dateTo || null,
+        p_view_mode: viewMode,
+      });
+      if (error) throw error;
+      return data as any;
     },
     enabled: !!user,
   });
@@ -152,21 +143,8 @@ const SalesTLDashboard: React.FC = () => {
   }, [callLogs, today, filteredLeadIds]);
 
   const revenue = useMemo(() => {
-    return closureData
-      .filter(c => filteredLeadIds.has(c.lead_id))
-      .reduce((s, c) => {
-        const upfront = Number(c.upfront_amount) || 0;
-        const s1 = c.slot1 ? (Number(c.slot1_amount) || 0) : 0;
-        const s2 = c.slot2 ? (Number(c.slot2_amount) || 0) : 0;
-        let additional = 0;
-        if (Array.isArray(c.additional_slots)) {
-          c.additional_slots.forEach((slot: any) => {
-            additional += Number(slot.amount) || 0;
-          });
-        }
-        return s + upfront + s1 + s2 + additional;
-      }, 0);
-  }, [closureData, filteredLeadIds]);
+    return dbRevenueStats?.total_revenue || 0;
+  }, [dbRevenueStats]);
 
   // ── SLA Alerts ──
   const staleLeads = useMemo(() => {
@@ -496,21 +474,11 @@ const SalesTLDashboard: React.FC = () => {
               </div>
               <div className="p-4 rounded-lg bg-accent/30 text-center">
                 <p className="text-xs text-muted-foreground">Upfront Collected</p>
-                <p className="text-2xl font-bold text-green-500">${closureData.filter(c => filteredLeadIds.has(c.lead_id)).reduce((s, c) => s + (c.upfront_amount || 0), 0).toLocaleString()}</p>
+                <p className="text-2xl font-bold text-green-500">${(dbRevenueStats?.upfront_collected || 0).toLocaleString()}</p>
               </div>
               <div className="p-4 rounded-lg bg-accent/30 text-center">
                 <p className="text-xs text-muted-foreground">Pending Slots</p>
-                <p className="text-2xl font-bold text-blue-500">${closureData.filter(c => filteredLeadIds.has(c.lead_id)).reduce((s, c) => {
-                  const s1 = c.slot1 ? (Number(c.slot1_amount) || 0) : 0;
-                  const s2 = c.slot2 ? (Number(c.slot2_amount) || 0) : 0;
-                  let additional = 0;
-                  if (Array.isArray(c.additional_slots)) {
-                    c.additional_slots.forEach((slot: any) => {
-                      additional += Number(slot.amount) || 0;
-                    });
-                  }
-                  return s + s1 + s2 + additional;
-                }, 0).toLocaleString()}</p>
+                <p className="text-2xl font-bold text-blue-500">${(dbRevenueStats?.pending_slots || 0).toLocaleString()}</p>
               </div>
             </div>
           </CardContent>

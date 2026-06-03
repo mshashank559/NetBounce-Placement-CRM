@@ -13,69 +13,39 @@ const RevenuePage: React.FC = () => {
   const currentYear = new Date().getFullYear();
   const [yearFilter, setYearFilter] = useState(String(currentYear));
 
-  const { data: closures } = useQuery({
-    queryKey: ['revenue-closures', user?.id, role],
+  const { data: dbRevenueStats } = useQuery({
+    queryKey: ['revenue-page-stats', yearFilter, user?.id],
     queryFn: async () => {
-      let query = supabase.from('lead_closures').select('*, leads!inner(assigned_to)');
-      if (role === 'SALES_TL') {
-        const { data: teamProfiles } = await supabase
-          .from('profiles')
-          .select('user_id')
-          .or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
-        const teamUserIds = teamProfiles?.map(p => p.user_id) || [user!.id];
-        const orConditions = teamUserIds.map(id => `assigned_to.eq.${id}`).join(',');
-        query = query.or(orConditions, { foreignTable: 'leads' });
-      }
-      const { data } = await query;
-      return data || [];
+      const { data, error } = await supabase.rpc('get_revenue_stats', {
+        p_year_filter: parseInt(yearFilter),
+        p_view_mode: role === 'SALES_TL' ? 'team' : 'global',
+      });
+      if (error) throw error;
+      return data as any;
     },
     enabled: !!user,
   });
 
-  const calcRevenue = (closure: any) => {
-    const upfront = Number(closure.upfront_amount) || 0;
-    const s1 = closure.slot1 ? (Number(closure.slot1_amount) || 0) : 0;
-    const s2 = closure.slot2 ? (Number(closure.slot2_amount) || 0) : 0;
-    let additional = 0;
-    if (Array.isArray(closure.additional_slots)) {
-      closure.additional_slots.forEach((slot: any) => {
-        additional += Number(slot.amount) || 0;
-      });
-    }
-    return upfront + s1 + s2 + additional;
-  };
-
   const monthlyRevenue = useMemo(() => {
-    if (!closures) return [];
-    const months: Record<string, number> = {};
-    closures.forEach(c => {
-      const d = new Date(c.created_at);
-      if (d.getFullYear() !== parseInt(yearFilter)) return;
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const amount = calcRevenue(c);
-      months[key] = (months[key] || 0) + amount;
-    });
-
-    const result = [];
-    for (let m = 1; m <= 12; m++) {
-      const key = `${yearFilter}-${String(m).padStart(2, '0')}`;
-      const date = new Date(parseInt(yearFilter), m - 1);
-      result.push({
-        month: date.toLocaleDateString('en-US', { month: 'short' }),
-        revenue: months[key] || 0,
-      });
+    if (!dbRevenueStats?.monthly_breakdown) {
+      return ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map(m => ({
+        month: m,
+        revenue: 0
+      }));
     }
-    return result;
-  }, [closures, yearFilter]);
+    return dbRevenueStats.monthly_breakdown.map((m: any) => ({
+      month: m.month_name,
+      revenue: Number(m.revenue) || 0
+    }));
+  }, [dbRevenueStats]);
 
-  const totalYearRevenue = monthlyRevenue.reduce((s, m) => s + m.revenue, 0);
-  const currentMonthKey = `${currentYear}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-  const currentMonthRevenue = closures?.reduce((s, c) => {
-    const d = new Date(c.created_at);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    if (key !== currentMonthKey) return s;
-    return s + calcRevenue(c);
-  }, 0) || 0;
+  const totalYearRevenue = dbRevenueStats?.total_revenue || 0;
+  
+  const currentMonthRevenue = useMemo(() => {
+    const currentMonthName = new Date().toLocaleDateString('en-US', { month: 'short' });
+    const match = dbRevenueStats?.monthly_breakdown?.find((m: any) => m.month_name === currentMonthName);
+    return match ? Number(match.revenue) || 0 : 0;
+  }, [dbRevenueStats]);
 
   if (role !== 'ADMIN' && role !== 'SALES_TL') {
     return <div className="text-center text-muted-foreground p-8">Access denied</div>;
