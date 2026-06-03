@@ -270,7 +270,18 @@ const AdminDashboard: React.FC = () => {
 
   // Revenue
   const revenueStats = useMemo(() => {
-    const calcRevenue = (closure: any) => closure.amount || 0;
+    const calcRevenue = (closure: any) => {
+      const upfront = Number(closure.upfront_amount) || 0;
+      const s1 = closure.slot1 ? (Number(closure.slot1_amount) || 0) : 0;
+      const s2 = closure.slot2 ? (Number(closure.slot2_amount) || 0) : 0;
+      let additional = 0;
+      if (Array.isArray(closure.additional_slots)) {
+        closure.additional_slots.forEach((slot: any) => {
+          additional += Number(slot.amount) || 0;
+        });
+      }
+      return upfront + s1 + s2 + additional;
+    };
     const total = filteredData.closures.reduce((sum, c) => sum + calcRevenue(c), 0);
     const salesTeamIds = allUsers.filter(u => u.team === 'Sales').map(u => u.user_id);
     const leadGenTeamIds = allUsers.filter(u => u.team === 'Lead Gen').map(u => u.user_id);

@@ -173,6 +173,12 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                   {closure.slot1_due_date && <Field label="Slot 1 Due Date" value={new Date(closure.slot1_due_date).toLocaleDateString()} />}
                   {closure.slot2 && <Field label="Next Slot Amount" value={`$${closure.slot2_amount}`} />}
                   {closure.next_slot_due_date && <Field label="Next Slot Due Date" value={new Date(closure.next_slot_due_date).toLocaleDateString()} />}
+                  {Array.isArray(closure.additional_slots) && (closure.additional_slots as any[]).map((slot: any, idx: number) => (
+                    <React.Fragment key={idx}>
+                      <Field label={`Slot ${slot.slot_number || (idx + 3)} Amount`} value={`$${slot.amount}`} />
+                      {slot.due_date && <Field label={`Slot ${slot.slot_number || (idx + 3)} Due Date`} value={new Date(slot.due_date).toLocaleDateString()} />}
+                    </React.Fragment>
+                  ))}
                 </div>
               </div>
             )}

@@ -5,10 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { Plus, Trash2 } from 'lucide-react';
 
 interface ClosureDialogProps {
   lead: any;
@@ -36,6 +37,62 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
     next_slot_due_date: '',
     payment_mode: '' as 'Cash' | 'Card' | 'UPI' | 'Bank Transfer' | 'Stripe' | 'Other' | '',
   });
+
+  interface AdditionalSlot {
+    amount: string;
+    due_date: string;
+  }
+  const [additionalSlots, setAdditionalSlots] = useState<AdditionalSlot[]>([]);
+
+  const addSlot = () => {
+    setAdditionalSlots(prev => [...prev, { amount: '', due_date: '' }]);
+  };
+  const removeSlot = (index: number) => {
+    setAdditionalSlots(prev => prev.filter((_, i) => i !== index));
+  };
+  const updateSlot = (index: number, field: keyof AdditionalSlot, value: string) => {
+    setAdditionalSlots(prev => prev.map((s, i) => i === index ? { ...s, [field]: value } : s));
+  };
+
+  const { data: closure, isSuccess: isClosureLoaded } = useQuery({
+    queryKey: ['closure', lead?.unique_id],
+    queryFn: async () => {
+      if (!lead?.unique_id) return null;
+      const { data } = await supabase.from('lead_closures').select('*').eq('lead_id', lead.unique_id).maybeSingle();
+      return data;
+    },
+    enabled: open && !!lead?.unique_id,
+  });
+
+  React.useEffect(() => {
+    if (isClosureLoaded && closure) {
+      setForm({
+        plan: closure.plan || '',
+        interview_plan: !!closure.interview_plan,
+        interviews_guaranteed: closure.interviews_guaranteed ? String(closure.interviews_guaranteed) : '',
+        movement: '',
+        custom_plan_note: '',
+        upfront_amount: closure.upfront_amount ? String(closure.upfront_amount) : '',
+        amount: closure.amount ? String(closure.amount) : '',
+        percentage: closure.percentage ? String(closure.percentage) : '',
+        slot1: !!closure.slot1,
+        slot1_amount: closure.slot1_amount ? String(closure.slot1_amount) : '',
+        slot1_due_date: closure.slot1_due_date || new Date().toISOString().split('T')[0],
+        slot2: !!closure.slot2,
+        slot2_amount: closure.slot2_amount ? String(closure.slot2_amount) : '',
+        next_slot_due_date: closure.next_slot_due_date || '',
+        payment_mode: closure.payment_mode || '',
+      });
+
+      const parsedAdditionalSlots = Array.isArray(closure.additional_slots)
+        ? (closure.additional_slots as any[]).map(s => ({
+            amount: s.amount ? String(s.amount) : '',
+            due_date: s.due_date || ''
+          }))
+        : [];
+      setAdditionalSlots(parsedAdditionalSlots);
+    }
+  }, [isClosureLoaded, closure]);
 
   const set = (key: string, val: any) => setForm(f => ({ ...f, [key]: val }));
 
@@ -65,6 +122,7 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
         lead_id: lead.unique_id,
         plan: form.plan as any,
         interview_plan: form.interview_plan,
+        interviews_guaranteed: form.interviews_guaranteed ? parseInt(form.interviews_guaranteed) || null : null,
         upfront_amount: parseFloat(form.upfront_amount) || 0,
         amount: parseFloat(form.amount) || 0,
         percentage: parseFloat(form.percentage) || 0,
@@ -75,10 +133,22 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
         slot2_amount: form.slot2 ? parseFloat(form.slot2_amount) || 0 : null,
         next_slot_due_date: (form.slot2 && form.next_slot_due_date) ? form.next_slot_due_date : null,
         payment_mode: form.payment_mode as any,
+        additional_slots: additionalSlots.map((s, idx) => ({
+          slot_number: idx + 3,
+          amount: parseFloat(s.amount) || 0,
+          due_date: s.due_date || null
+        }))
       };
 
-      // Try inserting with the new columns; fallback if columns don't exist yet
-      const { error } = await supabase.from('lead_closures').insert(closurePayload);
+      // Try inserting/updating with the new columns; fallback if columns don't exist yet
+      let error;
+      if (closure?.id) {
+        const { error: err } = await supabase.from('lead_closures').update(closurePayload).eq('id', closure.id);
+        error = err;
+      } else {
+        const { error: err } = await supabase.from('lead_closures').insert(closurePayload);
+        error = err;
+      }
 
       if (error) {
         // If the error is about unknown columns, retry with only the standard columns
@@ -94,11 +164,18 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
             slot2_amount: form.slot2 ? parseFloat(form.slot2_amount) || 0 : null,
             payment_mode: form.payment_mode as any,
           };
-          const { error: fallbackErr } = await supabase.from('lead_closures').insert(fallbackPayload);
+          let fallbackErr;
+          if (closure?.id) {
+            const { error: err } = await supabase.from('lead_closures').update(fallbackPayload).eq('id', closure.id);
+            fallbackErr = err;
+          } else {
+            const { error: err } = await supabase.from('lead_closures').insert(fallbackPayload);
+            fallbackErr = err;
+          }
           if (fallbackErr) throw fallbackErr;
 
           // Store extended payment info in lead comment for durability
-          const paymentDetails = `[Closure Payment] Amount: $${form.amount}, Percentage: ${form.percentage}%, Slot1 Due: ${form.slot1_due_date || 'N/A'}, Next Slot Due: ${form.next_slot_due_date || 'N/A'}`;
+          const paymentDetails = `[Closure Payment] Amount: $${form.amount}, Percentage: ${form.percentage}%, Slot1 Due: ${form.slot1_due_date || 'N/A'}, Next Slot Due: ${form.next_slot_due_date || 'N/A'}, Additional Slots: ${JSON.stringify(additionalSlots)}`;
           await supabase.from('leads').update({ comment: paymentDetails } as any).eq('unique_id', lead.unique_id);
         } else {
           throw error;
@@ -127,7 +204,8 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
       // Revenue notification for Admin + Sales TL
       const totalRevenue = (parseFloat(form.upfront_amount) || 0)
         + (form.slot1 ? (parseFloat(form.slot1_amount) || 0) : 0)
-        + (form.slot2 ? (parseFloat(form.slot2_amount) || 0) : 0);
+        + (form.slot2 ? (parseFloat(form.slot2_amount) || 0) : 0)
+        + additionalSlots.reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
 
       if (totalRevenue > 0) {
         const { data: revenueRoles } = await supabase
@@ -153,6 +231,9 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
       toast.success('Lead closed successfully!');
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['closure', lead.unique_id] });
+      queryClient.invalidateQueries({ queryKey: ['all-closures'] });
+      queryClient.invalidateQueries({ queryKey: ['salestl-leads'] });
       onClose();
     },
     onError: (err: Error) => toast.error(err.message),
@@ -277,6 +358,58 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
               </div>
             </div>
           )}
+
+          {/* Additional Slots */}
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-semibold">Additional Slots</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addSlot}
+                className="h-7 px-2 flex items-center gap-1 border-primary/20 text-primary hover:bg-primary/5"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add Slot
+              </Button>
+            </div>
+            
+            {additionalSlots.map((slot, index) => (
+              <div key={index} className="space-y-2 pl-6 border-l-2 border-primary/20 relative">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">Slot {index + 3}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeSlot(index)}
+                    className="h-6 w-6 text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                  <Input
+                    type="number"
+                    value={slot.amount}
+                    onChange={e => updateSlot(index, 'amount', e.target.value)}
+                    placeholder={`Slot ${index + 3} Amount`}
+                    className="pl-7 text-xs h-9"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px] text-muted-foreground">Due Date</Label>
+                  <Input
+                    type="date"
+                    value={slot.due_date}
+                    onChange={e => updateSlot(index, 'due_date', e.target.value)}
+                    className="text-xs h-9 mt-0.5"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
 
           <div>
             <Label>Payment Mode *</Label>

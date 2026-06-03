@@ -32,6 +32,19 @@ const RevenuePage: React.FC = () => {
     enabled: !!user,
   });
 
+  const calcRevenue = (closure: any) => {
+    const upfront = Number(closure.upfront_amount) || 0;
+    const s1 = closure.slot1 ? (Number(closure.slot1_amount) || 0) : 0;
+    const s2 = closure.slot2 ? (Number(closure.slot2_amount) || 0) : 0;
+    let additional = 0;
+    if (Array.isArray(closure.additional_slots)) {
+      closure.additional_slots.forEach((slot: any) => {
+        additional += Number(slot.amount) || 0;
+      });
+    }
+    return upfront + s1 + s2 + additional;
+  };
+
   const monthlyRevenue = useMemo(() => {
     if (!closures) return [];
     const months: Record<string, number> = {};
@@ -39,7 +52,7 @@ const RevenuePage: React.FC = () => {
       const d = new Date(c.created_at);
       if (d.getFullYear() !== parseInt(yearFilter)) return;
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const amount = c.amount || 0;
+      const amount = calcRevenue(c);
       months[key] = (months[key] || 0) + amount;
     });
 
@@ -61,7 +74,7 @@ const RevenuePage: React.FC = () => {
     const d = new Date(c.created_at);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     if (key !== currentMonthKey) return s;
-    return s + (c.amount || 0);
+    return s + calcRevenue(c);
   }, 0) || 0;
 
   if (role !== 'ADMIN' && role !== 'SALES_TL') {

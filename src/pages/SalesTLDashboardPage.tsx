@@ -92,7 +92,16 @@ const SalesTLDashboardPage: React.FC = () => {
       });
 
       const totalRevenue = memberClosures.reduce((s, c) => {
-        return s + (c.amount || 0);
+        const upfront = Number(c.upfront_amount) || 0;
+        const s1 = c.slot1 ? (Number(c.slot1_amount) || 0) : 0;
+        const s2 = c.slot2 ? (Number(c.slot2_amount) || 0) : 0;
+        let additional = 0;
+        if (Array.isArray(c.additional_slots)) {
+          c.additional_slots.forEach((slot: any) => {
+            additional += Number(slot.amount) || 0;
+          });
+        }
+        return s + upfront + s1 + s2 + additional;
       }, 0);
 
       return {
@@ -229,6 +238,7 @@ const SalesTLDashboardPage: React.FC = () => {
                             Upfront: ${c.upfront_amount}
                             {c.slot1 && ` · S1: $${c.slot1_amount}`}
                             {c.slot2 && ` · S2: $${c.slot2_amount}`}
+                            {Array.isArray(c.additional_slots) && c.additional_slots.map((s: any, idx: number) => ` · S${s.slot_number || (idx + 3)}: $${s.amount}`)}
                           </span>
                         </div>
                       ))}

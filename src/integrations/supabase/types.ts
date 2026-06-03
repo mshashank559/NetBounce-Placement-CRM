@@ -137,6 +137,7 @@ export type Database = {
           percentage: number | null
           slot1_due_date: string | null
           next_slot_due_date: string | null
+          additional_slots: Json | null
         }
         Insert: {
           created_at?: string
@@ -155,6 +156,7 @@ export type Database = {
           percentage?: number | null
           slot1_due_date?: string | null
           next_slot_due_date?: string | null
+          additional_slots?: Json | null
         }
         Update: {
           created_at?: string
@@ -173,6 +175,7 @@ export type Database = {
           percentage?: number | null
           slot1_due_date?: string | null
           next_slot_due_date?: string | null
+          additional_slots?: Json | null
         }
         Relationships: [
           {
