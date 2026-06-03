@@ -66,7 +66,8 @@ import {
   ResponsiveContainer, 
   Legend,
   AreaChart,
-  Area
+  Area,
+  CartesianGrid
 } from 'recharts';
 import { format, subDays, isBefore, parseISO, isSameDay } from 'date-fns';
 
@@ -120,6 +121,8 @@ const AdminDashboard: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [teamFilter, setTeamFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [salesMetric, setSalesMetric] = useState<'calls' | 'revenue' | 'closures'>('revenue');
+  const [bdMetric, setBdMetric] = useState<'calls' | 'leads'>('leads');
 
   // User Management State
   const [userForm, setUserForm] = useState({
@@ -304,6 +307,95 @@ const AdminDashboard: React.FC = () => {
     return { inflow: last15Days, funnel: [{ name: 'Total', value: leads?.length || 0 }, { name: 'Qualified', value: leads?.filter(l => l.lead_status === 'Qualified').length || 0 }, { name: 'Hot', value: leads?.filter(l => l.lead_status === 'Hot Prospect').length || 0 }, { name: 'Closed', value: leads?.filter(l => l.lead_status === 'Closed').length || 0 }], status: Object.entries(statusMap).map(([name, value]) => ({ name, value })) };
   }, [leads]);
 
+  // ── Sorted users for comparison charts ──
+  const sortedSalesUsers = useMemo(() => {
+    const tls = allUsers.filter(u => u.role === 'SALES_TL');
+    const tms = allUsers.filter(u => u.role === 'SALES_TM');
+    const result: typeof allUsers = [];
+    tls.forEach(tl => {
+      result.push(tl);
+      tms.filter(tm => tm.reports_to === tl.user_id).forEach(tm => result.push(tm));
+    });
+    const assigned = new Set(result.map(u => u.user_id));
+    tms.filter(tm => !assigned.has(tm.user_id)).forEach(tm => result.push(tm));
+    return result;
+  }, [allUsers]);
+
+  const sortedBdUsers = useMemo(() => {
+    const tls = allUsers.filter(u => u.role === 'LEAD_TL');
+    const tms = allUsers.filter(u => u.role === 'LEAD_GEN');
+    const result: typeof allUsers = [];
+    tls.forEach(tl => {
+      result.push(tl);
+      tms.filter(tm => tm.reports_to === tl.user_id).forEach(tm => result.push(tm));
+    });
+    const assigned = new Set(result.map(u => u.user_id));
+    tms.filter(tm => !assigned.has(tm.user_id)).forEach(tm => result.push(tm));
+    return result;
+  }, [allUsers]);
+
+  const calcRevenueLocal = (closure: any) => {
+    const s1 = closure.slot1 ? (Number(closure.slot1_amount) || 0) : 0;
+    const s2 = closure.slot2 ? (Number(closure.slot2_amount) || 0) : 0;
+    let additional = 0;
+    if (Array.isArray(closure.additional_slots)) {
+      closure.additional_slots.forEach((slot: any) => { additional += Number(slot.amount) || 0; });
+    }
+    return s1 + s2 + additional;
+  };
+
+  const salesChartData = useMemo(() => {
+    return sortedSalesUsers.map(u => {
+      const callsCount = (callLogs || []).filter(c => {
+        if (c.user_id !== u.user_id) return false;
+        if (monthFilter && monthFilter !== 'all') {
+          const [yr, mo] = monthFilter.split('-').map(Number);
+          const d = new Date(c.call_date);
+          return d.getFullYear() === yr && d.getMonth() + 1 === mo;
+        }
+        return true;
+      }).reduce((sum, c) => sum + (c.call_count || 0), 0);
+
+      const userClosures = filteredData.closures.filter(c => {
+        const lead = (leads || []).find(l => l.unique_id === c.lead_id);
+        return lead?.assigned_to === u.user_id;
+      });
+
+      const revenueSum = userClosures.reduce((sum, c) => sum + calcRevenueLocal(c), 0);
+      const closuresCount = userClosures.length;
+
+      return {
+        name: u.full_name?.split(' ')[0] || u.full_name,
+        fullName: u.full_name,
+        role: u.role === 'SALES_TL' ? 'TL' : 'Member',
+        value: salesMetric === 'calls' ? callsCount : salesMetric === 'revenue' ? revenueSum : closuresCount,
+      };
+    });
+  }, [sortedSalesUsers, callLogs, filteredData.closures, leads, monthFilter, salesMetric]);
+
+  const bdChartData = useMemo(() => {
+    return sortedBdUsers.map(u => {
+      const callsCount = (callLogs || []).filter(c => {
+        if (c.user_id !== u.user_id) return false;
+        if (monthFilter && monthFilter !== 'all') {
+          const [yr, mo] = monthFilter.split('-').map(Number);
+          const d = new Date(c.call_date);
+          return d.getFullYear() === yr && d.getMonth() + 1 === mo;
+        }
+        return true;
+      }).reduce((sum, c) => sum + (c.call_count || 0), 0);
+
+      const leadsCount = filteredData.leads.filter(l => l.lead_generated_by === u.user_id).length;
+
+      return {
+        name: u.full_name?.split(' ')[0] || u.full_name,
+        fullName: u.full_name,
+        role: u.role === 'LEAD_TL' ? 'TL' : 'Member',
+        value: bdMetric === 'calls' ? callsCount : leadsCount,
+      };
+    });
+  }, [sortedBdUsers, callLogs, filteredData.leads, monthFilter, bdMetric]);
+
   // Mutations
   const createUserMutation = useMutation({
     mutationFn: async () => {
@@ -402,8 +494,117 @@ const AdminDashboard: React.FC = () => {
               <Card className="glass-card lg:col-span-2"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><Activity className="h-5 w-5 text-primary" /> Daily Inflow</CardTitle></CardHeader><CardContent className="h-[250px]"><ResponsiveContainer width="100%" height="100%"><AreaChart data={analyticsData.inflow}><defs><linearGradient id="colorInflow" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient></defs><XAxis dataKey="name" tick={{fontSize: 10}} /><YAxis tick={{fontSize: 10}} /><Tooltip /><Area type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorInflow)" /></AreaChart></ResponsiveContainer></CardContent></Card>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card className="glass-card"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><BarChart3 className="h-5 w-5 text-amber-500" /> Funnel</CardTitle></CardHeader><CardContent className="h-[300px]"><ResponsiveContainer width="100%" height="100%"><BarChart layout="vertical" data={analyticsData.funnel}><XAxis type="number" hide /><YAxis dataKey="name" type="category" tick={{fontSize: 12}} /><Tooltip /><Bar dataKey="value" radius={[0, 4, 4, 0]}>{analyticsData.funnel.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></CardContent></Card>
-              <Card className="glass-card"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><PieChartIcon className="h-5 w-5 text-purple-500" /> Distribution</CardTitle></CardHeader><CardContent className="h-[300px]"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={analyticsData.status} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({name}) => name}>{analyticsData.status.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></CardContent></Card>
+              {/* Sales Team Performance Chart */}
+              <Card className="glass-card">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <CardTitle className="text-lg font-display flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5 text-blue-500" /> Sales Team Performance
+                    </CardTitle>
+                    <div className="flex items-center gap-1 bg-accent/40 rounded-lg p-1">
+                      {(['calls', 'revenue', 'closures'] as const).map(m => (
+                        <button
+                          key={m}
+                          onClick={() => setSalesMetric(m)}
+                          className={`px-3 py-1 rounded-md text-xs font-medium transition-all duration-200 ${
+                            salesMetric === m
+                              ? 'bg-blue-500 text-white shadow-sm'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          {m.charAt(0).toUpperCase() + m.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    <span className="inline-flex items-center gap-1 mr-3"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" /> TL</span>
+                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-400 inline-block" /> Member</span>
+                  </p>
+                </CardHeader>
+                <CardContent className="h-[280px]">
+                  {salesChartData.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-muted-foreground text-sm">No sales team data</div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={salesChartData} margin={{ top: 4, right: 8, left: 0, bottom: 40 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                        <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip
+                          formatter={(value: any) => [
+                            salesMetric === 'revenue' ? `$${Number(value).toLocaleString()}` : value,
+                            salesMetric.charAt(0).toUpperCase() + salesMetric.slice(1)
+                          ]}
+                          labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
+                        />
+                        <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                          {salesChartData.map((entry, idx) => (
+                            <Cell key={idx} fill={entry.role === 'TL' ? '#3b82f6' : '#38bdf8'} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* BD Team Performance Chart */}
+              <Card className="glass-card">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <CardTitle className="text-lg font-display flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5 text-emerald-500" /> BD Team Performance
+                    </CardTitle>
+                    <div className="flex items-center gap-1 bg-accent/40 rounded-lg p-1">
+                      {(['calls', 'leads'] as const).map(m => (
+                        <button
+                          key={m}
+                          onClick={() => setBdMetric(m)}
+                          className={`px-3 py-1 rounded-md text-xs font-medium transition-all duration-200 ${
+                            bdMetric === m
+                              ? 'bg-emerald-500 text-white shadow-sm'
+                              : 'text-muted-foreground hover:text-foreground'
+                          }`}
+                        >
+                          {m.charAt(0).toUpperCase() + m.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    <span className="inline-flex items-center gap-1 mr-3"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> TL</span>
+                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-teal-400 inline-block" /> Member</span>
+                  </p>
+                </CardHeader>
+                <CardContent className="h-[280px]">
+                  {bdChartData.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-muted-foreground text-sm">No BD team data</div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={bdChartData} margin={{ top: 4, right: 8, left: 0, bottom: 40 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                        <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
+                        <YAxis tick={{ fontSize: 10 }} />
+                        <Tooltip
+                          formatter={(value: any) => [value, bdMetric === 'calls' ? 'Calls' : 'Leads Generated']}
+                          labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
+                        />
+                        <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                          {bdChartData.map((entry, idx) => (
+                            <Cell key={idx} fill={entry.role === 'TL' ? '#10b981' : '#2dd4bf'} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Distribution chart row */}
+            <div className="grid grid-cols-1 gap-6">
+              <Card className="glass-card"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><PieChartIcon className="h-5 w-5 text-purple-500" /> Lead Status Distribution</CardTitle></CardHeader><CardContent className="h-[300px]"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={analyticsData.status} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={110} label={({name, value}) => `${name}: ${value}`}>{analyticsData.status.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><Tooltip /><Legend /></PieChart></ResponsiveContainer></CardContent></Card>
             </div>
           </motion.div>
         )}
