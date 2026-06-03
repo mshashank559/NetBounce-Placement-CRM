@@ -552,7 +552,7 @@ const LeadsPage: React.FC = () => {
               type="date"
               value={dateFrom}
               onChange={e => setDateFrom(e.target.value)}
-              className="w-[120px] h-8 text-xs border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm px-1.5"
+              className="w-[130px] h-8 text-xs border-0 bg-transparent pl-1.5 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm"
               title="From date"
             />
             <span className="text-muted-foreground text-xs px-0.5 select-none">—</span>
@@ -560,7 +560,7 @@ const LeadsPage: React.FC = () => {
               type="date"
               value={dateTo}
               onChange={e => setDateTo(e.target.value)}
-              className="w-[120px] h-8 text-xs border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm px-1.5"
+              className="w-[130px] h-8 text-xs border-0 bg-transparent pl-1.5 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm"
               title="To date"
             />
           </div>

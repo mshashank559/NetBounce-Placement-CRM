@@ -75,10 +75,9 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
       if (newStatus === 'Closed') {
         if (!plan || !paymentMode) throw new Error('Plan and Payment Mode are required');
         if (plan === 'Custom' && !customPlanNote.trim()) throw new Error('Please describe your Custom Plan');
-        if (!upfrontAmount || parseFloat(upfrontAmount) <= 0) throw new Error('Total Collection Amount is required');
-        if (!amount || parseFloat(amount) <= 0) throw new Error('Amount is required');
+        if (!upfrontAmount || parseFloat(upfrontAmount) <= 0) throw new Error('Upfront Amount is required');
+        if (!amount || parseFloat(amount) <= 0) throw new Error('On-Offer Amount is required');
         if (!percentage || parseFloat(percentage) <= 0) throw new Error('Percentage is required');
-        if (slot2 && !nextSlotDueDate) throw new Error('Next Slot due date is required when Next Slot is enabled');
       }
 
       // Validation for Send Document
@@ -145,10 +144,10 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
             percentage: parseFloat(percentage) || 0,
             slot1: slot1,
             slot1_amount: slot1 ? parseFloat(slot1Amount) || 0 : null,
-            slot1_due_date: slot1 ? slot1DueDate : null,
+            slot1_due_date: (slot1 && slot1DueDate) ? slot1DueDate : null,
             slot2: slot2,
             slot2_amount: slot2 ? parseFloat(slot2Amount) || 0 : null,
-            next_slot_due_date: slot2 ? nextSlotDueDate : null,
+            next_slot_due_date: (slot2 && nextSlotDueDate) ? nextSlotDueDate : null,
             payment_mode: paymentMode as any,
           };
 
@@ -496,7 +495,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
               )}
 
               <div>
-                <Label>Total Collection Amount (USD) *</Label>
+                <Label>Upfront Amount (USD) *</Label>
                 <div className="relative mt-1">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
                   <Input type="number" value={upfrontAmount} onChange={e => setUpfrontAmount(e.target.value)} placeholder="0.00" className="pl-7" />
@@ -504,7 +503,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
               </div>
 
               <div>
-                <Label>Amount (USD) *</Label>
+                <Label>On-Offer Amount (USD) *</Label>
                 <div className="relative mt-1">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
                   <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" className="pl-7" />
@@ -549,7 +548,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
                     <Input type="number" value={slot2Amount} onChange={e => setSlot2Amount(e.target.value)} placeholder="Next Slot Amount" className="pl-7" />
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground">Due Date *</Label>
+                    <Label className="text-xs text-muted-foreground">Due Date</Label>
                     <Input type="date" value={nextSlotDueDate} onChange={e => setNextSlotDueDate(e.target.value)} className="text-xs mt-1" />
                   </div>
                 </div>

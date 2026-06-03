@@ -44,10 +44,9 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
       if (!form.plan || !form.payment_mode) throw new Error('Plan and Payment Mode are required');
       if (!form.movement.trim()) throw new Error('Comment is required');
       if (form.plan === 'Custom' && !form.custom_plan_note.trim()) throw new Error('Please describe your Custom Plan');
-      if (!form.upfront_amount || parseFloat(form.upfront_amount) <= 0) throw new Error('Total Collection Amount is required');
-      if (!form.amount || parseFloat(form.amount) <= 0) throw new Error('Amount is required');
+      if (!form.upfront_amount || parseFloat(form.upfront_amount) <= 0) throw new Error('Upfront Amount is required');
+      if (!form.amount || parseFloat(form.amount) <= 0) throw new Error('On-Offer Amount is required');
       if (!form.percentage || parseFloat(form.percentage) <= 0) throw new Error('Percentage is required');
-      if (form.slot2 && !form.next_slot_due_date) throw new Error('Next Slot due date is required when Next Slot is enabled');
 
       // Update lead status to Closed
       await supabase.from('leads').update({ lead_status: 'Closed' as any }).eq('unique_id', lead.unique_id);
@@ -71,10 +70,10 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
         percentage: parseFloat(form.percentage) || 0,
         slot1: form.slot1,
         slot1_amount: form.slot1 ? parseFloat(form.slot1_amount) || 0 : null,
-        slot1_due_date: form.slot1 ? form.slot1_due_date : null,
+        slot1_due_date: (form.slot1 && form.slot1_due_date) ? form.slot1_due_date : null,
         slot2: form.slot2,
         slot2_amount: form.slot2 ? parseFloat(form.slot2_amount) || 0 : null,
-        next_slot_due_date: form.slot2 ? form.next_slot_due_date : null,
+        next_slot_due_date: (form.slot2 && form.next_slot_due_date) ? form.next_slot_due_date : null,
         payment_mode: form.payment_mode as any,
       };
 
@@ -216,18 +215,18 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
             </div>
           )}
 
-          {/* Total Collection Amount (renamed from Upfront Amount) */}
+          {/* Upfront Amount (renamed from Total Collection Amount) */}
           <div>
-            <Label>Total Collection Amount (USD) *</Label>
+            <Label>Upfront Amount (USD) *</Label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
               <Input type="number" value={form.upfront_amount} onChange={e => set('upfront_amount', e.target.value)} placeholder="0.00" className="pl-7" />
             </div>
           </div>
 
-          {/* Amount — mandatory */}
+          {/* On-Offer Amount — mandatory */}
           <div>
-            <Label>Amount (USD) *</Label>
+            <Label>On-Offer Amount (USD) *</Label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
               <Input type="number" value={form.amount} onChange={e => set('amount', e.target.value)} placeholder="0.00" className="pl-7" />
@@ -273,7 +272,7 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
                 <Input type="number" value={form.slot2_amount} onChange={e => set('slot2_amount', e.target.value)} placeholder="Next Slot Amount" className="pl-7" />
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">Due Date *</Label>
+                <Label className="text-xs text-muted-foreground">Due Date</Label>
                 <Input type="date" value={form.next_slot_due_date} onChange={e => set('next_slot_due_date', e.target.value)} className="text-xs" />
               </div>
             </div>

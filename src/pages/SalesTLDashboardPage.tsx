@@ -92,7 +92,7 @@ const SalesTLDashboardPage: React.FC = () => {
       });
 
       const totalRevenue = memberClosures.reduce((s, c) => {
-        return s + (c.upfront_amount || 0) + (c.slot1_amount || 0) + (c.slot2_amount || 0);
+        return s + (c.amount || 0);
       }, 0);
 
       return {

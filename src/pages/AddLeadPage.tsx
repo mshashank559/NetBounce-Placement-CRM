@@ -41,6 +41,12 @@ const AddLeadPage: React.FC = () => {
 
   const mutation = useMutation({
     mutationFn: async () => {
+      // ── Phone number length check ──────────────────────────────
+      const digits = form.phone.replace(/\D/g, '');
+      if (digits.length !== 10) {
+        throw new Error('Kindly put 10 digit number');
+      }
+
       // ── Duplicate check ──────────────────────────────────────
       const { data: emailDup } = await supabase.from('leads').select('unique_id').eq('email', form.email).maybeSingle();
       if (emailDup) throw new Error('A lead with this email already exists');

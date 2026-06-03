@@ -165,9 +165,9 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <Field label="Plan" value={closure.plan} />
                   <Field label="Interview Plan" value={closure.interview_plan ? 'Yes' : 'No'} />
-                  <Field label="Total Collection Amount" value={`$${closure.upfront_amount}`} />
+                  <Field label="Upfront Amount" value={`$${closure.upfront_amount}`} />
                   <Field label="Payment Mode" value={closure.payment_mode} />
-                  {closure.amount != null && <Field label="Amount" value={`$${closure.amount}`} />}
+                  {closure.amount != null && <Field label="On-Offer Amount" value={`$${closure.amount}`} />}
                   {closure.percentage != null && <Field label="Percentage" value={`${closure.percentage}%`} />}
                   {closure.slot1 && <Field label="Slot 1 Amount" value={`$${closure.slot1_amount}`} />}
                   {closure.slot1_due_date && <Field label="Slot 1 Due Date" value={new Date(closure.slot1_due_date).toLocaleDateString()} />}

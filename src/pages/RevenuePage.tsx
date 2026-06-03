@@ -16,9 +16,15 @@ const RevenuePage: React.FC = () => {
   const { data: closures } = useQuery({
     queryKey: ['revenue-closures', user?.id, role],
     queryFn: async () => {
-      let query = supabase.from('lead_closures').select('*, leads!inner(team_lead_id, assigned_to)');
+      let query = supabase.from('lead_closures').select('*, leads!inner(assigned_to)');
       if (role === 'SALES_TL') {
-        query = query.or(`team_lead_id.eq.${user!.id},assigned_to.eq.${user!.id}`, { foreignTable: 'leads' });
+        const { data: teamProfiles } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
+        const teamUserIds = teamProfiles?.map(p => p.user_id) || [user!.id];
+        const orConditions = teamUserIds.map(id => `assigned_to.eq.${id}`).join(',');
+        query = query.or(orConditions, { foreignTable: 'leads' });
       }
       const { data } = await query;
       return data || [];
@@ -33,7 +39,7 @@ const RevenuePage: React.FC = () => {
       const d = new Date(c.created_at);
       if (d.getFullYear() !== parseInt(yearFilter)) return;
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const amount = (c.upfront_amount || 0) + (c.slot1_amount || 0) + (c.slot2_amount || 0);
+      const amount = c.amount || 0;
       months[key] = (months[key] || 0) + amount;
     });
 
@@ -55,7 +61,7 @@ const RevenuePage: React.FC = () => {
     const d = new Date(c.created_at);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     if (key !== currentMonthKey) return s;
-    return s + (c.upfront_amount || 0) + (c.slot1_amount || 0) + (c.slot2_amount || 0);
+    return s + (c.amount || 0);
   }, 0) || 0;
 
   if (role !== 'ADMIN' && role !== 'SALES_TL') {

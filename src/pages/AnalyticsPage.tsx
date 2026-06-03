@@ -13,8 +13,48 @@ const AnalyticsPage: React.FC = () => {
   const { user, role } = useAuth();
 
   const { data: leads } = useQuery({
-    queryKey: ['analytics-leads'],
-    queryFn: fetchAllLeads,
+    queryKey: ['analytics-leads', user?.id, role],
+    queryFn: async () => {
+      if (role === 'SALES_TL') {
+        const { data: teamProfiles } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
+        const teamUserIds = teamProfiles?.map(p => p.user_id) || [user!.id];
+        
+        let allLeads: any[] = [];
+        let from = 0;
+        const step = 1000;
+        let hasMore = true;
+        
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from('leads')
+            .select('*')
+            .in('assigned_to', teamUserIds)
+            .order('created_at', { ascending: false })
+            .range(from, from + step - 1);
+            
+          if (error) {
+            console.error("Error fetching team leads for analytics:", error);
+            throw error;
+          }
+          
+          if (data && data.length > 0) {
+            allLeads = [...allLeads, ...data];
+            if (data.length < step) {
+              hasMore = false;
+            } else {
+              from += step;
+            }
+          } else {
+            hasMore = false;
+          }
+        }
+        return allLeads;
+      }
+      return fetchAllLeads();
+    },
     enabled: !!user,
   });
 

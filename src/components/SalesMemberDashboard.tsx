@@ -378,9 +378,9 @@ const SalesMemberDashboard: React.FC = () => {
           </Select>
           <div className="flex items-center gap-1.5 bg-background px-2.5 rounded-md border border-input h-10 shrink-0">
             <span className="text-xs text-muted-foreground font-medium pr-1 select-none">Date:</span>
-            <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-[120px] h-8 text-xs border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm px-1.5" />
+            <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-[130px] h-8 text-xs border-0 bg-transparent pl-1.5 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm" />
             <span className="text-muted-foreground text-xs px-0.5 select-none">—</span>
-            <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-[120px] h-8 text-xs border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm px-1.5" />
+            <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-[130px] h-8 text-xs border-0 bg-transparent pl-1.5 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm" />
           </div>
         </div>
       </div>

@@ -594,15 +594,15 @@ export default function AccountantDashboard() {
                     type="date"
                     value={startDateFilter}
                     onChange={e => setStartDateFilter(e.target.value)}
-                    className="w-[120px] h-8 text-xs border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm px-1.5"
+                    className="w-[130px] h-8 text-xs border-0 bg-transparent pl-1.5 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm"
                     title="Start date"
                   />
-                  <span className="text-muted-foreground text-xs px-0.5 select-none">â€”</span>
+                  <span className="text-muted-foreground text-xs px-0.5 select-none">—</span>
                   <Input
                     type="date"
                     value={endDateFilter}
                     onChange={e => setEndDateFilter(e.target.value)}
-                    className="w-[120px] h-8 text-xs border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm px-1.5"
+                    className="w-[130px] h-8 text-xs border-0 bg-transparent pl-1.5 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm"
                     title="End date"
                   />
                 </div>
@@ -775,15 +775,15 @@ export default function AccountantDashboard() {
                     type="date"
                     value={startDateFilter}
                     onChange={e => setStartDateFilter(e.target.value)}
-                    className="w-[110px] h-7 text-[11px] border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm px-1"
+                    className="w-[125px] h-7 text-[11px] border-0 bg-transparent pl-1 pr-2.5 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm"
                     title="Start date"
                   />
-                  <span className="text-muted-foreground text-[10px] px-0.5 select-none">â€”</span>
+                  <span className="text-muted-foreground text-[10px] px-0.5 select-none">—</span>
                   <Input
                     type="date"
                     value={endDateFilter}
                     onChange={e => setEndDateFilter(e.target.value)}
-                    className="w-[110px] h-7 text-[11px] border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm px-1"
+                    className="w-[125px] h-7 text-[11px] border-0 bg-transparent pl-1 pr-2.5 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm"
                     title="End date"
                   />
                 </div>

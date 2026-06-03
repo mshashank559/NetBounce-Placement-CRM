@@ -191,7 +191,7 @@ const ProcessAnalystDashboard: React.FC = () => {
 
   // Revenue Calculations
   const revenueStats = useMemo(() => {
-    const calcRevenue = (closure: any) => (closure.upfront_amount || 0) + (closure.slot1 ? (closure.slot1_amount || 0) : 0) + (closure.slot2 ? (closure.slot2_amount || 0) : 0);
+    const calcRevenue = (closure: any) => closure.amount || 0;
     const total = filteredData.closures.reduce((sum, c) => sum + calcRevenue(c), 0);
     const salesTeamIds = allUsers.filter(u => u.team === 'Sales').map(u => u.user_id);
     const leadGenTeamIds = allUsers.filter(u => u.team === 'Lead Gen').map(u => u.user_id);

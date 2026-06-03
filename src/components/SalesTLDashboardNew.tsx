@@ -87,8 +87,27 @@ const SalesTLDashboard: React.FC = () => {
 
   // ── Closures with payment ──
   const { data: closureData = [] } = useQuery({
-    queryKey: ['all-closures'],
-    queryFn: async () => { const { data } = await supabase.from('lead_closures').select('*'); return data || []; }
+    queryKey: ['all-closures', user?.id, role],
+    queryFn: async () => {
+      let query = supabase.from('lead_closures').select('*');
+      if (role === 'SALES_TL') {
+        const { data: teamProfiles } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
+        const teamUserIds = teamProfiles?.map(p => p.user_id) || [user!.id];
+        const { data: leadsInTeam } = await supabase
+          .from('leads')
+          .select('unique_id')
+          .in('assigned_to', teamUserIds);
+        const teamLeadIds = leadsInTeam?.map(l => l.unique_id) || [];
+        if (teamLeadIds.length === 0) return [];
+        query = query.in('lead_id', teamLeadIds);
+      }
+      const { data } = await query;
+      return data || [];
+    },
+    enabled: !!user,
   });
 
   // ── Filters ──
@@ -135,7 +154,7 @@ const SalesTLDashboard: React.FC = () => {
   const revenue = useMemo(() => {
     return closureData
       .filter(c => filteredLeadIds.has(c.lead_id))
-      .reduce((s, c) => s + (c.upfront_amount || 0) + (c.slot1_amount || 0) + (c.slot2_amount || 0), 0);
+      .reduce((s, c) => s + (c.amount || 0), 0);
   }, [closureData, filteredLeadIds]);
 
   // ── SLA Alerts ──
@@ -277,9 +296,9 @@ const SalesTLDashboard: React.FC = () => {
           </Select>
           <div className="flex items-center gap-1.5 bg-background px-2.5 rounded-md border border-input h-10 shrink-0">
             <span className="text-xs text-muted-foreground font-medium pr-1 select-none">Date:</span>
-            <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-[120px] h-8 text-xs border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm px-1.5" />
+            <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-[130px] h-8 text-xs border-0 bg-transparent pl-1.5 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm" />
             <span className="text-muted-foreground text-xs px-0.5 select-none">—</span>
-            <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-[120px] h-8 text-xs border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm px-1.5" />
+            <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-[130px] h-8 text-xs border-0 bg-transparent pl-1.5 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm" />
           </div>
         </div>
       </div>
@@ -466,11 +485,11 @@ const SalesTLDashboard: React.FC = () => {
               </div>
               <div className="p-4 rounded-lg bg-accent/30 text-center">
                 <p className="text-xs text-muted-foreground">Upfront Collected</p>
-                <p className="text-2xl font-bold text-green-500">${closureData.reduce((s, c) => s + (c.upfront_amount || 0), 0).toLocaleString()}</p>
+                <p className="text-2xl font-bold text-green-500">${closureData.filter(c => filteredLeadIds.has(c.lead_id)).reduce((s, c) => s + (c.upfront_amount || 0), 0).toLocaleString()}</p>
               </div>
               <div className="p-4 rounded-lg bg-accent/30 text-center">
                 <p className="text-xs text-muted-foreground">Pending (Slot 1+2)</p>
-                <p className="text-2xl font-bold text-blue-500">${closureData.reduce((s, c) => s + (c.slot1_amount || 0) + (c.slot2_amount || 0), 0).toLocaleString()}</p>
+                <p className="text-2xl font-bold text-blue-500">${closureData.filter(c => filteredLeadIds.has(c.lead_id)).reduce((s, c) => s + (c.slot1_amount || 0) + (c.slot2_amount || 0), 0).toLocaleString()}</p>
               </div>
             </div>
           </CardContent>
@@ -533,7 +552,7 @@ const SalesTLDashboard: React.FC = () => {
                         <td className="p-2 text-xs">{new Date(lead.updated_at).toLocaleDateString()}</td>
                         {viewMode !== 'global' && (
                           <td className="p-2 text-xs">
-                            {closure ? <span className="text-green-500 font-medium">${((closure.upfront_amount||0)+(closure.slot1_amount||0)+(closure.slot2_amount||0)).toLocaleString()}</span> : '—'}
+                            {closure ? <span className="text-green-500 font-medium">${(closure.amount || 0).toLocaleString()}</span> : '—'}
                           </td>
                         )}
                         <td className="p-2">
