@@ -33,7 +33,6 @@ const RevenuePage: React.FC = () => {
   });
 
   const calcRevenue = (closure: any) => {
-    const upfront = Number(closure.upfront_amount) || 0;
     const s1 = closure.slot1 ? (Number(closure.slot1_amount) || 0) : 0;
     const s2 = closure.slot2 ? (Number(closure.slot2_amount) || 0) : 0;
     let additional = 0;
@@ -42,7 +41,7 @@ const RevenuePage: React.FC = () => {
         additional += Number(slot.amount) || 0;
       });
     }
-    return upfront + s1 + s2 + additional;
+    return s1 + s2 + additional;
   };
 
   const monthlyRevenue = useMemo(() => {
