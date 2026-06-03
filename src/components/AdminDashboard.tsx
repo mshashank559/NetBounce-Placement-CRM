@@ -123,6 +123,7 @@ const AdminDashboard: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [salesMetric, setSalesMetric] = useState<'calls' | 'revenue' | 'closures'>('revenue');
   const [bdMetric, setBdMetric] = useState<'calls' | 'leads'>('leads');
+  const [adminViewMode, setAdminViewMode] = useState<'personal' | 'team' | 'global'>('global');
 
   // User Management State
   const [userForm, setUserForm] = useState({
@@ -270,6 +271,17 @@ const AdminDashboard: React.FC = () => {
     }
     return { leads: fLeads, closures: fClosures };
   }, [leads, leadClosures, monthFilter, statusFilter, teamFilter, searchQuery, allUsers]);
+
+  // Admin lead view filtered by viewMode
+  const adminViewLeads = useMemo(() => {
+    if (!leads) return [];
+    return leads.filter(l => {
+      if (adminViewMode === 'personal') return l.assigned_to === null || l.assigned_to === undefined;
+      if (adminViewMode === 'team') return !!l.assigned_to;
+      // global = all leads
+      return true;
+    });
+  }, [leads, adminViewMode]);
 
   // Revenue
   const revenueStats = useMemo(() => {
@@ -483,16 +495,85 @@ const AdminDashboard: React.FC = () => {
                 <Card className="glass-card xl:col-span-2 overflow-hidden"><CardHeader className="pb-2"><CardTitle className="text-xl font-display">Active Directory</CardTitle></CardHeader><CardContent className="p-0"><div className="max-h-[300px] overflow-y-auto"><Table><TableHeader className="bg-accent/50 sticky top-0"><TableRow><TableHead className="text-xs">User</TableHead><TableHead className="text-xs">Role</TableHead><TableHead className="text-xs text-right">Action</TableHead></TableRow></TableHeader><TableBody>{allUsers.map(u => (<TableRow key={u.user_id}><TableCell className="text-xs font-medium">{u.full_name}</TableCell><TableCell><Badge variant="outline" className="text-[10px]">{u.role}</Badge></TableCell><TableCell className="text-right"><Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { if(confirm('Delete user?')) supabase.from('profiles').delete().eq('user_id', u.user_id).then(() => queryClient.invalidateQueries({queryKey:['all-profiles-admin']})) }}><Trash2 className="h-3.5 w-3.5" /></Button></TableCell></TableRow>))}</TableBody></Table></div></CardContent></Card>
               </div>
             )}
-            <Card className="glass-card border-primary/10 overflow-hidden"><CardHeader className="flex flex-row items-center justify-between border-b border-border/50 bg-accent/5"><CardTitle className="text-xl font-display">Lead Management</CardTitle><Badge className="nb-gradient border-none">{filteredData.leads.length} Records</Badge></CardHeader><CardContent className="p-0"><div className="overflow-x-auto"><Table><TableHeader className="bg-accent/50"><TableRow><TableHead className="text-xs">Candidate</TableHead><TableHead className="text-xs">Assigned To</TableHead><TableHead className="text-xs">Status</TableHead><TableHead className="text-xs text-right">Action</TableHead></TableRow></TableHeader><TableBody>{filteredData.leads.slice(0, 15).map(lead => (<TableRow key={lead.unique_id} className={lead.lead_status === 'Hot Prospect' ? 'bg-red-500/10' : ''}><TableCell className="text-xs font-bold">{lead.name}</TableCell><TableCell className="text-xs">{allUsers.find(u => u.user_id === lead.assigned_to)?.full_name || 'Unassigned'}</TableCell><TableCell><Badge className="text-[10px]" variant={lead.lead_status === 'Closed' ? 'default' : 'outline'}>{lead.lead_status}</Badge></TableCell><TableCell className="text-right"><DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><RefreshCw className="h-3.5 w-3.5" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-48"><div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground uppercase border-b mb-1">Reassign</div>{allUsers.filter(u => u.team === 'Sales').map(u => (<DropdownMenuItem key={u.user_id} className="text-xs" onClick={() => reassignLeadMutation.mutate({ leadId: lead.unique_id, userId: u.user_id })}>{u.full_name}</DropdownMenuItem>))}</DropdownMenuContent></DropdownMenu></TableCell></TableRow>))}</TableBody></Table></div></CardContent></Card>
+            {/* Lead View with Personal/Team/Global toggle */}
+            <Card className="glass-card border-primary/10 overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between border-b border-border/50 bg-accent/5 flex-wrap gap-3">
+                <div className="flex items-center gap-3">
+                  <CardTitle className="text-xl font-display">Lead Management</CardTitle>
+                  <Badge className="nb-gradient border-none">{adminViewLeads.length} Records</Badge>
+                </div>
+                <div className="flex items-center gap-1 bg-accent/40 rounded-lg p-1">
+                  {(['personal', 'team', 'global'] as const).map(m => (
+                    <button
+                      key={m}
+                      onClick={() => setAdminViewMode(m)}
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 ${
+                        adminViewMode === m
+                          ? 'nb-gradient text-white shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {m === 'personal' ? 'Unassigned' : m === 'team' ? 'Assigned' : 'All Leads'}
+                    </button>
+                  ))}
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="max-h-[520px] overflow-y-auto">
+                  <Table>
+                    <TableHeader className="bg-accent/50 sticky top-0">
+                      <TableRow>
+                        <TableHead className="text-xs">ID</TableHead>
+                        <TableHead className="text-xs">Candidate</TableHead>
+                        <TableHead className="text-xs">Status</TableHead>
+                        <TableHead className="text-xs">Assigned To</TableHead>
+                        <TableHead className="text-xs">Generated By</TableHead>
+                        <TableHead className="text-xs text-right">Reassign</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {adminViewLeads.slice(0, 30).map(lead => (
+                        <TableRow key={lead.unique_id} className={lead.lead_status === 'Hot Prospect' ? 'bg-red-500/10' : ''}>
+                          <TableCell className="text-[10px] text-muted-foreground font-mono">{lead.display_id || lead.unique_id?.slice(0,8)}</TableCell>
+                          <TableCell>
+                            <div className="text-xs font-bold">{lead.name}</div>
+                            <div className="text-[10px] text-muted-foreground">{lead.email}</div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className="text-[10px]" variant={lead.lead_status === 'Closed' ? 'default' : 'outline'}>{lead.lead_status}</Badge>
+                          </TableCell>
+                          <TableCell className="text-xs">{allUsers.find(u => u.user_id === lead.assigned_to)?.full_name || <span className="text-muted-foreground italic">Unassigned</span>}</TableCell>
+                          <TableCell className="text-xs">{allUsers.find(u => u.user_id === lead.lead_generated_by)?.full_name || '—'}</TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8"><RefreshCw className="h-3.5 w-3.5" /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-48">
+                                <div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground uppercase border-b mb-1">Reassign To</div>
+                                {allUsers.filter(u => u.team === 'Sales').map(u => (
+                                  <DropdownMenuItem key={u.user_id} className="text-xs" onClick={() => reassignLeadMutation.mutate({ leadId: lead.unique_id, userId: u.user_id })}>{u.full_name}</DropdownMenuItem>
+                                ))}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  {adminViewLeads.length === 0 && (
+                    <div className="text-center py-10 text-muted-foreground text-sm">No leads in this view</div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </motion.div>
         )}
 
         {activeTab === 'analytics' && (
           <motion.div key="analytics" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <Card className="glass-card"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><DollarSign className="h-5 w-5 text-green-500" /> Revenue Split</CardTitle></CardHeader><CardContent className="h-[250px]"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={[{ name: 'Sales', value: revenueStats.team.Sales }, { name: 'Lead Gen', value: revenueStats.team.LeadGen }]} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value"><Cell fill={COLORS[0]} /><Cell fill={COLORS[1]} /></Pie><Tooltip formatter={(v: number) => `$${v.toLocaleString()}`} /><Legend verticalAlign="bottom" /></PieChart></ResponsiveContainer></CardContent></Card>
-              <Card className="glass-card lg:col-span-2"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><Activity className="h-5 w-5 text-primary" /> Daily Inflow</CardTitle></CardHeader><CardContent className="h-[250px]"><ResponsiveContainer width="100%" height="100%"><AreaChart data={analyticsData.inflow}><defs><linearGradient id="colorInflow" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient></defs><XAxis dataKey="name" tick={{fontSize: 10}} /><YAxis tick={{fontSize: 10}} /><Tooltip /><Area type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorInflow)" /></AreaChart></ResponsiveContainer></CardContent></Card>
-            </div>
+            {/* Daily Inflow — full width */}
+            <Card className="glass-card"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><Activity className="h-5 w-5 text-primary" /> Daily Inflow</CardTitle></CardHeader><CardContent className="h-[250px]"><ResponsiveContainer width="100%" height="100%"><AreaChart data={analyticsData.inflow}><defs><linearGradient id="colorInflow" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient></defs><XAxis dataKey="name" tick={{fontSize: 10}} /><YAxis tick={{fontSize: 10}} /><Tooltip /><Area type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorInflow)" /></AreaChart></ResponsiveContainer></CardContent></Card>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Sales Team Performance Chart */}
               <Card className="glass-card">
@@ -602,9 +683,9 @@ const AdminDashboard: React.FC = () => {
               </Card>
             </div>
 
-            {/* Distribution chart row */}
+            {/* Distribution chart row — no inline labels to prevent overlap */}
             <div className="grid grid-cols-1 gap-6">
-              <Card className="glass-card"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><PieChartIcon className="h-5 w-5 text-purple-500" /> Lead Status Distribution</CardTitle></CardHeader><CardContent className="h-[300px]"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={analyticsData.status} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={110} label={({name, value}) => `${name}: ${value}`}>{analyticsData.status.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><Tooltip /><Legend /></PieChart></ResponsiveContainer></CardContent></Card>
+              <Card className="glass-card"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><PieChartIcon className="h-5 w-5 text-purple-500" /> Lead Status Distribution</CardTitle></CardHeader><CardContent className="h-[320px]"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={analyticsData.status} dataKey="value" nameKey="name" cx="50%" cy="45%" outerRadius={100} innerRadius={40}>{analyticsData.status.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><Tooltip formatter={(value: any, name: any) => [value, name]} /><Legend verticalAlign="bottom" height={36} /></PieChart></ResponsiveContainer></CardContent></Card>
             </div>
           </motion.div>
         )}
