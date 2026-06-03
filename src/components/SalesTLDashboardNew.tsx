@@ -101,6 +101,29 @@ const SalesTLDashboard: React.FC = () => {
     enabled: !!user,
   });
 
+  // ── Scoped closures for lead list payment displays ──
+  const { data: closureData = [] } = useQuery({
+    queryKey: ['scoped-closures', viewMode, myTeamIds.size, user?.id],
+    queryFn: async () => {
+      let query = supabase.from('lead_closures').select('id, lead_id, amount');
+      if (viewMode === 'team' || viewMode === 'personal') {
+        const teamUserIds = viewMode === 'personal' 
+          ? [user!.id] 
+          : [...salesMembers.map(m => m.user_id), user!.id];
+        const { data: leadsInTeam } = await supabase
+          .from('leads')
+          .select('unique_id')
+          .in('assigned_to', teamUserIds);
+        const teamLeadIds = leadsInTeam?.map(l => l.unique_id) || [];
+        if (teamLeadIds.length === 0) return [];
+        query = query.in('lead_id', teamLeadIds);
+      }
+      const { data } = await query;
+      return data || [];
+    },
+    enabled: !!user && salesMembers.length > 0,
+  });
+
   // ── Filters ──
   const myTeamIds = useMemo(() => new Set(salesMembers.map(m => m.user_id)), [salesMembers]);
 
