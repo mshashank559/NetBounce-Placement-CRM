@@ -628,7 +628,7 @@ const LeadsPage: React.FC = () => {
 
                         {/* ── Status cell: flow-enforced dropdown or static badge ── */}
                         <td className="p-3">
-                          {canUpdateStatus && !isTerminal ? (
+                          {role === 'ADMIN' && !isTerminal ? (
                             <div className="flex items-center gap-1.5">
                               <Select
                                 value={currentStatus}

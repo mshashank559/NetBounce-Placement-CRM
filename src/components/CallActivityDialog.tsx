@@ -10,11 +10,14 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { Phone } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface CallActivityDialogProps {
   lead: any;
   open: boolean;
   onClose: () => void;
+  initialStatus?: string;
 }
 
 const ALL_STATUSES = ['DNR1','DNR2','DNR3','Connected','Qualified','Hot Prospect','Closed','Non Interested'];
@@ -31,7 +34,7 @@ const STATUS_FLOW: Record<string, string[]> = {
   'Non Interested': [],
 };
 
-const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onClose }) => {
+const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onClose, initialStatus }) => {
   const { user, role } = useAuth();
   const queryClient = useQueryClient();
 
@@ -42,13 +45,39 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
 
   const [notes, setNotes] = useState('');
   const [wayOfContact, setWayOfContact] = useState('Call');
-  const [newStatus, setNewStatus] = useState(nextStatuses[0] || currentStatus);
+  const [newStatus, setNewStatus] = useState(initialStatus || nextStatuses[0] || currentStatus);
+
+  // Closure Form State
+  const [plan, setPlan] = useState<'Starter' | 'Premium' | 'Elite' | 'Pro' | 'Custom' | ''>('');
+  const [interviewPlan, setInterviewPlan] = useState(false);
+  const [interviewsGuaranteed, setInterviewsGuaranteed] = useState('');
+  const [upfrontAmount, setUpfrontAmount] = useState('');
+  const [amount, setAmount] = useState('');
+  const [percentage, setPercentage] = useState('');
+  const [slot1, setSlot1] = useState(false);
+  const [slot1Amount, setSlot1Amount] = useState('');
+  const [slot1DueDate, setSlot1DueDate] = useState(new Date().toISOString().split('T')[0]);
+  const [slot2, setSlot2] = useState(false);
+  const [slot2Amount, setSlot2Amount] = useState('');
+  const [nextSlotDueDate, setNextSlotDueDate] = useState('');
+  const [customPlanNote, setCustomPlanNote] = useState('');
+  const [paymentMode, setPaymentMode] = useState<'Cash' | 'Card' | 'UPI' | 'Bank Transfer' | 'Stripe' | 'Other' | ''>('');
 
   const mutation = useMutation({
     mutationFn: async () => {
       if (!notes.trim()) throw new Error('Follow-up notes are required');
 
-      const today = new Date().toISOString().split('T')[0];
+      // Validation for Closed status
+      if (newStatus === 'Closed') {
+        if (!plan || !paymentMode) throw new Error('Plan and Payment Mode are required');
+        if (plan === 'Custom' && !customPlanNote.trim()) throw new Error('Please describe your Custom Plan');
+        if (!upfrontAmount || parseFloat(upfrontAmount) <= 0) throw new Error('Total Collection Amount is required');
+        if (!amount || parseFloat(amount) <= 0) throw new Error('Amount is required');
+        if (!percentage || parseFloat(percentage) <= 0) throw new Error('Percentage is required');
+        if (slot2 && !nextSlotDueDate) throw new Error('Next Slot due date is required when Next Slot is enabled');
+      }
+
+      const todayDate = new Date().toISOString().split('T')[0];
 
       // 1. Log the call
       const { data: existing } = await supabase
@@ -56,7 +85,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
         .select('*')
         .eq('user_id', user!.id)
         .eq('lead_id', lead.unique_id)
-        .eq('call_date', today)
+        .eq('call_date', todayDate)
         .maybeSingle();
 
       if (existing) {
@@ -67,7 +96,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
         await supabase.from('call_logs').insert({
           user_id: user!.id,
           lead_id: lead.unique_id,
-          call_date: today,
+          call_date: todayDate,
           call_count: 1,
         });
       }
@@ -82,28 +111,131 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
 
       // 3. Update lead status if changed
       if (newStatus && newStatus !== currentStatus) {
-        await supabase.from('leads')
-          .update({ lead_status: newStatus as any })
-          .eq('unique_id', lead.unique_id);
+        if (newStatus === 'Closed') {
+          // Update lead status to Closed
+          await supabase.from('leads')
+            .update({ lead_status: 'Closed' as any })
+            .eq('unique_id', lead.unique_id);
 
-        await supabase.from('lead_history_logs').insert({
-          lead_id: lead.unique_id,
-          changed_by: user!.id,
-          action_type: 'STATUS_CHANGE',
-          old_value: currentStatus,
-          new_value: newStatus,
-          comments: notes.trim() || null
-        });
-
-        // Notify BD member on DNR / Non Interested
-        if (['DNR1', 'DNR2', 'DNR3', 'Non Interested'].includes(newStatus) && lead.lead_generated_by) {
-          await supabase.from('notifications').insert({
-            user_id: lead.lead_generated_by,
-            title: 'Lead Status Update',
-            message: `${lead.name} marked as ${newStatus}. Please reconnect.`,
-            type: 'dnr',
+          await supabase.from('lead_history_logs').insert({
             lead_id: lead.unique_id,
+            changed_by: user!.id,
+            action_type: 'STATUS_CHANGE',
+            old_value: currentStatus,
+            new_value: 'Closed',
+            comments: notes.trim() || null
           });
+
+          // Insert closure
+          const closurePayload: any = {
+            lead_id: lead.unique_id,
+            plan: plan as any,
+            interview_plan: interviewPlan,
+            upfront_amount: parseFloat(upfrontAmount) || 0,
+            amount: parseFloat(amount) || 0,
+            percentage: parseFloat(percentage) || 0,
+            slot1: slot1,
+            slot1_amount: slot1 ? parseFloat(slot1Amount) || 0 : null,
+            slot1_due_date: slot1 ? slot1DueDate : null,
+            slot2: slot2,
+            slot2_amount: slot2 ? parseFloat(slot2Amount) || 0 : null,
+            next_slot_due_date: slot2 ? nextSlotDueDate : null,
+            payment_mode: paymentMode as any,
+          };
+
+          const { error } = await supabase.from('lead_closures').insert(closurePayload);
+
+          if (error) {
+            if (error.code === '42703' || error.message?.includes('column')) {
+              const fallbackPayload: any = {
+                lead_id: lead.unique_id,
+                plan: plan as any,
+                interview_plan: interviewPlan,
+                upfront_amount: parseFloat(upfrontAmount) || 0,
+                slot1: slot1,
+                slot1_amount: slot1 ? parseFloat(slot1Amount) || 0 : null,
+                slot2: slot2,
+                slot2_amount: slot2 ? parseFloat(slot2Amount) || 0 : null,
+                payment_mode: paymentMode as any,
+              };
+              const { error: fallbackErr } = await supabase.from('lead_closures').insert(fallbackPayload);
+              if (fallbackErr) throw fallbackErr;
+
+              const paymentDetails = `[Closure Payment] Amount: $${amount}, Percentage: ${percentage}%, Slot1 Due: ${slot1DueDate || 'N/A'}, Next Slot Due: ${nextSlotDueDate || 'N/A'}`;
+              await supabase.from('leads').update({ comment: paymentDetails } as any).eq('unique_id', lead.unique_id);
+            } else {
+              throw error;
+            }
+          }
+
+          // Notify Admin, Sales TL, BD TL, Process Analyst about closure
+          const { data: notifyRoles } = await supabase
+            .from('user_roles')
+            .select('user_id, role')
+            .in('role', ['ADMIN', 'SALES_TL', 'LEAD_TL', 'PROCESS_ANALYST']);
+
+          if (notifyRoles) {
+            const notifications = notifyRoles.map(r => ({
+              user_id: r.user_id,
+              title: 'Lead Closed',
+              message: `${lead.name} has been closed successfully.`,
+              type: 'closure',
+              lead_id: lead.unique_id,
+            }));
+            if (notifications.length > 0) {
+              await supabase.from('notifications').insert(notifications);
+            }
+          }
+
+          // Revenue notification for Admin + Sales TL
+          const totalRevenue = (parseFloat(upfrontAmount) || 0)
+            + (slot1 ? (parseFloat(slot1Amount) || 0) : 0)
+            + (slot2 ? (parseFloat(slot2Amount) || 0) : 0);
+
+          if (totalRevenue > 0) {
+            const { data: revenueRoles } = await supabase
+              .from('user_roles')
+              .select('user_id')
+              .in('role', ['ADMIN', 'SALES_TL']);
+
+            if (revenueRoles) {
+              const revenueNotifs = revenueRoles.map(r => ({
+                user_id: r.user_id,
+                title: 'New Revenue Generated',
+                message: `New revenue of $${totalRevenue.toFixed(2)} generated from ${lead.name}.`,
+                type: 'revenue',
+                lead_id: lead.unique_id,
+              }));
+              if (revenueNotifs.length > 0) {
+                await supabase.from('notifications').insert(revenueNotifs);
+              }
+            }
+          }
+        } else {
+          // Standard status update
+          await supabase.from('leads')
+            .update({ lead_status: newStatus as any })
+            .eq('unique_id', lead.unique_id);
+
+          await supabase.from('lead_history_logs').insert({
+            lead_id: lead.unique_id,
+            changed_by: user!.id,
+            action_type: 'STATUS_CHANGE',
+            old_value: currentStatus,
+            new_value: newStatus,
+            comments: notes.trim() || null
+          });
+
+          // Notify BD member on DNR / Non Interested
+          if (['DNR1', 'DNR2', 'DNR3', 'Non Interested'].includes(newStatus) && lead.lead_generated_by) {
+            await supabase.from('notifications').insert({
+              user_id: lead.lead_generated_by,
+              title: 'Lead Status Update',
+              message: `${lead.name} marked as ${newStatus}. Please reconnect.`,
+              type: 'dnr',
+              lead_id: lead.unique_id,
+            });
+          }
         }
       }
     },
@@ -114,6 +246,11 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
       queryClient.invalidateQueries({ queryKey: ['sm-leads'] });
       queryClient.invalidateQueries({ queryKey: ['salestl-leads'] });
       queryClient.invalidateQueries({ queryKey: ['followups', lead.unique_id] });
+      queryClient.invalidateQueries({ queryKey: ['all-performas'] });
+      queryClient.invalidateQueries({ queryKey: ['all-leads-accountant'] });
+      queryClient.invalidateQueries({ queryKey: ['account-closures'] });
+      queryClient.invalidateQueries({ queryKey: ['all-closures'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
 
       // Compute next follow-up date based on status delay
       let delayDays = 1;
@@ -128,7 +265,11 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
       const nextDate = new Date();
       nextDate.setDate(nextDate.getDate() + delayDays);
 
-      toast.success(`Call logged! Next follow-up: ${nextDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`);
+      if (statusToCheck === 'Closed') {
+        toast.success(`Lead successfully closed and payment logged!`);
+      } else {
+        toast.success(`Call logged! Next follow-up: ${nextDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`);
+      }
       onClose();
     },
     onError: (err: Error) => toast.error(err.message),
@@ -153,7 +294,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="glass-card max-w-md">
+      <DialogContent className="glass-card max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display flex items-center justify-between gap-2">
             <span className="flex items-center gap-2">
@@ -199,9 +340,27 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
 
           {nextStatuses.length > 0 && (
             <div>
-              <Label className="text-xs text-muted-foreground">
+              <Label className="text-xs text-muted-foreground mb-1 block">
                 Update Status <span className="text-muted-foreground/60">(current: {currentStatus})</span>
               </Label>
+              <div className="bg-background/50 border border-border/50 rounded-lg overflow-hidden divide-y divide-border/50 mb-2">
+                {nextStatuses.map(s => {
+                  const isSelected = s === newStatus;
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setNewStatus(s)}
+                      className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between hover:bg-accent/40 transition-colors ${
+                        isSelected ? 'bg-primary/10 text-primary font-medium' : 'text-foreground'
+                      }`}
+                    >
+                      <span>{s}</span>
+                      {isSelected && <span className="text-primary font-bold">✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
               <Select value={newStatus} onValueChange={setNewStatus}>
                 <SelectTrigger className="mt-1">
                   <SelectValue />
@@ -221,12 +380,133 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
             </p>
           )}
 
+          {/* Render Payment details fields if Closed is selected */}
+          {newStatus === 'Closed' && (
+            <div className="border-t border-border/50 pt-4 mt-4 space-y-4">
+              <h3 className="text-sm font-semibold text-foreground font-display">Closure & Payment Details</h3>
+              
+              <div>
+                <Label>Plan *</Label>
+                <Select value={plan} onValueChange={v => setPlan(v as any)}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select plan" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Starter">Starter</SelectItem>
+                    <SelectItem value="Premium">Premium</SelectItem>
+                    <SelectItem value="Elite">Elite</SelectItem>
+                    <SelectItem value="Pro">Pro</SelectItem>
+                    <SelectItem value="Custom">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {plan === 'Custom' && (
+                <div>
+                  <Label>Custom Plan Description *</Label>
+                  <textarea
+                    value={customPlanNote}
+                    onChange={e => setCustomPlanNote(e.target.value)}
+                    placeholder="Add your custom plan details here..."
+                    rows={3}
+                    className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 py-1">
+                <Checkbox checked={interviewPlan} onCheckedChange={v => setInterviewPlan(!!v)} id="ip" />
+                <Label htmlFor="ip" className="cursor-pointer">Interview Plan</Label>
+              </div>
+              
+              {interviewPlan && (
+                <div>
+                  <Label>Number of Interviews Guaranteed</Label>
+                  <Input type="number" value={interviewsGuaranteed} onChange={e => setInterviewsGuaranteed(e.target.value)} placeholder="e.g. 3" className="mt-1" />
+                </div>
+              )}
+
+              <div>
+                <Label>Total Collection Amount (USD) *</Label>
+                <div className="relative mt-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                  <Input type="number" value={upfrontAmount} onChange={e => setUpfrontAmount(e.target.value)} placeholder="0.00" className="pl-7" />
+                </div>
+              </div>
+
+              <div>
+                <Label>Amount (USD) *</Label>
+                <div className="relative mt-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                  <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0.00" className="pl-7" />
+                </div>
+              </div>
+
+              <div>
+                <Label>Percentage (%) *</Label>
+                <div className="relative mt-1">
+                  <Input type="number" value={percentage} onChange={e => setPercentage(e.target.value)} placeholder="0" className="pr-7" />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">%</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 py-1">
+                <Checkbox checked={slot1} onCheckedChange={v => setSlot1(!!v)} id="s1" />
+                <Label htmlFor="s1" className="cursor-pointer">Slot 1</Label>
+              </div>
+              
+              {slot1 && (
+                <div className="space-y-2 pl-6 border-l-2 border-primary/20">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                    <Input type="number" value={slot1Amount} onChange={e => setSlot1Amount(e.target.value)} placeholder="Slot 1 Amount" className="pl-7" />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Due Date (auto-set to today)</Label>
+                    <Input type="date" value={slot1DueDate} onChange={e => setSlot1DueDate(e.target.value)} className="text-xs mt-1" />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 py-1">
+                <Checkbox checked={slot2} onCheckedChange={v => setSlot2(!!v)} id="s2" />
+                <Label htmlFor="s2" className="cursor-pointer">Next Slot</Label>
+              </div>
+              
+              {slot2 && (
+                <div className="space-y-2 pl-6 border-l-2 border-primary/20">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                    <Input type="number" value={slot2Amount} onChange={e => setSlot2Amount(e.target.value)} placeholder="Next Slot Amount" className="pl-7" />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Due Date *</Label>
+                    <Input type="date" value={nextSlotDueDate} onChange={e => setNextSlotDueDate(e.target.value)} className="text-xs mt-1" />
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <Label>Payment Mode *</Label>
+                <Select value={paymentMode} onValueChange={v => setPaymentMode(v as any)}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select mode" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Cash">Cash</SelectItem>
+                    <SelectItem value="Card">Card</SelectItem>
+                    <SelectItem value="UPI">UPI</SelectItem>
+                    <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="Stripe">Stripe</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-2 pt-1">
             <Button type="button" variant="outline" onClick={onClose} className="flex-1">
               Cancel
             </Button>
             <Button type="submit" className="flex-1 nb-gradient" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Logging...' : 'Log Call & Save'}
+              {mutation.isPending ? 'Logging...' : (newStatus === 'Closed' ? 'Close Lead & Save' : 'Log Call & Save')}
             </Button>
           </div>
         </form>

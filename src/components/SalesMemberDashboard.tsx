@@ -71,6 +71,7 @@ const SalesMemberDashboard: React.FC = () => {
 
   const [selectedLead, setSelectedLead] = useState<any>(null);
   const [callLead, setCallLead] = useState<any>(null);
+  const [callLeadInitialStatus, setCallLeadInitialStatus] = useState<string | undefined>(undefined);
   const [closureLead, setClosureLead] = useState<any>(null);
   const [accountantLead, setAccountantLead] = useState<any>(null);
 
@@ -520,20 +521,9 @@ const SalesMemberDashboard: React.FC = () => {
                       <td className="p-2 text-xs">{lead.lead_source || '—'}</td>
                       <td className="p-2">
                         <div className="flex items-center gap-1.5">
-                          <Select
-                            value={lead.lead_status || 'New'}
-                            onValueChange={v => handleStatusChangeRequest(lead, v)}
-                            disabled={lead.assigned_to !== user?.id}
-                          >
-                            <SelectTrigger className="h-7 w-36 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {ALL_STATUSES.map(s => (
-                                <SelectItem key={s} value={s}>{s}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <span className={`text-xs px-2 py-1 rounded-full ${statusColors[lead.lead_status || 'New'] || ''} inline-flex items-center gap-1.5`}>
+                            {lead.lead_status || 'New'}
+                          </span>
                           {isStale && (
                             <Badge variant="destructive" className="bg-red-500/10 text-red-500 border-red-500/20 text-[9px] px-1 py-0 font-bold uppercase shrink-0">
                               Stagnant
@@ -574,11 +564,8 @@ const SalesMemberDashboard: React.FC = () => {
                               className="text-primary hover:bg-primary/10"
                               title="Log Call"
                               onClick={() => {
-                                if (lead.lead_status === 'Hot Prospect') {
-                                  setClosureLead(lead);
-                                } else {
-                                  setCallLead(lead);
-                                }
+                                setCallLead(lead);
+                                setCallLeadInitialStatus(undefined);
                               }}
                             >
                               <Phone className="h-3.5 w-3.5" />
@@ -589,7 +576,10 @@ const SalesMemberDashboard: React.FC = () => {
                               size="sm"
                               variant="ghost"
                               className="text-green-500 hover:bg-green-500/10 text-xs h-7 px-2"
-                              onClick={() => setClosureLead(lead)}
+                              onClick={() => {
+                                setCallLead(lead);
+                                setCallLeadInitialStatus('Closed');
+                              }}
                             >
                               Close
                             </Button>
@@ -628,7 +618,18 @@ const SalesMemberDashboard: React.FC = () => {
 
       {/* Dialogs */}
       {selectedLead && <LeadDetailDialog lead={selectedLead} open={!!selectedLead} onClose={() => setSelectedLead(null)} />}
-      {callLead && <CallActivityDialog lead={callLead} open={!!callLead} onClose={() => { setCallLead(null); queryClient.invalidateQueries({ queryKey: ['sm-leads'] }); }} />}
+      {callLead && (
+        <CallActivityDialog
+          lead={callLead}
+          open={!!callLead}
+          initialStatus={callLeadInitialStatus}
+          onClose={() => {
+            setCallLead(null);
+            setCallLeadInitialStatus(undefined);
+            queryClient.invalidateQueries({ queryKey: ['sm-leads'] });
+          }}
+        />
+      )}
       {closureLead && <ClosureDialog lead={closureLead} open={!!closureLead} onClose={() => { setClosureLead(null); queryClient.invalidateQueries({ queryKey: ['sm-leads'] }); }} />}
       {accountantLead && <AccountantCommentDialog lead={accountantLead} open={!!accountantLead} onClose={() => setAccountantLead(null)} />}
 
