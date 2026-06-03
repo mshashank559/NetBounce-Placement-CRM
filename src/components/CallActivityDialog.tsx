@@ -8,7 +8,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { Phone } from 'lucide-react';
+import { Phone, Send, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -45,7 +45,11 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
 
   const [notes, setNotes] = useState('');
   const [wayOfContact, setWayOfContact] = useState('Call');
-  const [newStatus, setNewStatus] = useState(initialStatus || nextStatuses[0] || currentStatus);
+  const [newStatus, setNewStatus] = useState(initialStatus || currentStatus);
+
+  // Send Document State
+  const [sendDocument, setSendDocument] = useState(false);
+  const [docComment, setDocComment] = useState('');
 
   // Closure Form State
   const [plan, setPlan] = useState<'Starter' | 'Premium' | 'Elite' | 'Pro' | 'Custom' | ''>('');
@@ -75,6 +79,11 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
         if (!amount || parseFloat(amount) <= 0) throw new Error('Amount is required');
         if (!percentage || parseFloat(percentage) <= 0) throw new Error('Percentage is required');
         if (slot2 && !nextSlotDueDate) throw new Error('Next Slot due date is required when Next Slot is enabled');
+      }
+
+      // Validation for Send Document
+      if (sendDocument && !docComment.trim()) {
+        throw new Error('Document remarks are required when Send Document is checked');
       }
 
       const todayDate = new Date().toISOString().split('T')[0];
@@ -238,6 +247,43 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
           }
         }
       }
+
+      // 4. Send document if toggled
+      if (sendDocument && docComment.trim()) {
+        const docRef = 'DOC-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+        const { error: perfErr } = await supabase.from('performas').insert({
+          lead_id: lead.unique_id,
+          sent_by: user!.id,
+          type: 'Pre-Performa',
+          document_url: docRef,
+          notes: JSON.stringify({
+            status: 'Sent',
+            sla: 'Pending',
+            sent_at: new Date().toISOString(),
+            docRefId: docRef,
+            comment: docComment.trim(),
+          }),
+        });
+        if (perfErr) throw perfErr;
+
+        const { data: accountants } = await supabase
+          .from('user_roles')
+          .select('user_id')
+          .eq('role', 'ACCOUNTANT');
+
+        if (accountants && accountants.length > 0) {
+          const { error: notifErr } = await supabase.from('notifications').insert(
+            accountants.map(t => ({
+              user_id: t.user_id,
+              title: '📄 Document Sent with Status Update',
+              message: `"${lead.name}" status: ${newStatus || currentStatus}. Document remark: "${docComment.trim()}"`,
+              type: 'accountant_update',
+              lead_id: lead.unique_id,
+            }))
+          );
+          if (notifErr) throw notifErr;
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
@@ -343,29 +389,14 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
               <Label className="text-xs text-muted-foreground mb-1 block">
                 Update Status <span className="text-muted-foreground/60">(current: {currentStatus})</span>
               </Label>
-              <div className="bg-background/50 border border-border/50 rounded-lg overflow-hidden divide-y divide-border/50 mb-2">
-                {nextStatuses.map(s => {
-                  const isSelected = s === newStatus;
-                  return (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setNewStatus(s)}
-                      className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between hover:bg-accent/40 transition-colors ${
-                        isSelected ? 'bg-primary/10 text-primary font-medium' : 'text-foreground'
-                      }`}
-                    >
-                      <span>{s}</span>
-                      {isSelected && <span className="text-primary font-bold">✓</span>}
-                    </button>
-                  );
-                })}
-              </div>
               <Select value={newStatus} onValueChange={setNewStatus}>
                 <SelectTrigger className="mt-1">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  {!nextStatuses.includes(currentStatus) && (
+                    <SelectItem value={currentStatus}>{currentStatus}</SelectItem>
+                  )}
                   {nextStatuses.map(s => (
                     <SelectItem key={s} value={s}>{s}</SelectItem>
                   ))}
@@ -378,6 +409,46 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
             <p className="text-xs text-muted-foreground bg-accent/30 rounded-lg p-2">
               Lead is in terminal status ({currentStatus}) — notes will still be logged.
             </p>
+          )}
+
+          {/* Send Document block (available on any status for SALES_TL, SALES_TM, ADMIN) */}
+          {(role === 'SALES_TL' || role === 'SALES_TM' || role === 'ADMIN') && (
+            <div className="border border-border/50 rounded-lg p-3 space-y-3 bg-background/50 mt-4">
+              <button
+                type="button"
+                onClick={() => { setSendDocument(v => !v); if (sendDocument) setDocComment(''); }}
+                className={`flex items-center gap-2 text-sm font-medium w-full rounded-md px-2 py-1.5 transition-colors ${
+                  sendDocument
+                    ? 'bg-primary/10 text-primary border border-primary/20'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent/40'
+                }`}
+              >
+                <Send className="h-4 w-4" />
+                Send Document
+                <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                  sendDocument ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                }`}>{sendDocument ? 'ON' : 'OFF'}</span>
+              </button>
+
+              {sendDocument && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="dlg-doc-comment" className="text-xs">
+                    <FileText className="h-3.5 w-3.5 inline mr-1 text-primary" />
+                    Document Remarks <span className="text-destructive">*</span>
+                    <span className="text-xs text-muted-foreground ml-1">(sent to Accountant Dashboard)</span>
+                  </Label>
+                  <Textarea
+                    id="dlg-doc-comment"
+                    value={docComment}
+                    onChange={e => setDocComment(e.target.value)}
+                    placeholder="Add remarks about the document being sent..."
+                    rows={3}
+                    className="resize-none"
+                    required={sendDocument}
+                  />
+                </div>
+              )}
+            </div>
           )}
 
           {/* Render Payment details fields if Closed is selected */}
