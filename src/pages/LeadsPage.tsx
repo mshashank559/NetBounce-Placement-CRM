@@ -841,18 +841,6 @@ const LeadsPage: React.FC = () => {
                               </Button>
                             )}
 
-                            {/* Delete Lead — Admin only */}
-                            {role === 'ADMIN' && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => setDeleteConfirmLead(lead)}
-                                className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                                title="Delete Lead"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
 
                             {/* Agreement Button for Closed Leads */}
                             {currentStatus === 'Closed' && (role === 'PROCESS_ANALYST') && (
@@ -918,6 +906,19 @@ const LeadsPage: React.FC = () => {
                                   </div>
                                 )}
                               </div>
+                            )}
+
+                            {/* Delete Lead — Admin only (next to paint symbol) */}
+                            {role === 'ADMIN' && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setDeleteConfirmLead(lead)}
+                                className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                                title="Delete Lead"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
                             )}
                           </div>
                         </td>
