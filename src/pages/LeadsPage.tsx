@@ -101,11 +101,22 @@ const LeadsPage: React.FC = () => {
   const [concernText, setConcernText] = useState('');
   const [concernRecipient, setConcernRecipient] = useState('');
 
-  // ── Fetch leads (role-scoped) ────────────────────────────────
-  const { data: leads, isLoading } = useQuery({
-    queryKey: ['leads', user?.id, role],
+  // ── Pagination state ──────────────────────────────────────────
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
+
+  // Reset page to 1 whenever any filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusFilter, monthFilter, dateFrom, dateTo, memberFilter]);
+
+  // ── Fetch leads (role-scoped, server-side filtered, paginated) ─
+  const { data: leadsData, isLoading } = useQuery({
+    queryKey: ['leads', user?.id, role, page, search, statusFilter, monthFilter, dateFrom, dateTo, memberFilter],
     queryFn: async () => {
-      let query = supabase.from('leads').select('*').order('created_at', { ascending: false });
+      let query = supabase.from('leads').select('*', { count: 'exact' });
+
+      // Role permission constraints
       if (role === 'LEAD_GEN') {
         query = query.eq('lead_generated_by', user!.id);
       } else if (role === 'SALES_TM') {
@@ -113,12 +124,59 @@ const LeadsPage: React.FC = () => {
       } else if (role === 'SALES_TL') {
         query = query.or(`team_lead_id.eq.${user!.id},assigned_to.eq.${user!.id}`);
       }
-      const { data, error } = await query;
+
+      // 1. Search filter
+      if (search.trim()) {
+        const s = `%${search.trim()}%`;
+        query = query.or(`name.ilike.${s},email.ilike.${s}`);
+      }
+
+      // 2. Status filter
+      if (statusFilter !== 'all') {
+        query = query.eq('lead_status', statusFilter);
+      }
+
+      // 3. Month filter (for current year)
+      if (monthFilter !== 'all') {
+        const year = new Date().getFullYear();
+        const monthNum = parseInt(monthFilter);
+        const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01T00:00:00`;
+        const lastDay = new Date(year, monthNum, 0).getDate();
+        const endDate = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}T23:59:59`;
+        query = query.gte('created_at', startDate).lte('created_at', endDate);
+      }
+
+      // 4. Date range filter
+      if (dateFrom) {
+        query = query.gte('created_at', dateFrom);
+      }
+      if (dateTo) {
+        query = query.lte('created_at', dateTo + 'T23:59:59');
+      }
+
+      // 5. Team member filter
+      if (memberFilter !== 'all') {
+        query = query.or(`assigned_to.eq.${memberFilter},lead_generated_by.eq.${memberFilter}`);
+      }
+
+      const from = (page - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data, count, error } = await query
+        .order('created_at', { ascending: false })
+        .range(from, to);
+
       if (error) throw error;
-      return data || [];
+      return {
+        leads: data || [],
+        totalCount: count || 0,
+      };
     },
     enabled: !!user,
   });
+
+  const leads = leadsData?.leads || [];
+  const totalCount = leadsData?.totalCount || 0;
 
   // ── Profiles map ─────────────────────────────────────────────
   const { data: profilesMap } = useQuery({
@@ -511,27 +569,8 @@ const LeadsPage: React.FC = () => {
     }
   }, [concernRecipients]);
 
-  // ── Client-side filtering ─────────────────────────────────────
-  const filtered = leads?.filter(l => {
-    const matchesSearch = !search
-      || l.name?.toLowerCase().includes(search.toLowerCase())
-      || l.email?.toLowerCase().includes(search.toLowerCase());
-
-    const matchesStatus = statusFilter === 'all' || l.lead_status === statusFilter;
-
-    const matchesMonth = monthFilter === 'all'
-      || new Date(l.created_at).getMonth() + 1 === parseInt(monthFilter);
-
-    const createdAt = new Date(l.created_at);
-    const matchesDateFrom = !dateFrom || createdAt >= new Date(dateFrom);
-    const matchesDateTo = !dateTo || createdAt <= new Date(dateTo + 'T23:59:59');
-
-    const matchesMember = memberFilter === 'all'
-      || l.assigned_to === memberFilter
-      || l.lead_generated_by === memberFilter;
-
-    return matchesSearch && matchesStatus && matchesMonth && matchesDateFrom && matchesDateTo && matchesMember;
-  }) || [];
+  // ── Client-side filtering (Disabled — handled server-side above) ─
+  const filtered = leads;
 
   // ── Permission flags ──────────────────────────────────────────
   const canCall = role === 'SALES_TM' || role === 'SALES_TL' || role === 'ADMIN';
@@ -928,6 +967,36 @@ const LeadsPage: React.FC = () => {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* Pagination Controls */}
+          {filtered.length > 0 && (
+            <div className="flex justify-between items-center p-4 border-t border-border flex-wrap gap-2">
+              <span className="text-xs text-muted-foreground">
+                Showing {Math.min(totalCount, (page - 1) * PAGE_SIZE + 1)} to {Math.min(totalCount, page * PAGE_SIZE)} of {totalCount} leads
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={page === 1}
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <span className="text-xs font-medium">
+                  Page {page} of {Math.ceil(totalCount / PAGE_SIZE) || 1}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={page * PAGE_SIZE >= totalCount}
+                  onClick={() => setPage(p => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
