@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Phone, Eye, Filter, Palette, AlertTriangle, MessageSquare, FileText as FileTextIcon, Send, Pencil } from 'lucide-react';
+import { Phone, Eye, Filter, Palette, AlertTriangle, MessageSquare, FileText as FileTextIcon, Send, Pencil, Trash2 } from 'lucide-react';
 import LeadDetailDialog from '@/components/LeadDetailDialog';
 import ClosureDialog from '@/components/ClosureDialog';
 import CallActivityDialog from '@/components/CallActivityDialog';
@@ -86,6 +86,8 @@ const LeadsPage: React.FC = () => {
   const [highlightLead, setHighlightLead] = useState<string | null>(null);
   const [accountantLead, setAccountantLead] = useState<any>(null);
   const [editLead, setEditLead] = useState<any>(null);
+  const [deleteConfirmLead, setDeleteConfirmLead] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // ── Status comment dialog state ───────────────────────────────
   const [pendingStatusChange, setPendingStatusChange] = useState<{ lead: any; status: string } | null>(null);
@@ -839,6 +841,19 @@ const LeadsPage: React.FC = () => {
                               </Button>
                             )}
 
+                            {/* Delete Lead — Admin only */}
+                            {role === 'ADMIN' && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setDeleteConfirmLead(lead)}
+                                className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                                title="Delete Lead"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+
                             {/* Agreement Button for Closed Leads */}
                             {currentStatus === 'Closed' && (role === 'PROCESS_ANALYST') && (
                               <Button
@@ -956,6 +971,120 @@ const LeadsPage: React.FC = () => {
           queryKeys={[['leads'], ['leads-with-comments']]}
         />
       )}
+
+      {/* ── Delete Lead Confirmation Dialog (Admin only) ── */}
+      <Dialog
+        open={!!deleteConfirmLead}
+        onOpenChange={open => { if (!open && !isDeleting) setDeleteConfirmLead(null); }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              Delete Lead
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-3 space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to permanently delete the lead for
+            </p>
+            <p className="font-semibold text-foreground">{deleteConfirmLead?.name}</p>
+            <p className="text-xs text-destructive/80 bg-destructive/10 rounded-md px-3 py-2">
+              ⚠️ This action cannot be undone. All associated data will be deleted.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteConfirmLead(null)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={isDeleting}
+              onClick={async () => {
+                if (!deleteConfirmLead || !user?.id) return;
+                setIsDeleting(true);
+                try {
+                  // ── Fetch profiles + roles to build notification targets ──
+                  const { data: allProfiles } = await supabase
+                    .from('profiles')
+                    .select('user_id, reports_to, full_name');
+                  const { data: allUserRoles } = await supabase
+                    .from('user_roles')
+                    .select('user_id, role');
+
+                  // ── Delete the lead ──
+                  const { error: delErr } = await supabase
+                    .from('leads')
+                    .delete()
+                    .eq('unique_id', deleteConfirmLead.unique_id);
+                  if (delErr) throw delErr;
+
+                  // ── Build notification recipients ──
+                  if (allProfiles && allUserRoles) {
+                    const profilesMap = new Map(allProfiles.map(p => [p.user_id, p]));
+                    const rolesMap = new Map(allUserRoles.map(r => [r.user_id, r.role]));
+
+                    const salesPersonId: string | null = deleteConfirmLead.assigned_to || null;
+
+                    let salesTLId: string | null = deleteConfirmLead.team_lead_id || null;
+                    if (!salesTLId && salesPersonId) {
+                      salesTLId = profilesMap.get(salesPersonId)?.reports_to || null;
+                    }
+
+                    const bdMemberId: string | null = deleteConfirmLead.lead_generated_by || null;
+                    let bdTLId: string | null = null;
+                    if (bdMemberId) {
+                      const genRole = rolesMap.get(bdMemberId);
+                      bdTLId = genRole === 'LEAD_TL'
+                        ? bdMemberId
+                        : profilesMap.get(bdMemberId)?.reports_to || null;
+                    }
+
+                    const processAnalystIds = allUserRoles
+                      .filter(r => r.role === 'PROCESS_ANALYST')
+                      .map(r => r.user_id);
+
+                    const recipients = new Set<string>();
+                    processAnalystIds.forEach(id => recipients.add(id));
+                    if (salesPersonId) recipients.add(salesPersonId);
+                    if (salesTLId) recipients.add(salesTLId);
+                    if (bdTLId) recipients.add(bdTLId);
+                    recipients.delete(user.id); // don't notify the deleting admin
+
+                    if (recipients.size > 0) {
+                      const adminName = profilesMap.get(user.id)?.full_name || 'Admin';
+                      const notifRows = Array.from(recipients).map(uid => ({
+                        user_id: uid,
+                        title: '🗑️ Lead Deleted',
+                        message: `Lead "${deleteConfirmLead.name}" (${deleteConfirmLead.email}) has been permanently deleted by ${adminName}.`,
+                        type: 'lead_deleted',
+                        lead_id: null,
+                      }));
+                      await supabase.from('notifications').insert(notifRows);
+                    }
+                  }
+
+                  toast.success(`Lead "${deleteConfirmLead.name}" deleted successfully`);
+                  queryClient.invalidateQueries({ queryKey: ['leads'] });
+                  setDeleteConfirmLead(null);
+                } catch (err: any) {
+                  console.error('Delete lead error:', err);
+                  toast.error(err.message || 'Failed to delete lead');
+                } finally {
+                  setIsDeleting(false);
+                }
+              }}
+            >
+              {isDeleting ? 'Deleting…' : 'Yes, Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ── Mandatory Comment Dialog on Status Change ── */}
       <Dialog
         open={!!pendingStatusChange}
