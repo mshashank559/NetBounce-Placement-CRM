@@ -183,13 +183,28 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
           .filter(r => r.role === 'PROCESS_ANALYST')
           .map(r => r.user_id);
 
+        // All BD TL IDs (used as fallback when specific bdTLId cannot be resolved)
+        const allBdTLIds = allUserRoles
+          .filter(r => r.role === 'LEAD_TL')
+          .map(r => r.user_id);
+
+        // Helper: add the specific BD TL if known, otherwise notify all BD TLs
+        const addBdTLRecipients = (set: Set<string>) => {
+          if (bdTLId) {
+            set.add(bdTLId);
+          } else {
+            // lead_generated_by is missing — notify all BD TLs as fallback
+            allBdTLIds.forEach(id => set.add(id));
+          }
+        };
+
         // ── Build recipient set based on editor's role ─────────────
         const recipients = new Set<string>();
 
         if (currentRole === 'SALES_TL') {
-          // Sales TL edits → Sales Member + BD TL + Process Analysts + Admins
+          // Sales TL edits → Sales Member + BD TL (all BD TLs if unknown) + Process Analysts + Admins
           if (salesPersonId) recipients.add(salesPersonId);
-          if (bdTLId) recipients.add(bdTLId);
+          addBdTLRecipients(recipients);
           paIds.forEach(id => recipients.add(id));
           adminIds.forEach(id => recipients.add(id));
 
@@ -201,17 +216,17 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
           adminIds.forEach(id => recipients.add(id));
 
         } else if (currentRole === 'ADMIN') {
-          // Admin edits → Sales Member + Sales TL + BD TL + Process Analysts
+          // Admin edits → Sales Member + Sales TL + BD TL (all BD TLs if unknown) + Process Analysts
           if (salesPersonId) recipients.add(salesPersonId);
           if (salesTLId) recipients.add(salesTLId);
-          if (bdTLId) recipients.add(bdTLId);
+          addBdTLRecipients(recipients);
           paIds.forEach(id => recipients.add(id));
 
         } else if (currentRole === 'PROCESS_ANALYST') {
-          // Process Analyst edits → Sales Member + Sales TL + BD TL + Admins
+          // Process Analyst edits → Sales Member + Sales TL + BD TL (all BD TLs if unknown) + Admins
           if (salesPersonId) recipients.add(salesPersonId);
           if (salesTLId) recipients.add(salesTLId);
-          if (bdTLId) recipients.add(bdTLId);
+          addBdTLRecipients(recipients);
           adminIds.forEach(id => recipients.add(id));
 
         } else {
