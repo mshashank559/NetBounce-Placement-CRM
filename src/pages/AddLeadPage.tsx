@@ -48,11 +48,22 @@ const AddLeadPage: React.FC = () => {
       }
 
       // ── Duplicate check ──────────────────────────────────────
-      const { data: emailDup } = await supabase.from('leads').select('unique_id').eq('email', form.email).maybeSingle();
-      if (emailDup) throw new Error('A lead with this email already exists');
+      const { data: emailDup } = await supabase.from('leads').select('display_id').eq('email', form.email).maybeSingle();
+      const { data: phoneDup } = await supabase.from('leads').select('display_id').eq('phone', form.phone).maybeSingle();
 
-      const { data: phoneDup } = await supabase.from('leads').select('unique_id').eq('phone', form.phone).maybeSingle();
-      if (phoneDup) throw new Error('A lead with this phone number already exists');
+      if (emailDup && phoneDup) {
+        throw new Error(
+          `This Email ID and Phone Number already exist.\n(Email ID) Candidate ID: ${emailDup.display_id || '—'}\n(Phone Number) Candidate ID: ${phoneDup.display_id || '—'}`
+        );
+      } else if (emailDup) {
+        throw new Error(
+          `This Email ID already exists.\nCandidate ID: ${emailDup.display_id || '—'}`
+        );
+      } else if (phoneDup) {
+        throw new Error(
+          `This Phone Number already exists.\nCandidate ID: ${phoneDup.display_id || '—'}`
+        );
+      }
 
       // ── Mandatory field validation ───────────────────────────
       if (!form.technology.trim()) throw new Error('Technology / Domain is mandatory');
@@ -176,7 +187,11 @@ const AddLeadPage: React.FC = () => {
       navigate('/leads');
     },
     onError: (err: Error) => {
-      toast.error(err.message);
+      toast.error(
+        <div className="whitespace-pre-line">
+          {err.message}
+        </div>
+      );
     },
   });
 
