@@ -99,6 +99,91 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({ open, onClose, lead, qu
           new_value: updatedData.lead_status,
           comments: `Edited fields: ${changes.join(', ')}`,
         });
+
+        try {
+          // Fetch profiles and user roles to calculate recipients
+          const { data: allProfiles } = await supabase
+            .from('profiles')
+            .select('user_id, reports_to, full_name');
+          const { data: allUserRoles } = await supabase
+            .from('user_roles')
+            .select('user_id, role');
+
+          const profilesMap = new Map(allProfiles?.map(p => [p.user_id, p]) || []);
+          const rolesMap = new Map(allUserRoles?.map(r => [r.user_id, r.role]) || []);
+
+          const currentRole = rolesMap.get(user.id);
+
+          // Resolve Admin & PA IDs
+          const adminAndPAIds = allUserRoles
+            ?.filter(r => r.role === 'ADMIN' || r.role === 'PROCESS_ANALYST')
+            .map(r => r.user_id) || [];
+
+          // Resolve lead roles
+          const assignedSalesTM = lead.assigned_to;
+          
+          let assignedSalesTL = lead.team_lead_id;
+          if (!assignedSalesTL && assignedSalesTM) {
+            assignedSalesTL = profilesMap.get(assignedSalesTM)?.reports_to || null;
+          }
+
+          const bdMember = lead.lead_generated_by;
+          let bdTL = null;
+          if (bdMember) {
+            const bdMemberRole = rolesMap.get(bdMember);
+            if (bdMemberRole === 'LEAD_TL') {
+              bdTL = bdMember;
+            } else {
+              bdTL = profilesMap.get(bdMember)?.reports_to || null;
+            }
+          }
+
+          const recipients = new Set<string>();
+
+          // Always add Admins and Process Analysts
+          adminAndPAIds.forEach(id => recipients.add(id));
+
+          if (currentRole === 'SALES_TL' || currentRole === 'SALES_TM') {
+            // Sales person or Sales TL edits lead:
+            if (assignedSalesTM) recipients.add(assignedSalesTM);
+            if (assignedSalesTL) recipients.add(assignedSalesTL);
+            if (bdTL) recipients.add(bdTL); // Also notify BD TL
+          } else if (currentRole === 'LEAD_TL') {
+            // BD TL edits lead:
+            if (assignedSalesTM) recipients.add(assignedSalesTM);
+            if (assignedSalesTL) recipients.add(assignedSalesTL);
+            if (bdMember) recipients.add(bdMember);
+          } else {
+            // Admin or Process Analyst edits: notify all
+            if (assignedSalesTM) recipients.add(assignedSalesTM);
+            if (assignedSalesTL) recipients.add(assignedSalesTL);
+            if (bdMember) recipients.add(bdMember);
+            if (bdTL) recipients.add(bdTL);
+          }
+
+          // Exclude the editor themselves
+          recipients.delete(user.id);
+
+          if (recipients.size > 0) {
+            const editorName = profilesMap.get(user.id)?.full_name || 'Someone';
+            const notificationMessage = `"${lead.name}" details edited by ${editorName}. Changes: ${changes.join(', ')}`;
+            
+            const notifInserts = Array.from(recipients).map(uid => ({
+              user_id: uid,
+              title: '✏️ Lead Details Edited',
+              message: notificationMessage,
+              type: 'lead_edit',
+              lead_id: lead.unique_id,
+              read: false
+            }));
+
+            await supabase
+              .from('notifications')
+              .insert(notifInserts);
+          }
+        } catch (err) {
+          console.error('Error sending edit notifications:', err);
+        }
       }
     },
     onSuccess: () => {
