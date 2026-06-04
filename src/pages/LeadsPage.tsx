@@ -19,7 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Shuffle, FileSignature, FileText } from 'lucide-react';
 import AccountantCommentDialog from '@/components/AccountantCommentDialog';
-import EditLeadDialog from '@/components/EditLeadDialog';
+import EditLeadDialog from '../components/EditLeadDialog';
 
 // ── Status color map ─────────────────────────────────────────────────────────
 const statusColors: Record<string, string> = {
