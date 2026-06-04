@@ -33,7 +33,8 @@ import {
   Eye,
   Palette,
   FileSignature,
-  FileText
+  FileText,
+  Pencil
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -64,6 +65,8 @@ import ClosureDialog from '@/components/ClosureDialog';
 import CallActivityDialog from '@/components/CallActivityDialog';
 import AgreementDialog from '@/components/AgreementDialog';
 import AccountantCommentDialog from '@/components/AccountantCommentDialog';
+import EditLeadDialog from '@/components/EditLeadDialog';
+
 import { 
   BarChart, 
   Bar, 
@@ -168,6 +171,8 @@ const AdminDashboard: React.FC = () => {
   const [agreementLead, setAgreementLead] = useState<any>(null);
   const [highlightLead, setHighlightLead] = useState<string | null>(null);
   const [accountantLead, setAccountantLead] = useState<any>(null);
+  const [editLead, setEditLead] = useState<any>(null);
+
 
   // Concern Dialog State
   const [concernLead, setConcernLead] = useState<any>(null);
@@ -941,9 +946,14 @@ const AdminDashboard: React.FC = () => {
                             <TableCell className="text-xs">{lead.lead_source || '—'}</TableCell>
                             <TableCell className="text-xs">{new Date(lead.updated_at).toLocaleDateString()}</TableCell>
                             <TableCell className="text-right">
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedLead(lead)} title="View Details">
-                                <Eye className="h-3.5 w-3.5" />
-                              </Button>
+                              <div className="flex justify-end gap-1">
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedLead(lead)} title="View Details">
+                                  <Eye className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10" onClick={() => setEditLead(lead)} title="Edit Lead">
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))
@@ -962,6 +972,15 @@ const AdminDashboard: React.FC = () => {
           open={selectedLead !== null}
           onClose={() => setSelectedLead(null)}
           lead={selectedLead}
+        />
+      )}
+
+      {editLead && (
+        <EditLeadDialog
+          open={!!editLead}
+          onClose={() => setEditLead(null)}
+          lead={editLead}
+          queryKeys={[['leads'], ['leads-with-comments']]}
         />
       )}
     </div>
