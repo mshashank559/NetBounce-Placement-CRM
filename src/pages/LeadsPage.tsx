@@ -828,18 +828,7 @@ const LeadsPage: React.FC = () => {
                               </Button>
                             )}
 
-                            {/* Edit Lead */}
-                            {canEditLead(lead) && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => setEditLead(lead)}
-                                className="text-amber-600 hover:text-amber-700 hover:bg-amber-500/10"
-                                title="Edit Lead"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
+
 
 
                             {/* Agreement Button for Closed Leads */}
