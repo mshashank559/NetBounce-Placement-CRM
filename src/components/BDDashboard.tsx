@@ -31,6 +31,8 @@ const BDDashboard: React.FC = () => {
   const [bdMemberFilter, setBdMemberFilter] = useState('all');
   const [queueTab, setQueueTab] = useState('pending'); // 'pending' or 'all'
   const [nameSearch, setNameSearch] = useState('');
+  const [globalSalesTLFilter, setGlobalSalesTLFilter] = useState('all');
+  const [globalSalesMemberFilter, setGlobalSalesMemberFilter] = useState('all');
 
   // ── Data Fetching ───────────────────────────────────────
   const { data: leads, isLoading } = useQuery({
@@ -109,9 +111,15 @@ const BDDashboard: React.FC = () => {
         if (!matchesName && !matchesEmail && !matchesPhone && !matchesId) return false;
       }
 
+      // 6. Global Sales TL / Member filter
+      if (viewMode === 'global') {
+        if (globalSalesTLFilter !== 'all' && l.team_lead_id !== globalSalesTLFilter) return false;
+        if (globalSalesMemberFilter !== 'all' && l.assigned_to !== globalSalesMemberFilter) return false;
+      }
+
       return true;
     });
-  }, [leads, viewMode, monthFilter, dateFrom, dateTo, statusFilter, bdMemberFilter, profiles, user?.id, nameSearch]);
+  }, [leads, viewMode, monthFilter, dateFrom, dateTo, statusFilter, bdMemberFilter, profiles, user?.id, nameSearch, globalSalesTLFilter, globalSalesMemberFilter]);
 
   // ── KPI Calculations (Section 1) ─────────────────────────
   // Total Leads = all leads in the system
@@ -264,6 +272,18 @@ const BDDashboard: React.FC = () => {
     if (!id) return '—';
     return profiles?.find(p => p.user_id === id)?.full_name || 'Unknown';
   };
+
+  const globalSalesTLList = useMemo(() => {
+    if (!profiles || !salesTeams) return [];
+    return profiles.filter(p => salesTeams.tls.includes(p.user_id));
+  }, [profiles, salesTeams]);
+
+  const globalSalesMemberList = useMemo(() => {
+    if (!profiles || !salesTeams) return [];
+    const members = profiles.filter(p => salesTeams.tms.includes(p.user_id));
+    if (globalSalesTLFilter === 'all') return members;
+    return members.filter(p => p.reports_to === globalSalesTLFilter);
+  }, [profiles, salesTeams, globalSalesTLFilter]);
 
   const getSalesDropdownOptions = () => {
     if (!profiles || !salesTeams) return [];
@@ -464,37 +484,72 @@ const BDDashboard: React.FC = () => {
 
       {/* ── SECTION 4: Lead Management Table ── */}
       <Card className="glass-card">
-        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <CardTitle className="text-lg font-display">Lead Management Queue</CardTitle>
-            <div className="flex gap-1 bg-accent/40 rounded p-1">
-              <Button
-                variant={queueTab === 'pending' ? 'default' : 'ghost'}
-                size="sm"
-                className="h-7 text-xs px-3"
-                onClick={() => setQueueTab('pending')}
-              >
-                Pending ({leads ? leads.filter(l => l.assignment_type === 'Pending' && l.lead_status !== 'Closed').length : 0})
-              </Button>
-              <Button
-                variant={queueTab === 'all' ? 'default' : 'ghost'}
-                size="sm"
-                className="h-7 text-xs px-3"
-                onClick={() => setQueueTab('all')}
-              >
-                All Leads
-              </Button>
+        <CardHeader className="flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <CardTitle className="text-lg font-display">Lead Management Queue</CardTitle>
+              <div className="flex gap-1 bg-accent/40 rounded p-1">
+                <Button
+                  variant={queueTab === 'pending' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="h-7 text-xs px-3"
+                  onClick={() => setQueueTab('pending')}
+                >
+                  Pending ({leads ? leads.filter(l => l.assignment_type === 'Pending' && l.lead_status !== 'Closed').length : 0})
+                </Button>
+                <Button
+                  variant={queueTab === 'all' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="h-7 text-xs px-3"
+                  onClick={() => setQueueTab('all')}
+                >
+                  All Leads
+                </Button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline"><Shuffle className="h-3.5 w-3.5 mr-2"/> Round Robin All</Button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline"><Shuffle className="h-3.5 w-3.5 mr-2"/> Round Robin All</Button>
-          </div>
+          {/* Global View Advanced Filters */}
+          {viewMode === 'global' && (
+            <div className="flex flex-wrap items-center gap-3 border-t border-border/50 pt-3">
+              <Select value={globalSalesTLFilter} onValueChange={v => { setGlobalSalesTLFilter(v); setGlobalSalesMemberFilter('all'); }}>
+                <SelectTrigger className="w-44 h-8 text-xs bg-accent/30 border-border/50">
+                  <SelectValue placeholder="All Sales TLs" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sales TLs</SelectItem>
+                  {globalSalesTLList.map(u => (
+                    <SelectItem key={u.user_id} value={u.user_id}>{u.full_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={globalSalesMemberFilter} onValueChange={setGlobalSalesMemberFilter}>
+                <SelectTrigger className="w-44 h-8 text-xs bg-accent/30 border-border/50">
+                  <SelectValue placeholder="All Sales Members" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sales Members</SelectItem>
+                  {globalSalesMemberList.map(u => (
+                    <SelectItem key={u.user_id} value={u.user_id}>{u.full_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {(globalSalesTLFilter !== 'all' || globalSalesMemberFilter !== 'all') && (
+                <button onClick={() => { setGlobalSalesTLFilter('all'); setGlobalSalesMemberFilter('all'); }} className="text-xs text-muted-foreground hover:text-foreground underline">
+                  Clear filters
+                </button>
+              )}
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
+                  <th className="text-left p-2 text-muted-foreground font-medium w-10">#</th>
                   <th className="text-left p-2 text-muted-foreground font-medium">Name</th>
                   <th className="text-left p-2 text-muted-foreground font-medium">Email</th>
                   <th className="text-left p-2 text-muted-foreground font-medium">Phone</th>
@@ -511,13 +566,14 @@ const BDDashboard: React.FC = () => {
               <tbody>
                 {displayedLeads.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="text-center py-8 text-muted-foreground">
+                    <td colSpan={12} className="text-center py-8 text-muted-foreground">
                       No leads in this queue.
                     </td>
                   </tr>
                 ) : (
-                  displayedLeads.slice(0, 50).map(lead => (
+                  displayedLeads.slice(0, 50).map((lead, idx) => (
                     <tr key={lead.unique_id} className={`border-b border-border/50 hover:bg-accent/30 ${lead.concern ? 'bg-orange-500/10' : ''}`}>
+                      <td className="p-2 text-xs text-muted-foreground font-medium">{idx + 1}</td>
                       <td className="p-2">
                         <div className="font-medium">{lead.name}</div>
                         <div className="text-xs text-muted-foreground">ID: {(lead as any).display_id}</div>

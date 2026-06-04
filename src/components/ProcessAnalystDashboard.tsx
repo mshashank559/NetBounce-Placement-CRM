@@ -94,6 +94,8 @@ const ProcessAnalystDashboard: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [teamFilter, setTeamFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [globalSalesTLFilter, setGlobalSalesTLFilter] = useState('all');
+  const [globalSalesMemberFilter, setGlobalSalesMemberFilter] = useState('all');
 
   // Queries (READ ONLY)
   const { data: leads } = useQuery({
@@ -250,6 +252,23 @@ const ProcessAnalystDashboard: React.FC = () => {
     });
   }, [allUsers, leads, callLogs]);
 
+  // Derived lists for Global View filter dropdowns
+  const globalSalesTLList = useMemo(() => allUsers.filter(u => u.role === 'SALES_TL'), [allUsers]);
+  const globalSalesMemberList = useMemo(() => {
+    if (globalSalesTLFilter === 'all') return allUsers.filter(u => u.role === 'SALES_TM');
+    return allUsers.filter(u => u.role === 'SALES_TM' && u.reports_to === globalSalesTLFilter);
+  }, [allUsers, globalSalesTLFilter]);
+
+  // Leads filtered for the Global View (Leads tab)
+  const paGlobalLeads = useMemo(() => {
+    if (!leads) return [];
+    return leads.filter(l => {
+      if (globalSalesTLFilter !== 'all' && l.team_lead_id !== globalSalesTLFilter) return false;
+      if (globalSalesMemberFilter !== 'all' && l.assigned_to !== globalSalesMemberFilter) return false;
+      return true;
+    });
+  }, [leads, globalSalesTLFilter, globalSalesMemberFilter]);
+
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
 
   const getStatusBadge = (status: string) => {
@@ -302,7 +321,48 @@ const ProcessAnalystDashboard: React.FC = () => {
 
         {activeTab === 'leads' && (
           <motion.div key="leads" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-            <Card className="glass-card overflow-hidden"><CardHeader className="flex flex-row items-center justify-between border-b border-border/50 bg-accent/5"><div><CardTitle className="text-xl font-display">System Leads View (Read-Only)</CardTitle><CardDescription>Full visibility without modification access</CardDescription></div><Badge className="nb-gradient border-none">{filteredData.leads.length} Records</Badge></CardHeader><CardContent className="p-0"><div className="overflow-x-auto"><Table><TableHeader className="bg-accent/50"><TableRow><TableHead className="text-xs">Candidate</TableHead><TableHead className="text-xs">Assigned To</TableHead><TableHead className="text-xs">Status</TableHead><TableHead className="text-xs">Activity</TableHead></TableRow></TableHeader><TableBody>{filteredData.leads.slice(0, 20).map(lead => (<TableRow key={lead.unique_id}><TableCell className="text-xs font-bold">{lead.name}<p className="text-[10px] font-normal text-muted-foreground">{lead.email}</p></TableCell><TableCell className="text-xs">{allUsers.find(u => u.user_id === lead.assigned_to)?.full_name || 'Unassigned'}</TableCell><TableCell>{getStatusBadge(lead.lead_status || '')}</TableCell><TableCell className="text-[10px] text-muted-foreground font-mono">{format(parseISO(lead.updated_at), 'dd MMM, HH:mm')}</TableCell></TableRow>))}</TableBody></Table></div></CardContent></Card>
+            <Card className="glass-card overflow-hidden">
+              <CardHeader className="flex flex-col gap-3 border-b border-border/50 bg-accent/5">
+                <div className="flex flex-row items-center justify-between flex-wrap gap-3">
+                  <div>
+                    <CardTitle className="text-xl font-display">System Leads View (Read-Only)</CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">Full visibility without modification access</p>
+                  </div>
+                  <Badge className="nb-gradient border-none">{paGlobalLeads.length} Records</Badge>
+                </div>
+                {/* Filter Row */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <Select value={globalSalesTLFilter} onValueChange={v => { setGlobalSalesTLFilter(v); setGlobalSalesMemberFilter('all'); }}>
+                    <SelectTrigger className="w-44 h-8 text-xs bg-accent/30 border-border/50">
+                      <SelectValue placeholder="All Sales TLs" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Sales TLs</SelectItem>
+                      {globalSalesTLList.map(u => (
+                        <SelectItem key={u.user_id} value={u.user_id}>{u.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={globalSalesMemberFilter} onValueChange={setGlobalSalesMemberFilter}>
+                    <SelectTrigger className="w-44 h-8 text-xs bg-accent/30 border-border/50">
+                      <SelectValue placeholder="All Sales Members" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Sales Members</SelectItem>
+                      {globalSalesMemberList.map(u => (
+                        <SelectItem key={u.user_id} value={u.user_id}>{u.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {(globalSalesTLFilter !== 'all' || globalSalesMemberFilter !== 'all') && (
+                    <button onClick={() => { setGlobalSalesTLFilter('all'); setGlobalSalesMemberFilter('all'); }} className="text-xs text-muted-foreground hover:text-foreground underline">
+                      Clear filters
+                    </button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="p-0"><div className="overflow-x-auto"><Table><TableHeader className="bg-accent/50"><TableRow><TableHead className="text-xs w-10">#</TableHead><TableHead className="text-xs">Candidate</TableHead><TableHead className="text-xs">Assigned To</TableHead><TableHead className="text-xs">Status</TableHead><TableHead className="text-xs">Activity</TableHead></TableRow></TableHeader><TableBody>{paGlobalLeads.slice(0, 50).map((lead, idx) => (<TableRow key={lead.unique_id}><TableCell className="text-xs text-muted-foreground font-medium w-10">{idx + 1}</TableCell><TableCell className="text-xs font-bold">{lead.name}<p className="text-[10px] font-normal text-muted-foreground">{lead.email}</p></TableCell><TableCell className="text-xs">{allUsers.find(u => u.user_id === lead.assigned_to)?.full_name || 'Unassigned'}</TableCell><TableCell>{getStatusBadge(lead.lead_status || '')}</TableCell><TableCell className="text-[10px] text-muted-foreground font-mono">{format(parseISO(lead.updated_at), 'dd MMM, HH:mm')}</TableCell></TableRow>))}</TableBody></Table></div></CardContent>
+            </Card>
           </motion.div>
         )}
 

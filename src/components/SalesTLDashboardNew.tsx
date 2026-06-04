@@ -33,6 +33,8 @@ const SalesTLDashboard: React.FC = () => {
   const [dateTo, setDateTo] = useState('');
   const [nameSearch, setNameSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [globalSalesTLFilter, setGlobalSalesTLFilter] = useState('all');
+  const [globalSalesMemberFilter, setGlobalSalesMemberFilter] = useState('all');
 
   // ── Fetch all team leads (assigned to me or my team) ──
   const { data: leads = [] } = useQuery({
@@ -118,6 +120,9 @@ const SalesTLDashboard: React.FC = () => {
       if (viewMode === 'personal' && l.assigned_to !== user?.id) return false;
       if (viewMode === 'team' && l.assigned_to && !myTeamIds.has(l.assigned_to) && l.assigned_to !== user?.id) return false;
       if (viewMode === 'global' && !l.assigned_to) return false;
+      // Global view team filters
+      if (viewMode === 'global' && globalSalesTLFilter !== 'all' && l.team_lead_id !== globalSalesTLFilter) return false;
+      if (viewMode === 'global' && globalSalesMemberFilter !== 'all' && l.assigned_to !== globalSalesMemberFilter) return false;
       const d = new Date(l.created_at);
       if (monthFilter !== 'all' && d.getMonth() + 1 !== parseInt(monthFilter)) return false;
       if (dateFrom && d < new Date(dateFrom)) return false;
@@ -133,7 +138,23 @@ const SalesTLDashboard: React.FC = () => {
       if (statusFilter !== 'all' && l.lead_status !== statusFilter) return false;
       return true;
     });
-  }, [leads, viewMode, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, user?.id, myTeamIds]);
+  }, [leads, viewMode, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, user?.id, myTeamIds, globalSalesTLFilter, globalSalesMemberFilter]);
+
+  // Derived lists for global view dropdowns
+  const allUserRoles = useMemo(() => {
+    const tlIds = salesMembers.filter((m: any) => m.reports_to === undefined || m.reports_to === null).map((m: any) => m.user_id);
+    return { tlIds: new Set(tlIds) };
+  }, [salesMembers]);
+  const globalSalesTLList = useMemo(() => salesMembers.filter((m: any) => {
+    // TLs: members whose user_id appears as reports_to in the list, or from salesMembers fetched with SALES_TL role
+    const reportsToSet = new Set(salesMembers.map((s: any) => s.reports_to).filter(Boolean));
+    return reportsToSet.has(m.user_id) || salesMembers.some((s: any) => s.user_id === m.user_id && s.reports_to == null);
+  }), [salesMembers]);
+  const globalSalesMemberList = useMemo(() => {
+    const members = salesMembers.filter((m: any) => m.reports_to != null);
+    if (globalSalesTLFilter === 'all') return members;
+    return members.filter((m: any) => m.reports_to === globalSalesTLFilter);
+  }, [salesMembers, globalSalesTLFilter]);
 
   // ── Unassigned to team member (pool leads) ──
   const poolLeads = leads.filter(l => l.assigned_to === user?.id && l.assignment_type === 'Team');
@@ -519,16 +540,52 @@ const SalesTLDashboard: React.FC = () => {
       {/* SECTION 4: All Team Leads Table */}
       <Card className="glass-card">
         <CardHeader>
-          <CardTitle className="text-lg font-display">
-            {viewMode === 'global' ? 'Global Leads' : 'Team Leads'} ({filteredLeads.length})
-          </CardTitle>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg font-display">
+                {viewMode === 'global' ? 'Global Leads' : 'Team Leads'} ({filteredLeads.length})
+              </CardTitle>
+            </div>
+            {/* Global View Filters */}
+            {viewMode === 'global' && (
+              <div className="flex flex-wrap items-center gap-3">
+                <Select value={globalSalesTLFilter} onValueChange={v => { setGlobalSalesTLFilter(v); setGlobalSalesMemberFilter('all'); }}>
+                  <SelectTrigger className="w-44 h-8 text-xs">
+                    <SelectValue placeholder="All Sales TLs" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Sales TLs</SelectItem>
+                    {globalSalesTLList.map((u: any) => (
+                      <SelectItem key={u.user_id} value={u.user_id}>{u.full_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={globalSalesMemberFilter} onValueChange={setGlobalSalesMemberFilter}>
+                  <SelectTrigger className="w-44 h-8 text-xs">
+                    <SelectValue placeholder="All Sales Members" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Sales Members</SelectItem>
+                    {globalSalesMemberList.map((u: any) => (
+                      <SelectItem key={u.user_id} value={u.user_id}>{u.full_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {(globalSalesTLFilter !== 'all' || globalSalesMemberFilter !== 'all') && (
+                  <button onClick={() => { setGlobalSalesTLFilter('all'); setGlobalSalesMemberFilter('all'); }} className="text-xs text-muted-foreground hover:text-foreground underline">
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  {['ID','Name','Email','Phone','LinkedIn','Tech','Status','Assigned To','Source','Last Activity', ...(viewMode === 'global' ? [] : ['Payment']), 'Actions'].map(h => (
+                  {['#','ID','Name','Email','Phone','LinkedIn','Tech','Status','Assigned To','Source','Last Activity', ...(viewMode === 'global' ? [] : ['Payment']), 'Actions'].map(h => (
                     <th key={h} className="text-left p-2 text-muted-foreground font-medium whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -541,13 +598,14 @@ const SalesTLDashboard: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredLeads.slice(0, 50).map(lead => {
+                  filteredLeads.slice(0, 50).map((lead, idx) => {
                     const closure = closureData.find(c => c.lead_id === lead.unique_id);
                     const hoursSince = (Date.now() - new Date(lead.updated_at).getTime()) / 3600000;
                     const isStale = hoursSince > 48 && !['Closed','Non Interested'].includes(lead.lead_status || '');
                     const isDNR = lead.lead_status?.startsWith('DNR');
                     return (
                       <tr key={lead.unique_id} className={`border-b border-border/50 hover:bg-accent/30 ${isStale ? 'bg-red-500/5' : isDNR ? 'bg-orange-500/5' : ''}`}>
+                        <td className="p-2 text-xs text-muted-foreground font-medium">{idx + 1}</td>
                         <td className="p-2 font-mono text-xs text-primary font-bold">{(lead as any).display_id || '—'}</td>
                         <td className="p-2 font-medium">{lead.name}</td>
                         <td className="p-2 text-xs text-muted-foreground">{lead.email}</td>

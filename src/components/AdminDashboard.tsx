@@ -163,6 +163,8 @@ const AdminDashboard: React.FC = () => {
   const [globalDateFrom, setGlobalDateFrom] = useState('');
   const [globalDateTo, setGlobalDateTo] = useState('');
   const [globalSearch, setGlobalSearch] = useState('');
+  const [globalSalesTLFilter, setGlobalSalesTLFilter] = useState('all');
+  const [globalSalesMemberFilter, setGlobalSalesMemberFilter] = useState('all');
 
   // Dialog state
   const [selectedLead, setSelectedLead] = useState<any>(null);
@@ -444,12 +446,14 @@ const AdminDashboard: React.FC = () => {
     });
   }, [filteredData.leads, adminViewMode]);
 
-  // Global view — all leads with optional date/search filter
+  // Global view — all leads with optional date/search/team filter
   const globalLeads = useMemo(() => {
     if (!leads) return [];
     return leads.filter(l => {
       if (globalDateFrom && new Date(l.created_at) < new Date(globalDateFrom)) return false;
       if (globalDateTo && new Date(l.created_at) > new Date(globalDateTo + 'T23:59:59')) return false;
+      if (globalSalesTLFilter !== 'all' && l.team_lead_id !== globalSalesTLFilter) return false;
+      if (globalSalesMemberFilter !== 'all' && l.assigned_to !== globalSalesMemberFilter) return false;
       if (globalSearch) {
         const q = globalSearch.toLowerCase();
         return (
@@ -461,7 +465,14 @@ const AdminDashboard: React.FC = () => {
       }
       return true;
     });
-  }, [leads, globalDateFrom, globalDateTo, globalSearch]);
+  }, [leads, globalDateFrom, globalDateTo, globalSearch, globalSalesTLFilter, globalSalesMemberFilter]);
+
+  // Derived lists for Global View filter dropdowns
+  const globalSalesTLList = useMemo(() => allUsers.filter(u => u.role === 'SALES_TL'), [allUsers]);
+  const globalSalesMemberList = useMemo(() => {
+    if (globalSalesTLFilter === 'all') return allUsers.filter(u => u.role === 'SALES_TM');
+    return allUsers.filter(u => u.role === 'SALES_TM' && u.reports_to === globalSalesTLFilter);
+  }, [allUsers, globalSalesTLFilter]);
 
   // Revenue
   const revenueStats = useMemo(() => {
@@ -883,22 +894,54 @@ const AdminDashboard: React.FC = () => {
         {activeTab === 'global' && (
           <motion.div key="global" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
             <Card className="glass-card border-primary/10 overflow-hidden">
-              <CardHeader className="flex flex-row items-center justify-between border-b border-border/50 bg-accent/5 flex-wrap gap-3">
-                <div className="flex items-center gap-3">
-                  <CardTitle className="text-xl font-display">Global Leads</CardTitle>
-                  <Badge className="nb-gradient border-none">{globalLeads.length} Records</Badge>
+              <CardHeader className="flex flex-col gap-3 border-b border-border/50 bg-accent/5">
+                <div className="flex flex-row items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-3">
+                    <CardTitle className="text-xl font-display">Global Leads</CardTitle>
+                    <Badge className="nb-gradient border-none">{globalLeads.length} Records</Badge>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-1.5 bg-background px-2.5 rounded-md border border-input h-9 shrink-0">
+                      <span className="text-xs text-muted-foreground font-medium pr-1 select-none">Date:</span>
+                      <Input type="date" value={globalDateFrom} onChange={e => setGlobalDateFrom(e.target.value)} className="w-[120px] h-7 text-xs border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0" />
+                      <span className="text-muted-foreground text-xs px-0.5 select-none">—</span>
+                      <Input type="date" value={globalDateTo} onChange={e => setGlobalDateTo(e.target.value)} className="w-[120px] h-7 text-xs border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0" />
+                    </div>
+                    <div className="relative h-9 w-48">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input placeholder="Search..." className="pl-9 h-full bg-accent/30 border-border/50 text-xs" value={globalSearch} onChange={e => setGlobalSearch(e.target.value)} />
+                    </div>
+                  </div>
                 </div>
+                {/* Advanced Filters Row */}
                 <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-1.5 bg-background px-2.5 rounded-md border border-input h-9 shrink-0">
-                    <span className="text-xs text-muted-foreground font-medium pr-1 select-none">Date:</span>
-                    <Input type="date" value={globalDateFrom} onChange={e => setGlobalDateFrom(e.target.value)} className="w-[120px] h-7 text-xs border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0" />
-                    <span className="text-muted-foreground text-xs px-0.5 select-none">—</span>
-                    <Input type="date" value={globalDateTo} onChange={e => setGlobalDateTo(e.target.value)} className="w-[120px] h-7 text-xs border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0" />
-                  </div>
-                  <div className="relative h-9 w-48">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input placeholder="Search..." className="pl-9 h-full bg-accent/30 border-border/50 text-xs" value={globalSearch} onChange={e => setGlobalSearch(e.target.value)} />
-                  </div>
+                  <Select value={globalSalesTLFilter} onValueChange={v => { setGlobalSalesTLFilter(v); setGlobalSalesMemberFilter('all'); }}>
+                    <SelectTrigger className="w-44 h-8 text-xs bg-accent/30 border-border/50">
+                      <SelectValue placeholder="All Sales TLs" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Sales TLs</SelectItem>
+                      {globalSalesTLList.map(u => (
+                        <SelectItem key={u.user_id} value={u.user_id}>{u.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={globalSalesMemberFilter} onValueChange={setGlobalSalesMemberFilter}>
+                    <SelectTrigger className="w-44 h-8 text-xs bg-accent/30 border-border/50">
+                      <SelectValue placeholder="All Sales Members" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Sales Members</SelectItem>
+                      {globalSalesMemberList.map(u => (
+                        <SelectItem key={u.user_id} value={u.user_id}>{u.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {(globalSalesTLFilter !== 'all' || globalSalesMemberFilter !== 'all') && (
+                    <button onClick={() => { setGlobalSalesTLFilter('all'); setGlobalSalesMemberFilter('all'); }} className="text-xs text-muted-foreground hover:text-foreground underline">
+                      Clear filters
+                    </button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -906,6 +949,7 @@ const AdminDashboard: React.FC = () => {
                   <Table>
                     <TableHeader className="bg-accent/50 sticky top-0">
                       <TableRow>
+                        <TableHead className="text-xs w-10">#</TableHead>
                         <TableHead className="text-xs">ID</TableHead>
                         <TableHead className="text-xs">Name</TableHead>
                         <TableHead className="text-xs">Email</TableHead>
@@ -922,11 +966,12 @@ const AdminDashboard: React.FC = () => {
                     <TableBody>
                       {globalLeads.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={11} className="text-center py-10 text-muted-foreground text-sm">No leads found</TableCell>
+                          <TableCell colSpan={12} className="text-center py-10 text-muted-foreground text-sm">No leads found</TableCell>
                         </TableRow>
                       ) : (
-                        globalLeads.map(lead => (
+                        globalLeads.map((lead, idx) => (
                           <TableRow key={lead.unique_id} className="hover:bg-accent/20 border-border/50">
+                            <TableCell className="text-xs text-muted-foreground font-medium w-10">{idx + 1}</TableCell>
                             <TableCell className="text-xs font-mono text-primary font-bold">{(lead as any).display_id || '—'}</TableCell>
                             <TableCell className="text-xs font-medium">{lead.name}</TableCell>
                             <TableCell className="text-xs text-muted-foreground">{lead.email}</TableCell>
