@@ -29,7 +29,11 @@ import {
   ArrowUpRight,
   AlertTriangle,
   LayoutDashboard,
-  PieChart as PieChartIcon
+  PieChart as PieChartIcon,
+  Eye,
+  Palette,
+  FileSignature,
+  FileText
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -52,6 +56,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+
+import LeadDetailDialog from '@/components/LeadDetailDialog';
+import ClosureDialog from '@/components/ClosureDialog';
+import CallActivityDialog from '@/components/CallActivityDialog';
+import AgreementDialog from '@/components/AgreementDialog';
+import AccountantCommentDialog from '@/components/AccountantCommentDialog';
 import { 
   BarChart, 
   Bar, 
@@ -109,8 +121,29 @@ const StatCard: React.FC<{
   </motion.div>
 );
 
+const statusColors: Record<string, string> = {
+  'New': 'bg-primary/10 text-primary',
+  'DNR1': 'bg-orange-500/10 text-orange-600',
+  'DNR2': 'bg-orange-500/10 text-orange-600',
+  'DNR3': 'bg-orange-500/10 text-orange-600',
+  'Connected': 'bg-blue-500/10 text-blue-600',
+  'Qualified': 'bg-indigo-500/10 text-indigo-600',
+  'Hot Prospect': 'bg-amber-500/10 text-amber-600',
+  'Closed': 'bg-green-500/10 text-green-600',
+  'Non Interested': 'bg-destructive/10 text-destructive',
+};
+
+const HIGHLIGHT_COLORS = [
+  { label: 'None', value: '' },
+  { label: 'Blue', value: '#3b82f6' },
+  { label: 'Green', value: '#22c55e' },
+  { label: 'Amber', value: '#f59e0b' },
+  { label: 'Red', value: '#ef4444' },
+  { label: 'Purple', value: '#a855f7' },
+];
+
 const AdminDashboard: React.FC = () => {
-  const { role: currentRole } = useAuth();
+  const { user, role: currentRole } = useAuth();
   const queryClient = useQueryClient();
 
   const isAdmin = currentRole === 'ADMIN';
@@ -124,6 +157,128 @@ const AdminDashboard: React.FC = () => {
   const [salesMetric, setSalesMetric] = useState<'calls' | 'revenue' | 'closures'>('revenue');
   const [bdMetric, setBdMetric] = useState<'calls' | 'leads'>('leads');
   const [adminViewMode, setAdminViewMode] = useState<'personal' | 'team' | 'global'>('global');
+
+  // Dialog state
+  const [selectedLead, setSelectedLead] = useState<any>(null);
+  const [closureLead, setClosureLead] = useState<any>(null);
+  const [callLead, setCallLead] = useState<any>(null);
+  const [agreementLead, setAgreementLead] = useState<any>(null);
+  const [highlightLead, setHighlightLead] = useState<string | null>(null);
+  const [accountantLead, setAccountantLead] = useState<any>(null);
+
+  // Concern Dialog State
+  const [concernLead, setConcernLead] = useState<any>(null);
+  const [concernText, setConcernText] = useState('');
+  const [concernRecipient, setConcernRecipient] = useState('');
+
+  // Helper to resolve profile name
+  const getName = (id: string | null) => allUsers.find(u => u.user_id === id)?.full_name || '—';
+
+  // ── Fetch Concern Recipients ──────────────────────────────────
+  const { data: concernRecipients = [] } = useQuery({
+    queryKey: ['concern-recipients', user?.id, currentRole],
+    queryFn: async () => {
+      if (!user || !currentRole) return [];
+
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, reports_to');
+      
+      const { data: rolesData } = await supabase
+        .from('user_roles')
+        .select('user_id, role');
+
+      const profiles = profilesData || [];
+      const roles = rolesData || [];
+
+      const myProfile = profiles.find(p => p.user_id === user.id);
+      const reportsTo = myProfile?.reports_to;
+
+      let list: { user_id: string; label: string }[] = [];
+
+      const adminUserIds = new Set(roles.filter(r => r.role === 'ADMIN').map(r => r.user_id));
+      const salesTlUserIds = new Set(roles.filter(r => r.role === 'SALES_TL').map(r => r.user_id));
+      const leadTlUserIds = new Set(roles.filter(r => r.role === 'LEAD_TL').map(r => r.user_id));
+      const salesTmUserIds = new Set(roles.filter(r => r.role === 'SALES_TM').map(r => r.user_id));
+      const leadGenUserIds = new Set(roles.filter(r => r.role === 'LEAD_GEN').map(r => r.user_id));
+
+      profiles.forEach(p => {
+        if (p.user_id !== user.id) {
+          let roleLabel = '';
+          if (adminUserIds.has(p.user_id)) roleLabel = 'Admin';
+          else if (salesTlUserIds.has(p.user_id)) roleLabel = 'Sales TL';
+          else if (leadTlUserIds.has(p.user_id)) roleLabel = 'BD TL';
+          else if (salesTmUserIds.has(p.user_id)) roleLabel = 'Sales Member';
+          else if (leadGenUserIds.has(p.user_id)) roleLabel = 'Lead Member';
+          
+          list.push({
+            user_id: p.user_id,
+            label: roleLabel ? `${p.full_name} (${roleLabel})` : p.full_name
+          });
+        }
+      });
+
+      return list;
+    },
+    enabled: !!user && !!currentRole,
+  });
+
+  // ── Raise Concern mutation ────────────────────────────────────
+  const raiseConcern = useMutation({
+    mutationFn: async ({ leadId, recipientId, comment }: { leadId: string; recipientId: string; comment: string }) => {
+      if (!comment.trim()) throw new Error('Please enter a comment');
+      if (!recipientId) throw new Error('Please select a recipient');
+
+      const lead = leads?.find(l => l.unique_id === leadId);
+
+      // Mark lead as having a concern
+      const { error: updateErr } = await supabase.from('leads').update({ concern: true }).eq('unique_id', leadId);
+      if (updateErr) throw updateErr;
+      
+      // Add concern entry
+      const { error: concernErr } = await supabase.from('concerns').insert({
+        lead_id: leadId,
+        raised_by: user!.id,
+        description: comment.trim()
+      });
+      if (concernErr) throw concernErr;
+
+      // Send notification to the selected recipient
+      const { error: notifyErr } = await supabase.from('notifications').insert({
+        user_id: recipientId,
+        title: '⚠️ Concern Raised',
+        message: `Concern raised for lead "${lead?.name}": ${comment.trim()}`,
+        type: 'concern',
+        lead_id: leadId,
+      });
+      if (notifyErr) throw notifyErr;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['all-leads-admin'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['all-concerns-admin'] });
+      toast.success('Concern raised and recipient notified');
+      setConcernLead(null);
+      setConcernText('');
+      setConcernRecipient('');
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const updateHighlight = useMutation({
+    mutationFn: async ({ leadId, color }: { leadId: string; color: string }) => {
+      const { error } = await supabase.from('leads')
+        .update({ highlight_color: color || null })
+        .eq('unique_id', leadId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['all-leads-admin'] });
+      setHighlightLead(null);
+      toast.success('Highlight updated');
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
 
   // User Management State
   const [userForm, setUserForm] = useState({
@@ -274,14 +429,13 @@ const AdminDashboard: React.FC = () => {
 
   // Admin lead view filtered by viewMode
   const adminViewLeads = useMemo(() => {
-    if (!leads) return [];
-    return leads.filter(l => {
+    return filteredData.leads.filter(l => {
       if (adminViewMode === 'personal') return l.assigned_to === null || l.assigned_to === undefined;
       if (adminViewMode === 'team') return !!l.assigned_to;
       // global = all leads
       return true;
     });
-  }, [leads, adminViewMode]);
+  }, [filteredData.leads, adminViewMode]);
 
   // Revenue
   const revenueStats = useMemo(() => {
@@ -462,6 +616,18 @@ const AdminDashboard: React.FC = () => {
         <div className="flex items-center gap-4"><div className="p-3 bg-primary/10 rounded-xl"><LayoutDashboard className="h-6 w-6 text-primary" /></div><div><h1 className="text-2xl font-display font-bold tracking-tight nb-gradient bg-clip-text text-transparent">Admin Dashboard</h1><p className="text-muted-foreground text-[10px] font-medium uppercase tracking-widest mt-0.5">Admin Analytics & Monitoring Layer</p></div></div>
         <div className="flex flex-wrap items-center gap-3">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="bg-accent/30 p-1 rounded-lg border border-border/50"><TabsList className="bg-transparent border-none"><TabsTrigger value="control" className="data-[state=active]:bg-background text-xs">Control</TabsTrigger><TabsTrigger value="analytics" className="data-[state=active]:bg-background text-xs">Analytics</TabsTrigger><TabsTrigger value="monitoring" className="data-[state=active]:bg-background text-xs">Monitoring</TabsTrigger></TabsList></Tabs>
+          {activeTab === 'control' && (
+            <>
+              <div className="h-8 w-[1px] bg-border/50 mx-1" />
+              <Tabs value={adminViewMode} onValueChange={(v: any) => setAdminViewMode(v)} className="bg-accent/30 p-1 rounded-lg border border-border/50">
+                <TabsList className="bg-transparent border-none">
+                  <TabsTrigger value="personal" className="data-[state=active]:bg-background text-xs">My View</TabsTrigger>
+                  <TabsTrigger value="team" className="data-[state=active]:bg-background text-xs">Team View</TabsTrigger>
+                  <TabsTrigger value="global" className="data-[state=active]:bg-background text-xs">Global View</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </>
+          )}
           <div className="h-8 w-[1px] bg-border/50 mx-1" />
           <Select value={monthFilter} onValueChange={setMonthFilter}>
             <SelectTrigger className="w-36 h-9 bg-accent/30 border-border/50 text-xs">
