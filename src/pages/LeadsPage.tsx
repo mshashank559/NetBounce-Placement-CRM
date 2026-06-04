@@ -133,7 +133,7 @@ const LeadsPage: React.FC = () => {
 
       // 2. Status filter
       if (statusFilter !== 'all') {
-        query = query.eq('lead_status', statusFilter);
+        query = query.eq('lead_status', statusFilter as any);
       }
 
       // 3. Month filter (for current year)
