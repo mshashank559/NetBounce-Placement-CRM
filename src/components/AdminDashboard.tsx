@@ -157,6 +157,9 @@ const AdminDashboard: React.FC = () => {
   const [salesMetric, setSalesMetric] = useState<'calls' | 'revenue' | 'closures'>('revenue');
   const [bdMetric, setBdMetric] = useState<'calls' | 'leads'>('leads');
   const [adminViewMode, setAdminViewMode] = useState<'personal' | 'team' | 'global'>('global');
+  const [globalDateFrom, setGlobalDateFrom] = useState('');
+  const [globalDateTo, setGlobalDateTo] = useState('');
+  const [globalSearch, setGlobalSearch] = useState('');
 
   // Dialog state
   const [selectedLead, setSelectedLead] = useState<any>(null);
@@ -432,10 +435,28 @@ const AdminDashboard: React.FC = () => {
     return filteredData.leads.filter(l => {
       if (adminViewMode === 'personal') return l.assigned_to === null || l.assigned_to === undefined;
       if (adminViewMode === 'team') return !!l.assigned_to;
-      // global = all leads
       return true;
     });
   }, [filteredData.leads, adminViewMode]);
+
+  // Global view — all leads with optional date/search filter
+  const globalLeads = useMemo(() => {
+    if (!leads) return [];
+    return leads.filter(l => {
+      if (globalDateFrom && new Date(l.created_at) < new Date(globalDateFrom)) return false;
+      if (globalDateTo && new Date(l.created_at) > new Date(globalDateTo + 'T23:59:59')) return false;
+      if (globalSearch) {
+        const q = globalSearch.toLowerCase();
+        return (
+          l.name?.toLowerCase().includes(q) ||
+          l.email?.toLowerCase().includes(q) ||
+          (l.display_id || '').toLowerCase().includes(q) ||
+          l.phone?.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [leads, globalDateFrom, globalDateTo, globalSearch]);
 
   // Revenue
   const revenueStats = useMemo(() => {
@@ -615,19 +636,7 @@ const AdminDashboard: React.FC = () => {
       <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-6 bg-background/50 backdrop-blur-xl p-6 rounded-2xl border border-primary/10 shadow-2xl sticky top-0 z-30">
         <div className="flex items-center gap-4"><div className="p-3 bg-primary/10 rounded-xl"><LayoutDashboard className="h-6 w-6 text-primary" /></div><div><h1 className="text-2xl font-display font-bold tracking-tight nb-gradient bg-clip-text text-transparent">Admin Dashboard</h1><p className="text-muted-foreground text-[10px] font-medium uppercase tracking-widest mt-0.5">Admin Analytics & Monitoring Layer</p></div></div>
         <div className="flex flex-wrap items-center gap-3">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="bg-accent/30 p-1 rounded-lg border border-border/50"><TabsList className="bg-transparent border-none"><TabsTrigger value="control" className="data-[state=active]:bg-background text-xs">Control</TabsTrigger><TabsTrigger value="analytics" className="data-[state=active]:bg-background text-xs">Analytics</TabsTrigger><TabsTrigger value="monitoring" className="data-[state=active]:bg-background text-xs">Monitoring</TabsTrigger></TabsList></Tabs>
-          {activeTab === 'control' && (
-            <>
-              <div className="h-8 w-[1px] bg-border/50 mx-1" />
-              <Tabs value={adminViewMode} onValueChange={(v: any) => setAdminViewMode(v)} className="bg-accent/30 p-1 rounded-lg border border-border/50">
-                <TabsList className="bg-transparent border-none">
-                  <TabsTrigger value="personal" className="data-[state=active]:bg-background text-xs">My View</TabsTrigger>
-                  <TabsTrigger value="team" className="data-[state=active]:bg-background text-xs">Team View</TabsTrigger>
-                  <TabsTrigger value="global" className="data-[state=active]:bg-background text-xs">Global View</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </>
-          )}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="bg-accent/30 p-1 rounded-lg border border-border/50"><TabsList className="bg-transparent border-none"><TabsTrigger value="control" className="data-[state=active]:bg-background text-xs">Control</TabsTrigger><TabsTrigger value="analytics" className="data-[state=active]:bg-background text-xs">Analytics</TabsTrigger><TabsTrigger value="monitoring" className="data-[state=active]:bg-background text-xs">Monitoring</TabsTrigger><TabsTrigger value="global" className="data-[state=active]:bg-background text-xs">Global View</TabsTrigger></TabsList></Tabs>
           <div className="h-8 w-[1px] bg-border/50 mx-1" />
           <Select value={monthFilter} onValueChange={setMonthFilter}>
             <SelectTrigger className="w-36 h-9 bg-accent/30 border-border/50 text-xs">
@@ -865,7 +874,96 @@ const AdminDashboard: React.FC = () => {
             <Card className="glass-card"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><Bell className="h-5 w-5 text-primary animate-bell-shake" /> Notification Hub</CardTitle></CardHeader><CardContent className="p-0"><div className="max-h-[400px] overflow-y-auto divide-y divide-border/50">{notifications?.slice(0, 20).map(n => (<div key={n.id} className="p-4 hover:bg-accent/20 flex items-start gap-4"><div className="p-2 rounded-full bg-primary/10 text-primary"><Activity className="h-4 w-4" /></div><div className="flex-1"><p className="text-sm font-bold">{n.title}</p><p className="text-xs text-muted-foreground">{n.message}</p><p className="text-[9px] text-muted-foreground mt-1 font-mono uppercase">{format(parseISO(n.created_at), 'PPPP p')}</p></div></div>))}</div></CardContent></Card>
           </motion.div>
         )}
+
+        {activeTab === 'global' && (
+          <motion.div key="global" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+            <Card className="glass-card border-primary/10 overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between border-b border-border/50 bg-accent/5 flex-wrap gap-3">
+                <div className="flex items-center gap-3">
+                  <CardTitle className="text-xl font-display">Global Leads</CardTitle>
+                  <Badge className="nb-gradient border-none">{globalLeads.length} Records</Badge>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-1.5 bg-background px-2.5 rounded-md border border-input h-9 shrink-0">
+                    <span className="text-xs text-muted-foreground font-medium pr-1 select-none">Date:</span>
+                    <Input type="date" value={globalDateFrom} onChange={e => setGlobalDateFrom(e.target.value)} className="w-[120px] h-7 text-xs border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0" />
+                    <span className="text-muted-foreground text-xs px-0.5 select-none">—</span>
+                    <Input type="date" value={globalDateTo} onChange={e => setGlobalDateTo(e.target.value)} className="w-[120px] h-7 text-xs border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0" />
+                  </div>
+                  <div className="relative h-9 w-48">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input placeholder="Search..." className="pl-9 h-full bg-accent/30 border-border/50 text-xs" value={globalSearch} onChange={e => setGlobalSearch(e.target.value)} />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+                  <Table>
+                    <TableHeader className="bg-accent/50 sticky top-0">
+                      <TableRow>
+                        <TableHead className="text-xs">ID</TableHead>
+                        <TableHead className="text-xs">Name</TableHead>
+                        <TableHead className="text-xs">Email</TableHead>
+                        <TableHead className="text-xs">Phone</TableHead>
+                        <TableHead className="text-xs">LinkedIn</TableHead>
+                        <TableHead className="text-xs">Tech</TableHead>
+                        <TableHead className="text-xs">Status</TableHead>
+                        <TableHead className="text-xs">Assigned To</TableHead>
+                        <TableHead className="text-xs">Source</TableHead>
+                        <TableHead className="text-xs">Last Activity</TableHead>
+                        <TableHead className="text-xs text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {globalLeads.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={11} className="text-center py-10 text-muted-foreground text-sm">No leads found</TableCell>
+                        </TableRow>
+                      ) : (
+                        globalLeads.map(lead => (
+                          <TableRow key={lead.unique_id} className="hover:bg-accent/20 border-border/50">
+                            <TableCell className="text-xs font-mono text-primary font-bold">{(lead as any).display_id || '—'}</TableCell>
+                            <TableCell className="text-xs font-medium">{lead.name}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{lead.email}</TableCell>
+                            <TableCell className="text-xs">{lead.phone || '—'}</TableCell>
+                            <TableCell className="text-xs">
+                              {lead.linkedin_url ? (
+                                <a href={lead.linkedin_url} target="_blank" rel="noreferrer" className="text-primary underline">View</a>
+                              ) : '—'}
+                            </TableCell>
+                            <TableCell className="text-xs">{lead.technology || '—'}</TableCell>
+                            <TableCell>
+                              <Badge className={`text-[10px] ${statusColors[lead.lead_status || ''] || 'bg-secondary/10 text-secondary-foreground'}`}>
+                                {lead.lead_status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-xs">{allUsers.find(u => u.user_id === lead.assigned_to)?.full_name || <span className="italic text-muted-foreground">Unassigned</span>}</TableCell>
+                            <TableCell className="text-xs">{lead.lead_source || '—'}</TableCell>
+                            <TableCell className="text-xs">{new Date(lead.updated_at).toLocaleDateString()}</TableCell>
+                            <TableCell className="text-right">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedLead(lead)} title="View Details">
+                                <Eye className="h-3.5 w-3.5" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
       </AnimatePresence>
+
+      {selectedLead && (
+        <LeadDetailDialog
+          open={selectedLead !== null}
+          onClose={() => setSelectedLead(null)}
+          lead={selectedLead}
+        />
+      )}
     </div>
   );
 };
