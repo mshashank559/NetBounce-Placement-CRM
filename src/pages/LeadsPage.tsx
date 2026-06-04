@@ -551,22 +551,23 @@ const LeadsPage: React.FC = () => {
     if (role === 'PROCESS_ANALYST') {
       const generatorId = lead.lead_generated_by;
       const assigneeId = lead.assigned_to;
+      const teamLeadId = lead.team_lead_id;
       const generatorRole = generatorId ? userRolesMap?.[generatorId] : null;
       const assigneeRole = assigneeId ? userRolesMap?.[assigneeId] : null;
+      const teamLeadRole = teamLeadId ? userRolesMap?.[teamLeadId] : null;
       
       const isSalesOrBdRole = (r: string | null) => 
         r && ['SALES_TL', 'SALES_TM', 'LEAD_TL', 'LEAD_GEN'].includes(r);
         
-      if (isSalesOrBdRole(generatorRole) || isSalesOrBdRole(assigneeRole)) {
+      if (isSalesOrBdRole(generatorRole) || isSalesOrBdRole(assigneeRole) || isSalesOrBdRole(teamLeadRole)) {
         return true;
       }
-      if (!generatorId && !assigneeId) return true;
+      if (!generatorId && !assigneeId && !teamLeadId) return true;
       return false;
     }
     
     // 3. SALES_TL can edit leads assigned to themselves OR their team members (reports_to = user.id)
     if (role === 'SALES_TL') {
-      if (lead.team_lead_id === user.id) return true;
       const assigneeId = lead.assigned_to;
       if (!assigneeId) return false;
       if (assigneeId === user.id) return true;
@@ -828,7 +829,18 @@ const LeadsPage: React.FC = () => {
                               </Button>
                             )}
 
-
+                            {/* Edit Lead */}
+                            {canEditLead(lead) && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setEditLead(lead)}
+                                className="text-amber-600 hover:text-amber-700 hover:bg-amber-500/10"
+                                title="Edit Lead"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
 
 
                             {/* Agreement Button for Closed Leads */}

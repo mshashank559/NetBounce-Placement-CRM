@@ -995,6 +995,9 @@ const AdminDashboard: React.FC = () => {
                                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedLead(lead)} title="View Details">
                                   <Eye className="h-3.5 w-3.5" />
                                 </Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10" onClick={() => setEditLead(lead)} title="Edit Lead">
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>
