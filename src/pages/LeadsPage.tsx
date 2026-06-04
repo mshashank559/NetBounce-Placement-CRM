@@ -655,39 +655,14 @@ const LeadsPage: React.FC = () => {
 
                         {/* ── Status cell: flow-enforced dropdown or static badge ── */}
                         <td className="p-3">
-                          {role === 'ADMIN' && !isTerminal ? (
-                            <div className="flex items-center gap-1.5">
-                              <Select
-                                value={currentStatus}
-                                onValueChange={v => handleStatusChangeRequest(lead, v)}
-                              >
-                                <SelectTrigger className="h-7 w-36 text-xs">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {/* Current status always selectable (no-op) */}
-                                  <SelectItem value={currentStatus}>{currentStatus}</SelectItem>
-                                  {nextStatuses.filter(s => s !== currentStatus).map(s => (
-                                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              {isStale && lead.assigned_to && (
-                                <Badge variant="destructive" className="bg-red-500/10 text-red-500 border-red-500/20 text-[9px] px-1 py-0 font-bold uppercase shrink-0">
-                                  Stagnant
-                                </Badge>
-                              )}
-                            </div>
-                          ) : (
-                            <span className={`text-xs px-2 py-1 rounded-full ${statusColors[currentStatus] || ''} inline-flex items-center gap-1.5`}>
-                              {currentStatus}
-                              {isStale && lead.assigned_to && (
-                                <Badge variant="destructive" className="bg-red-500/10 text-red-500 border-red-500/20 text-[9px] px-1 py-0 font-bold uppercase shrink-0">
-                                  Stagnant
-                                </Badge>
-                              )}
-                            </span>
-                          )}
+                          <span className={`text-xs px-2 py-1 rounded-full ${statusColors[currentStatus] || ''} inline-flex items-center gap-1.5`}>
+                            {currentStatus}
+                            {isStale && lead.assigned_to && (
+                              <Badge variant="destructive" className="bg-red-500/10 text-red-500 border-red-500/20 text-[9px] px-1 py-0 font-bold uppercase shrink-0">
+                                Stagnant
+                              </Badge>
+                            )}
+                          </span>
                         </td>
 
                         {/* ── Assigned To ── */}
@@ -776,7 +751,7 @@ const LeadsPage: React.FC = () => {
                             )}
 
                             {/* Agreement Button for Closed Leads */}
-                            {currentStatus === 'Closed' && (role === 'ADMIN' || role === 'PROCESS_ANALYST') && (
+                            {currentStatus === 'Closed' && (role === 'PROCESS_ANALYST') && (
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -789,7 +764,7 @@ const LeadsPage: React.FC = () => {
                             )}
 
                             {/* Add Document Button */}
-                            {canSendToAccountant && (
+                            {canSendToAccountant && role !== 'ADMIN' && (
                               <Button
                                 size="sm"
                                 variant="ghost"
