@@ -173,34 +173,51 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
               : profilesMap.get(bdMemberId)?.reports_to || null;
         }
 
-        // All Admin and Process Analyst IDs
-        const adminAndPAIds = allUserRoles
-          .filter(r => r.role === 'ADMIN' || r.role === 'PROCESS_ANALYST')
+        // All Admin IDs
+        const adminIds = allUserRoles
+          .filter(r => r.role === 'ADMIN')
           .map(r => r.user_id);
 
-        // ── Build recipient set ────────────────────────────────────
+        // All Process Analyst IDs
+        const paIds = allUserRoles
+          .filter(r => r.role === 'PROCESS_ANALYST')
+          .map(r => r.user_id);
+
+        // ── Build recipient set based on editor's role ─────────────
         const recipients = new Set<string>();
 
-        // Admins + Process Analysts always get notified
-        adminAndPAIds.forEach(id => recipients.add(id));
+        if (currentRole === 'SALES_TL') {
+          // Sales TL edits → Sales Member + BD TL + Process Analysts + Admins
+          if (salesPersonId) recipients.add(salesPersonId);
+          if (bdTLId) recipients.add(bdTLId);
+          paIds.forEach(id => recipients.add(id));
+          adminIds.forEach(id => recipients.add(id));
 
-        if (currentRole === 'SALES_TL' || currentRole === 'SALES_TM') {
-          // Sales TL / Sales TM changes:
-          // Notify → Sales Person, BD TL (NOT other Sales TLs / members)
-          if (salesPersonId) recipients.add(salesPersonId);
-          if (bdTLId) recipients.add(bdTLId);
-        } else if (currentRole === 'LEAD_TL' || currentRole === 'LEAD_GEN') {
-          // BD TL / BD Member changes:
-          // Notify → Sales TL, Sales Person (NOT other BD TLs / members)
+        } else if (currentRole === 'LEAD_TL') {
+          // BD TL edits → Sales Member + Sales TL (who salesperson reports to) + Process Analysts + Admins
           if (salesPersonId) recipients.add(salesPersonId);
           if (salesTLId) recipients.add(salesTLId);
+          paIds.forEach(id => recipients.add(id));
+          adminIds.forEach(id => recipients.add(id));
+
+        } else if (currentRole === 'ADMIN') {
+          // Admin edits → Sales Member + Sales TL + BD TL + Process Analysts
+          if (salesPersonId) recipients.add(salesPersonId);
+          if (salesTLId) recipients.add(salesTLId);
+          if (bdTLId) recipients.add(bdTLId);
+          paIds.forEach(id => recipients.add(id));
+
+        } else if (currentRole === 'PROCESS_ANALYST') {
+          // Process Analyst edits → Sales Member + Sales TL + BD TL + Admins
+          if (salesPersonId) recipients.add(salesPersonId);
+          if (salesTLId) recipients.add(salesTLId);
+          if (bdTLId) recipients.add(bdTLId);
+          adminIds.forEach(id => recipients.add(id));
+
         } else {
-          // Admin / Process Analyst changes:
-          // Notify → Sales Person, Sales TL, BD Member, BD TL
-          if (salesPersonId) recipients.add(salesPersonId);
-          if (salesTLId) recipients.add(salesTLId);
-          if (bdMemberId) recipients.add(bdMemberId);
-          if (bdTLId) recipients.add(bdTLId);
+          // Fallback for any other role: notify Admins + PAs
+          paIds.forEach(id => recipients.add(id));
+          adminIds.forEach(id => recipients.add(id));
         }
 
         // Never notify the person who made the edit
