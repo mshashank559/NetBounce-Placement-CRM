@@ -38,10 +38,14 @@ const SalesTLDashboardPage: React.FC = () => {
   const { data: allLeads } = useQuery({
     queryKey: ['sales-tl-leads'],
     queryFn: async () => {
-      const { data } = await supabase.from('leads').select('*');
+      // Only fetch the columns needed for per-member KPI calculations — not select('*')
+      const { data } = await supabase
+        .from('leads')
+        .select('unique_id, lead_status, assigned_to, team_lead_id, created_at');
       return data || [];
     },
     enabled: !!user,
+    staleTime: 60_000,
   });
 
   const { data: callLogs } = useQuery({

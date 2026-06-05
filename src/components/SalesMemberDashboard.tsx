@@ -70,6 +70,13 @@ const SalesMemberDashboard: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [globalSalesTLFilter, setGlobalSalesTLFilter] = useState('all');
   const [globalSalesMemberFilter, setGlobalSalesMemberFilter] = useState('all');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
+
+  // Reset page to 1 whenever any filter changes
+  React.useEffect(() => {
+    setPage(1);
+  }, [viewMode, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, globalSalesTLFilter, globalSalesMemberFilter]);
 
   const [selectedLead, setSelectedLead] = useState<any>(null);
   const [callLead, setCallLead] = useState<any>(null);
@@ -98,11 +105,11 @@ const SalesMemberDashboard: React.FC = () => {
       documentComment?: string;
     }) => {
       if (status === 'Closed') {
-        const lead = myLeads.find(l => l.unique_id === leadId);
+        const lead = filteredLeads.find(l => l.unique_id === leadId);
         setClosureLead(lead);
         return;
       }
-      const lead = myLeads.find(l => l.unique_id === leadId);
+      const lead = filteredLeads.find(l => l.unique_id === leadId);
       const oldStatus = lead?.lead_status || 'New';
 
       const { error } = await supabase.from('leads')
@@ -195,7 +202,8 @@ const SalesMemberDashboard: React.FC = () => {
       toast.info(`Status updated → ${status}. Next follow-up: ${nextDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sm-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['sm-leads-paginated'] });
+      queryClient.invalidateQueries({ queryKey: ['sm-leads-stats'] });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['all-performas'] });
       queryClient.invalidateQueries({ queryKey: ['all-leads-accountant'] });
@@ -246,22 +254,132 @@ const SalesMemberDashboard: React.FC = () => {
     },
     onSuccess: () => {
       toast.success('DNR follow-up marked as done!');
-      queryClient.invalidateQueries({ queryKey: ['sm-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['sm-leads-paginated'] });
+      queryClient.invalidateQueries({ queryKey: ['sm-leads-stats'] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  // ── My assigned leads ──
-  const { data: myLeads = [] } = useQuery({
-    queryKey: ['sm-leads', user?.id, viewMode],
+  // ── My assigned leads (paginated) ──
+  const { data: leadsResponse, isLoading } = useQuery({
+    queryKey: ['sm-leads-paginated', user?.id, viewMode, page, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, globalSalesTLFilter, globalSalesMemberFilter],
     queryFn: async () => {
-      let query = supabase.from('leads').select('*');
+      let query = supabase.from('leads').select('*', { count: 'exact' });
       if (viewMode === 'personal') {
         query = query.eq('assigned_to', user!.id).neq('assignment_type', 'Team');
       } else {
         query = query.not('assigned_to', 'is', null);
       }
-      const { data } = await query.order('created_at', { ascending: false });
+
+      // Apply search filter
+      if (nameSearch.trim()) {
+        const s = `%${nameSearch.trim()}%`;
+        query = query.or(`name.ilike.${s},email.ilike.${s},phone.ilike.${s},display_id.ilike.${s}`);
+      }
+
+      // Apply status filter
+      if (statusFilter !== 'all') {
+        query = query.eq('lead_status', statusFilter as any);
+      }
+
+      // Apply month filter
+      if (monthFilter !== 'all') {
+        const year = new Date().getFullYear();
+        const monthNum = parseInt(monthFilter);
+        const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01T00:00:00`;
+        const lastDay = new Date(year, monthNum, 0).getDate();
+        const endDate = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}T23:59:59`;
+        query = query.gte('created_at', startDate).lte('created_at', endDate);
+      }
+
+      // Apply date range filters
+      if (dateFrom) {
+        query = query.gte('created_at', dateFrom);
+      }
+      if (dateTo) {
+        query = query.lte('created_at', dateTo + 'T23:59:59');
+      }
+
+      // Apply global filters
+      if (viewMode === 'global' && globalSalesTLFilter !== 'all') {
+        query = query.eq('team_lead_id', globalSalesTLFilter);
+      }
+      if (viewMode === 'global' && globalSalesMemberFilter !== 'all') {
+        query = query.eq('assigned_to', globalSalesMemberFilter);
+      }
+
+      const from = (page - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data, count, error } = await query
+        .order('created_at', { ascending: false })
+        .range(from, to);
+
+      if (error) throw error;
+      return {
+        leads: data || [],
+        totalCount: count || 0,
+      };
+    },
+    enabled: !!user,
+  });
+
+  const filteredLeads = leadsResponse?.leads || [];
+  const totalCount = leadsResponse?.totalCount || 0;
+
+  // ── Fetch lightweight lead records for KPIs and charts ──
+  const { data: statsLeads = [] } = useQuery({
+    queryKey: ['sm-leads-stats', user?.id, viewMode, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, globalSalesTLFilter, globalSalesMemberFilter],
+    queryFn: async () => {
+      let query = supabase
+        .from('leads')
+        .select('created_at, updated_at, assigned_to, team_lead_id, lead_status, lead_source, lead_category, name, email, phone, display_id, unique_id');
+
+      if (viewMode === 'personal') {
+        query = query.eq('assigned_to', user!.id).neq('assignment_type', 'Team');
+      } else {
+        query = query.not('assigned_to', 'is', null);
+      }
+
+      // Apply search filter
+      if (nameSearch.trim()) {
+        const s = `%${nameSearch.trim()}%`;
+        query = query.or(`name.ilike.${s},email.ilike.${s},phone.ilike.${s},display_id.ilike.${s}`);
+      }
+
+      // Apply status filter
+      if (statusFilter !== 'all') {
+        query = query.eq('lead_status', statusFilter as any);
+      }
+
+      // Apply month filter
+      if (monthFilter !== 'all') {
+        const year = new Date().getFullYear();
+        const monthNum = parseInt(monthFilter);
+        const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01T00:00:00`;
+        const lastDay = new Date(year, monthNum, 0).getDate();
+        const endDate = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}T23:59:59`;
+        query = query.gte('created_at', startDate).lte('created_at', endDate);
+      }
+
+      // Apply date range filters
+      if (dateFrom) {
+        query = query.gte('created_at', dateFrom);
+      }
+      if (dateTo) {
+        query = query.lte('created_at', dateTo + 'T23:59:59');
+      }
+
+      // Apply global filters
+      if (viewMode === 'global' && globalSalesTLFilter !== 'all') {
+        query = query.eq('team_lead_id', globalSalesTLFilter);
+      }
+      if (viewMode === 'global' && globalSalesMemberFilter !== 'all') {
+        query = query.eq('assigned_to', globalSalesMemberFilter);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
       return data || [];
     },
     enabled: !!user,
@@ -311,33 +429,10 @@ const SalesMemberDashboard: React.FC = () => {
     enabled: !!user,
   });
 
-  // ── Filters ──
-  const filteredLeads = useMemo(() => {
-    return myLeads.filter(l => {
-      const d = new Date(l.created_at);
-      if (monthFilter !== 'all' && d.getMonth() + 1 !== parseInt(monthFilter)) return false;
-      if (dateFrom && d < new Date(dateFrom)) return false;
-      if (dateTo && d > new Date(dateTo + 'T23:59:59')) return false;
-      // Global view: apply Sales TL and member filters
-      if (viewMode === 'global' && globalSalesTLFilter !== 'all' && l.team_lead_id !== globalSalesTLFilter) return false;
-      if (viewMode === 'global' && globalSalesMemberFilter !== 'all' && l.assigned_to !== globalSalesMemberFilter) return false;
-      if (nameSearch) {
-        const query = nameSearch.toLowerCase();
-        const matchesName = l.name?.toLowerCase().includes(query);
-        const matchesEmail = l.email?.toLowerCase().includes(query);
-        const matchesPhone = l.phone?.toLowerCase().includes(query);
-        const matchesId = String(l.display_id || '').toLowerCase().includes(query) || String(l.unique_id || '').toLowerCase().includes(query);
-        if (!matchesName && !matchesEmail && !matchesPhone && !matchesId) return false;
-      }
-      if (statusFilter !== 'all' && l.lead_status !== statusFilter) return false;
-      return true;
-    });
-  }, [myLeads, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, viewMode, globalSalesTLFilter, globalSalesMemberFilter]);
-
   // ── KPIs ──
   const today = new Date().toISOString().split('T')[0];
-  const activeLeads = myLeads.filter(l => !['Closed','Non Interested'].includes(l.lead_status || '')).length;
-  const closures = myLeads.filter(l => l.lead_status === 'Closed').length;
+  const activeLeads = statsLeads.filter(l => !['Closed','Non Interested'].includes(l.lead_status || '')).length;
+  const closures = statsLeads.filter(l => l.lead_status === 'Closed').length;
   const todayCalls = callLogs.filter(c => c.call_date === today).reduce((s, c) => s + (c.call_count || 0), 0);
   const monthCallLogs = callLogs.filter(c => {
     const m = new Date(c.call_date + 'T00:00:00').getMonth() + 1;
@@ -346,7 +441,7 @@ const SalesMemberDashboard: React.FC = () => {
   const monthlyCalls = monthCallLogs.reduce((s, c) => s + (c.call_count || 0), 0);
 
   // ── SLA: stale leads (no update >24h) ──
-  const staleLeads = myLeads.filter(l => {
+  const staleLeads = statsLeads.filter(l => {
     const hrs = (Date.now() - new Date(l.updated_at).getTime()) / 3600000;
     return hrs > 24 && !['Closed','Non Interested'].includes(l.lead_status || '');
   });
@@ -358,11 +453,11 @@ const SalesMemberDashboard: React.FC = () => {
     const callTrend = Object.keys(callMap).sort().slice(-7).map(d => ({ date: d.slice(5), calls: callMap[d] }));
 
     const statusMap: Record<string, number> = {};
-    myLeads.forEach(l => { const s = l.lead_status || 'New'; statusMap[s] = (statusMap[s] || 0) + 1; });
+    statsLeads.forEach(l => { const s = l.lead_status || 'New'; statusMap[s] = (statusMap[s] || 0) + 1; });
     const statusBreakdown = Object.keys(statusMap).map(s => ({ name: s, value: statusMap[s] }));
 
     return { callTrend, statusBreakdown };
-  }, [callLogs, myLeads]);
+  }, [callLogs, statsLeads]);
 
   const getName = (id: string | null) => profiles.find(p => p.user_id === id)?.full_name || '—';
 
@@ -496,7 +591,7 @@ const SalesMemberDashboard: React.FC = () => {
         <CardHeader>
           <div className="flex flex-col gap-3">
             <CardTitle className="text-lg font-display">
-              {viewMode === 'global' ? 'Global View Leads' : 'My Leads'} ({filteredLeads.length})
+              {viewMode === 'global' ? 'Global View Leads' : 'My Leads'} ({totalCount})
             </CardTitle>
             {/* Global view filters */}
             {viewMode === 'global' && (
@@ -652,6 +747,36 @@ const SalesMemberDashboard: React.FC = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          {totalCount > 0 && (
+            <div className="flex justify-between items-center p-4 border-t border-border flex-wrap gap-2">
+              <span className="text-xs text-muted-foreground">
+                Showing {Math.min(totalCount, (page - 1) * PAGE_SIZE + 1)} to {Math.min(totalCount, page * PAGE_SIZE)} of {totalCount} leads
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={page === 1}
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <span className="text-xs font-medium">
+                  Page {page} of {Math.ceil(totalCount / PAGE_SIZE) || 1}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={page * PAGE_SIZE >= totalCount}
+                  onClick={() => setPage(p => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -664,7 +789,7 @@ const SalesMemberDashboard: React.FC = () => {
               {followups.slice(0, 10).map(f => (
                 <div key={f.id} className="flex items-start justify-between text-xs p-2 bg-accent/30 rounded">
                   <div>
-                    <span className="font-medium">{myLeads.find(l => l.unique_id === f.lead_id)?.name || 'Lead'}</span>
+                    <span className="font-medium">{statsLeads.find(l => l.unique_id === f.lead_id)?.name || 'Lead'}</span>
                     <span className="text-muted-foreground ml-2">via {f.way_of_contact}</span>
                     <p className="text-muted-foreground mt-0.5">{f.notes}</p>
                   </div>

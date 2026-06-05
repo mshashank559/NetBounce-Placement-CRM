@@ -35,21 +35,109 @@ const BDMemberDashboard: React.FC = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [nameSearch, setNameSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
+
+  // Reset page to 1 whenever any filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [viewMode, monthFilter, dateFrom, dateTo, nameSearch]);
 
   // ── Concern Dialog State ─────────────────────────────────
   const [concernLead, setConcernLead] = useState<any>(null);
   const [concernText, setConcernText] = useState('');
   const [concernRecipient, setConcernRecipient] = useState('');
 
-  // ── Fetch leads ──────────────────────────────────
-  const { data: myLeads = [], isLoading } = useQuery({
-    queryKey: ['bd-member-leads', user?.id, viewMode],
+  // ── Fetch leads (paginated) ──────────────────────────────
+  const { data: leadsResponse, isLoading } = useQuery({
+    queryKey: ['bd-member-leads-paginated', user?.id, viewMode, page, monthFilter, dateFrom, dateTo, nameSearch],
     queryFn: async () => {
-      let query = supabase.from('leads').select('*');
+      let query = supabase.from('leads').select('*', { count: 'exact' });
       if (viewMode === 'personal') {
         query = query.eq('lead_generated_by', user!.id);
       }
-      const { data } = await query.order('created_at', { ascending: false });
+
+      // Apply search filter
+      if (nameSearch.trim()) {
+        const s = `%${nameSearch.trim()}%`;
+        query = query.or(`name.ilike.${s},email.ilike.${s},phone.ilike.${s},display_id.ilike.${s}`);
+      }
+
+      // Apply month filter
+      if (monthFilter !== 'all') {
+        const year = new Date().getFullYear();
+        const monthNum = parseInt(monthFilter);
+        const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01T00:00:00`;
+        const lastDay = new Date(year, monthNum, 0).getDate();
+        const endDate = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}T23:59:59`;
+        query = query.gte('created_at', startDate).lte('created_at', endDate);
+      }
+
+      // Apply date range filters
+      if (dateFrom) {
+        query = query.gte('created_at', dateFrom);
+      }
+      if (dateTo) {
+        query = query.lte('created_at', dateTo + 'T23:59:59');
+      }
+
+      const from = (page - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data, count, error } = await query
+        .order('created_at', { ascending: false })
+        .range(from, to);
+
+      if (error) throw error;
+      return {
+        leads: data || [],
+        totalCount: count || 0,
+      };
+    },
+    enabled: !!user,
+  });
+
+  const filteredLeads = leadsResponse?.leads || [];
+  const totalCount = leadsResponse?.totalCount || 0;
+
+  // ── Fetch lightweight lead records for KPIs and charts ──
+  const { data: statsLeads = [] } = useQuery({
+    queryKey: ['bd-member-leads-stats', user?.id, viewMode, monthFilter, dateFrom, dateTo, nameSearch],
+    queryFn: async () => {
+      let query = supabase
+        .from('leads')
+        .select('created_at, assigned_to, lead_status, lead_source, lead_category, name, email, phone, display_id, unique_id');
+
+      if (viewMode === 'personal') {
+        query = query.eq('lead_generated_by', user!.id);
+      }
+
+      // Apply search filter
+      if (nameSearch.trim()) {
+        const s = `%${nameSearch.trim()}%`;
+        query = query.or(`name.ilike.${s},email.ilike.${s},phone.ilike.${s},display_id.ilike.${s}`);
+      }
+
+      // Apply month filter
+      if (monthFilter !== 'all') {
+        const year = new Date().getFullYear();
+        const monthNum = parseInt(monthFilter);
+        const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01T00:00:00`;
+        const lastDay = new Date(year, monthNum, 0).getDate();
+        const endDate = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}T23:59:59`;
+        query = query.gte('created_at', startDate).lte('created_at', endDate);
+      }
+
+      // Apply date range filters
+      if (dateFrom) {
+        query = query.gte('created_at', dateFrom);
+      }
+      if (dateTo) {
+        query = query.lte('created_at', dateTo + 'T23:59:59');
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
       return data || [];
     },
     enabled: !!user,
@@ -64,31 +152,12 @@ const BDMemberDashboard: React.FC = () => {
     },
   });
 
-  // ── Apply Filters ────────────────────────────────────────
-  const filteredLeads = useMemo(() => {
-    return myLeads.filter(l => {
-      const d = new Date(l.created_at);
-      if (monthFilter !== 'all' && d.getMonth() + 1 !== parseInt(monthFilter)) return false;
-      if (dateFrom && d < new Date(dateFrom)) return false;
-      if (dateTo && d > new Date(dateTo + 'T23:59:59')) return false;
-      if (nameSearch) {
-        const query = nameSearch.toLowerCase();
-        const matchesName = l.name?.toLowerCase().includes(query);
-        const matchesEmail = l.email?.toLowerCase().includes(query);
-        const matchesPhone = l.phone?.toLowerCase().includes(query);
-        const matchesId = String(l.display_id || '').toLowerCase().includes(query) || String(l.unique_id || '').toLowerCase().includes(query);
-        if (!matchesName && !matchesEmail && !matchesPhone && !matchesId) return false;
-      }
-      return true;
-    });
-  }, [myLeads, monthFilter, dateFrom, dateTo, nameSearch]);
-
   // ── KPI Calculations ─────────────────────────────────────
-  const today = new Date().toISOString().split('T')[0];
-  const totalLeads = filteredLeads.length;
-  const newToday = myLeads.filter(l => l.created_at.startsWith(today)).length;
-  const assignedLeads = filteredLeads.filter(l => l.assigned_to !== null).length;
-  const closures = filteredLeads.filter(l => l.lead_status === 'Closed').length;
+  const todayStr = new Date().toISOString().split('T')[0];
+  const totalLeads = statsLeads.length;
+  const newToday = statsLeads.filter(l => l.created_at.startsWith(todayStr)).length;
+  const assignedLeads = statsLeads.filter(l => l.assigned_to !== null).length;
+  const closures = statsLeads.filter(l => l.lead_status === 'Closed').length;
 
   // ── Chart Data ───────────────────────────────────────────
   const chartData = useMemo(() => {
@@ -96,7 +165,7 @@ const BDMemberDashboard: React.FC = () => {
     const sourceMap: Record<string, number> = {};
     let hot = 0, cold = 0;
 
-    filteredLeads.forEach(l => {
+    statsLeads.forEach(l => {
       const date = l.created_at.split('T')[0];
       dailyMap[date] = (dailyMap[date] || 0) + 1;
       const src = l.lead_source || 'Unknown';
@@ -112,7 +181,7 @@ const BDMemberDashboard: React.FC = () => {
     const categoryData = [{ name: 'Hot', value: hot }, { name: 'Cold', value: cold }];
 
     return { dailyTrend, sourceBreakdown, categoryData };
-  }, [filteredLeads]);
+  }, [statsLeads]);
 
   // ── Raise Concern ────────────────────────────────────────
   const raiseConcernMutation = useMutation({
@@ -120,7 +189,7 @@ const BDMemberDashboard: React.FC = () => {
       if (!comment.trim()) throw new Error('Please enter a comment');
       if (!recipientId) throw new Error('Please select a recipient');
 
-      const lead = myLeads.find(l => l.unique_id === leadId);
+      const lead = filteredLeads.find(l => l.unique_id === leadId);
 
       // Mark lead as concern
       const { error: updateErr } = await supabase.from('leads').update({ concern: true }).eq('unique_id', leadId);
@@ -146,7 +215,8 @@ const BDMemberDashboard: React.FC = () => {
     },
     onSuccess: () => {
       toast.success('Concern raised successfully');
-      queryClient.invalidateQueries({ queryKey: ['bd-member-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['bd-member-leads-paginated'] });
+      queryClient.invalidateQueries({ queryKey: ['bd-member-leads-stats'] });
       setConcernLead(null);
       setConcernText('');
       setConcernRecipient('');
@@ -361,7 +431,7 @@ const BDMemberDashboard: React.FC = () => {
       <Card className="glass-card">
         <CardHeader>
           <CardTitle className="text-lg font-display flex items-center justify-between">
-            {viewMode === 'global' ? 'Global Leads' : 'My Leads'} ({filteredLeads.length})
+            {viewMode === 'global' ? 'Global Leads' : 'My Leads'} ({totalCount})
             <span className="text-xs text-muted-foreground font-normal">
               {viewMode === 'global' ? 'Viewing all system leads' : 'You can only see leads you created'}
             </span>
@@ -478,6 +548,36 @@ const BDMemberDashboard: React.FC = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          {totalCount > 0 && (
+            <div className="flex justify-between items-center p-4 border-t border-border flex-wrap gap-2">
+              <span className="text-xs text-muted-foreground">
+                Showing {Math.min(totalCount, (page - 1) * PAGE_SIZE + 1)} to {Math.min(totalCount, page * PAGE_SIZE)} of {totalCount} leads
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={page === 1}
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <span className="text-xs font-medium">
+                  Page {page} of {Math.ceil(totalCount / PAGE_SIZE) || 1}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={page * PAGE_SIZE >= totalCount}
+                  onClick={() => setPage(p => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

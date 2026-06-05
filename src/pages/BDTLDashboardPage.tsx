@@ -26,13 +26,17 @@ const BDTLDashboardPage: React.FC = () => {
     enabled: !!user,
   });
 
-  const { data: allLeads } = useQuery({
-    queryKey: ['bd-tl-leads'],
+  // ── Fetch only minimal columns needed for stats (no select('*')) ──
+  const { data: leadStats } = useQuery({
+    queryKey: ['bd-tl-lead-stats'],
     queryFn: async () => {
-      const { data } = await supabase.from('leads').select('*');
+      const { data } = await supabase
+        .from('leads')
+        .select('lead_generated_by, created_at');
       return data || [];
     },
     enabled: !!user,
+    staleTime: 60_000, // cache for 1 minute — stats don't need to be live
   });
 
   const [filterYear, filterMonth] = monthFilter.split('-').map(Number);
@@ -41,7 +45,7 @@ const BDTLDashboardPage: React.FC = () => {
   const memberStats = useMemo(() => {
     if (!bdMembers) return [];
     return bdMembers.map(member => {
-      const memberLeads = allLeads?.filter(l => l.lead_generated_by === member.user_id) || [];
+      const memberLeads = leadStats?.filter(l => l.lead_generated_by === member.user_id) || [];
       const leadsToday = memberLeads.filter(l => l.created_at?.startsWith(today)).length;
       const leadsMonth = memberLeads.filter(l => {
         const d = new Date(l.created_at);
@@ -55,7 +59,7 @@ const BDTLDashboardPage: React.FC = () => {
         leadsMonth,
       };
     });
-  }, [bdMembers, allLeads, today, filterYear, filterMonth]);
+  }, [bdMembers, leadStats, today, filterYear, filterMonth]);
 
   if (role !== 'LEAD_TL' && role !== 'ADMIN') {
     return <div className="text-center text-muted-foreground p-8">Access denied</div>;
@@ -128,3 +132,5 @@ const BDTLDashboardPage: React.FC = () => {
 };
 
 export default BDTLDashboardPage;
+
+
