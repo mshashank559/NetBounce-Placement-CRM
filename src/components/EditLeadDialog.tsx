@@ -51,6 +51,7 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
     lead_source: '',
     linkedin_url: '',
     university: '',
+    visa_status: '',
   });
 
   // Reset form whenever dialog opens with a new lead
@@ -66,6 +67,7 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
         lead_source: norm(lead.lead_source),
         linkedin_url: norm(lead.linkedin_url),
         university: norm(lead.university),
+        visa_status: norm(lead.visa_status),
       });
     }
   }, [lead, open]);
@@ -95,6 +97,8 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
         changes.push(`LinkedIn: "${norm(lead.linkedin_url)}" → "${updatedData.linkedin_url}"`);
       if (norm(lead.university) !== updatedData.university)
         changes.push(`University: "${norm(lead.university)}" → "${updatedData.university}"`);
+      if (norm(lead.visa_status) !== updatedData.visa_status)
+        changes.push(`Visa Status: "${norm(lead.visa_status)}" → "${updatedData.visa_status}"`);
 
       // Nothing actually changed — skip DB write
       if (changes.length === 0) return;
@@ -112,6 +116,7 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
           lead_source: updatedData.lead_source || null,
           linkedin_url: updatedData.linkedin_url || null,
           university: updatedData.university || null,
+          visa_status: updatedData.visa_status || null,
           updated_at: new Date().toISOString(),
         })
         .eq('unique_id', lead.unique_id);
@@ -395,6 +400,19 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
               />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="edit-visa">Visa Status</Label>
+              <Input
+                id="edit-visa"
+                value={formData.visa_status}
+                onChange={e => setFormData({ ...formData, visa_status: e.target.value })}
+                placeholder="Enter visa status"
+              />
+            </div>
+          </div>
+
+          {/* Row 5 */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
               <Label htmlFor="edit-linkedin">LinkedIn URL</Label>
               <Input
                 id="edit-linkedin"
@@ -403,17 +421,15 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
                 placeholder="https://linkedin.com/in/username"
               />
             </div>
-          </div>
-
-          {/* Row 5 */}
-          <div className="space-y-2">
-            <Label htmlFor="edit-university">University</Label>
-            <Input
-              id="edit-university"
-              value={formData.university}
-              onChange={e => setFormData({ ...formData, university: e.target.value })}
-              placeholder="Enter University/College name"
-            />
+            <div className="space-y-2">
+              <Label htmlFor="edit-university">University</Label>
+              <Input
+                id="edit-university"
+                value={formData.university}
+                onChange={e => setFormData({ ...formData, university: e.target.value })}
+                placeholder="Enter University/College name"
+              />
+            </div>
           </div>
 
           <DialogFooter className="pt-4 border-t border-border/50">

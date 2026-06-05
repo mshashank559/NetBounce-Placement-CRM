@@ -34,7 +34,7 @@ const AddLeadPage: React.FC = () => {
     lead_category: 'Cold' as 'Hot' | 'Cold',
     lead_type: 'New' as 'New' | 'Reference',
     referee_name: '', lead_source: '', resume_url: '',
-    comment: '', concern: false,
+    comment: '', concern: false, visa_status: '',
   });
 
   const set = (key: string, val: any) => setForm(f => ({ ...f, [key]: val }));
@@ -101,6 +101,7 @@ const AddLeadPage: React.FC = () => {
         lead_generated_by: user?.id,
         // Sales auto-assign to self; BD leaves null
         assigned_to: (role === 'SALES_TM' || role === 'SALES_TL') ? user?.id : null,
+        visa_status: form.visa_status || null,
       };
 
       const { data: insertedLead, error } = await supabase
@@ -273,6 +274,10 @@ const AddLeadPage: React.FC = () => {
               <div>
                 <Label>Lead Source *</Label>
                 <Input value={form.lead_source} onChange={e => set('lead_source', e.target.value)} required placeholder="LinkedIn, OPT Nation, etc." />
+              </div>
+              <div>
+                <Label>Visa Status</Label>
+                <Input value={form.visa_status} onChange={e => set('visa_status', e.target.value)} placeholder="Enter visa status" />
               </div>
             </div>
 

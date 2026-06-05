@@ -220,6 +220,7 @@ export type Database = {
           unique_id: string
           university: string | null
           updated_at: string
+          visa_status: string | null
         }
         Insert: {
           agreement_sent_at?: string | null
@@ -253,6 +254,7 @@ export type Database = {
           unique_id?: string
           university?: string | null
           updated_at?: string
+          visa_status?: string | null
         }
         Update: {
           agreement_sent_at?: string | null
@@ -286,6 +288,7 @@ export type Database = {
           unique_id?: string
           university?: string | null
           updated_at?: string
+          visa_status?: string | null
         }
         Relationships: []
       }

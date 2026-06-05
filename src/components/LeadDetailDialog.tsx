@@ -141,6 +141,7 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
               <Field label="Category" value={lead.lead_category} />
               <Field label="Type" value={lead.lead_type} />
               <Field label="Source" value={lead.lead_source} />
+              <Field label="Visa Status" value={lead.visa_status} />
               <Field label="Concern" value={lead.concern ? 'Yes' : 'No'} />
               {canSeeGeneratedBy && generatedByProfile && (
                 <>
