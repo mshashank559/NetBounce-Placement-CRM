@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      login_activity: {
+        Row: {
+          id: string
+          user_id: string
+          logged_in_at: string
+          logged_out_at: string | null
+          created_at: string
+          user_name: string | null
+          user_email: string | null
+          user_role: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          logged_in_at?: string
+          logged_out_at?: string | null
+          created_at?: string
+          user_name?: string | null
+          user_email?: string | null
+          user_role?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          logged_in_at?: string
+          logged_out_at?: string | null
+          created_at?: string
+          user_name?: string | null
+          user_email?: string | null
+          user_role?: string | null
+        }
+        Relationships: []
+      }
       call_logs: {
         Row: {
           call_count: number
