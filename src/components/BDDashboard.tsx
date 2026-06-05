@@ -31,7 +31,6 @@ const BDDashboard: React.FC = () => {
   const [bdMemberFilter, setBdMemberFilter] = useState('all');
   const [queueTab, setQueueTab] = useState('pending'); // 'pending' or 'all'
   const [nameSearch, setNameSearch] = useState('');
-  const [globalSalesTLFilter, setGlobalSalesTLFilter] = useState('all');
   const [globalSalesMemberFilter, setGlobalSalesMemberFilter] = useState('all');
   const [globalLeadGenFilter, setGlobalLeadGenFilter] = useState('all');
 
@@ -132,14 +131,13 @@ const BDDashboard: React.FC = () => {
 
       // 6. Global Sales TL / Member filter
       if (viewMode === 'global') {
-        if (globalSalesTLFilter !== 'all' && l.team_lead_id !== globalSalesTLFilter) return false;
         if (globalSalesMemberFilter !== 'all' && l.assigned_to !== globalSalesMemberFilter) return false;
         if (globalLeadGenFilter !== 'all' && l.lead_generated_by !== globalLeadGenFilter) return false;
       }
 
       return true;
     });
-  }, [leads, viewMode, monthFilter, dateFrom, dateTo, statusFilter, bdMemberFilter, profiles, user?.id, nameSearch, globalSalesTLFilter, globalSalesMemberFilter, globalLeadGenFilter, myTeamIds]);
+  }, [leads, viewMode, monthFilter, dateFrom, dateTo, statusFilter, bdMemberFilter, profiles, user?.id, nameSearch, globalSalesMemberFilter, globalLeadGenFilter, myTeamIds]);
 
   // ── KPI Calculations (Section 1) ─────────────────────────
   // Total Leads = all leads in the system
@@ -293,17 +291,11 @@ const BDDashboard: React.FC = () => {
     return profiles?.find(p => p.user_id === id)?.full_name || 'Unknown';
   };
 
-  const globalSalesTLList = useMemo(() => {
+  const globalSalesMembersList = useMemo(() => {
     if (!profiles || !salesTeams) return [];
-    return profiles.filter(p => salesTeams.tls.includes(p.user_id));
+    const combined = profiles.filter(p => salesTeams.tls.includes(p.user_id) || salesTeams.tms.includes(p.user_id));
+    return combined.sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
   }, [profiles, salesTeams]);
-
-  const globalSalesMemberList = useMemo(() => {
-    if (!profiles || !salesTeams) return [];
-    const members = profiles.filter(p => salesTeams.tms.includes(p.user_id));
-    if (globalSalesTLFilter === 'all') return members;
-    return members.filter(p => p.reports_to === globalSalesTLFilter);
-  }, [profiles, salesTeams, globalSalesTLFilter]);
 
   const getSalesDropdownOptions = () => {
     if (!profiles || !salesTeams) return [];
@@ -534,24 +526,13 @@ const BDDashboard: React.FC = () => {
           {/* Global View Advanced Filters */}
           {viewMode === 'global' && (
             <div className="flex flex-wrap items-center gap-3 border-t border-border/50 pt-3">
-              <Select value={globalSalesTLFilter} onValueChange={v => { setGlobalSalesTLFilter(v); setGlobalSalesMemberFilter('all'); }}>
-                <SelectTrigger className="w-44 h-8 text-xs bg-accent/30 border-border/50">
-                  <SelectValue placeholder="All Sales TLs" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Sales TLs</SelectItem>
-                  {globalSalesTLList.map(u => (
-                    <SelectItem key={u.user_id} value={u.user_id}>{u.full_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
               <Select value={globalSalesMemberFilter} onValueChange={setGlobalSalesMemberFilter}>
                 <SelectTrigger className="w-44 h-8 text-xs bg-accent/30 border-border/50">
-                  <SelectValue placeholder="All Sales Members" />
+                  <SelectValue placeholder="All Members" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Sales Members</SelectItem>
-                  {globalSalesMemberList.map(u => (
+                  <SelectItem value="all">All Members</SelectItem>
+                  {globalSalesMembersList.map(u => (
                     <SelectItem key={u.user_id} value={u.user_id}>{u.full_name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -567,8 +548,8 @@ const BDDashboard: React.FC = () => {
                   ))}
                 </SelectContent>
               </Select>
-              {(globalSalesTLFilter !== 'all' || globalSalesMemberFilter !== 'all' || globalLeadGenFilter !== 'all') && (
-                <button onClick={() => { setGlobalSalesTLFilter('all'); setGlobalSalesMemberFilter('all'); setGlobalLeadGenFilter('all'); }} className="text-xs text-muted-foreground hover:text-foreground underline">
+              {(globalSalesMemberFilter !== 'all' || globalLeadGenFilter !== 'all') && (
+                <button onClick={() => { setGlobalSalesMemberFilter('all'); setGlobalLeadGenFilter('all'); }} className="text-xs text-muted-foreground hover:text-foreground underline">
                   Clear filters
                 </button>
               )}
