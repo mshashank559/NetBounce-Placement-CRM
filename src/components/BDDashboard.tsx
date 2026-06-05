@@ -33,6 +33,7 @@ const BDDashboard: React.FC = () => {
   const [nameSearch, setNameSearch] = useState('');
   const [globalSalesTLFilter, setGlobalSalesTLFilter] = useState('all');
   const [globalSalesMemberFilter, setGlobalSalesMemberFilter] = useState('all');
+  const [globalLeadGenFilter, setGlobalLeadGenFilter] = useState('all');
 
   // ── Data Fetching ───────────────────────────────────────
   const { data: leads, isLoading } = useQuery({
@@ -45,6 +46,18 @@ const BDDashboard: React.FC = () => {
     queryFn: async () => {
       const { data } = await supabase.from('profiles').select('*');
       return data || [];
+    }
+  });
+
+  // ── Fetch all BD users (LEAD_GEN and LEAD_TL) for dropdown ──
+  const { data: bdUsers = [] } = useQuery({
+    queryKey: ['global-bd-users'],
+    queryFn: async () => {
+      const { data: roles } = await supabase.from('user_roles').select('user_id').in('role', ['LEAD_GEN', 'LEAD_TL']);
+      if (!roles?.length) return [];
+      const userIds = roles.map(r => r.user_id);
+      const { data: profilesData } = await supabase.from('profiles').select('user_id, full_name').in('user_id', userIds);
+      return (profilesData || []).sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
     }
   });
 
@@ -121,11 +134,12 @@ const BDDashboard: React.FC = () => {
       if (viewMode === 'global') {
         if (globalSalesTLFilter !== 'all' && l.team_lead_id !== globalSalesTLFilter) return false;
         if (globalSalesMemberFilter !== 'all' && l.assigned_to !== globalSalesMemberFilter) return false;
+        if (globalLeadGenFilter !== 'all' && l.lead_generated_by !== globalLeadGenFilter) return false;
       }
 
       return true;
     });
-  }, [leads, viewMode, monthFilter, dateFrom, dateTo, statusFilter, bdMemberFilter, profiles, user?.id, nameSearch, globalSalesTLFilter, globalSalesMemberFilter, myTeamIds]);
+  }, [leads, viewMode, monthFilter, dateFrom, dateTo, statusFilter, bdMemberFilter, profiles, user?.id, nameSearch, globalSalesTLFilter, globalSalesMemberFilter, globalLeadGenFilter, myTeamIds]);
 
   // ── KPI Calculations (Section 1) ─────────────────────────
   // Total Leads = all leads in the system
@@ -542,8 +556,19 @@ const BDDashboard: React.FC = () => {
                   ))}
                 </SelectContent>
               </Select>
-              {(globalSalesTLFilter !== 'all' || globalSalesMemberFilter !== 'all') && (
-                <button onClick={() => { setGlobalSalesTLFilter('all'); setGlobalSalesMemberFilter('all'); }} className="text-xs text-muted-foreground hover:text-foreground underline">
+              <Select value={globalLeadGenFilter} onValueChange={setGlobalLeadGenFilter}>
+                <SelectTrigger className="w-44 h-8 text-xs bg-accent/30 border-border/50">
+                  <SelectValue placeholder="All Lead Generators" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Lead Generators</SelectItem>
+                  {bdUsers.map((u: any) => (
+                    <SelectItem key={u.user_id} value={u.user_id}>{u.full_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {(globalSalesTLFilter !== 'all' || globalSalesMemberFilter !== 'all' || globalLeadGenFilter !== 'all') && (
+                <button onClick={() => { setGlobalSalesTLFilter('all'); setGlobalSalesMemberFilter('all'); setGlobalLeadGenFilter('all'); }} className="text-xs text-muted-foreground hover:text-foreground underline">
                   Clear filters
                 </button>
               )}
@@ -602,7 +627,7 @@ const BDDashboard: React.FC = () => {
                       <td className="p-2">
                         <span className="text-xs bg-secondary px-2 py-1 rounded-full">{lead.lead_status}</span>
                       </td>
-                      <td className="p-2 text-xs">{getProfileName(lead.lead_generated_by)}</td>
+                      <td className="p-2 text-xs">{lead.lead_generated_by ? (getProfileName(lead.lead_generated_by) === 'Unknown' ? 'System' : getProfileName(lead.lead_generated_by)) : 'System'}</td>
                       
                       {/* MANUAL ASSIGNMENT LOGIC */}
                       <td className="p-2">
