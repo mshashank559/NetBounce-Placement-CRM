@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { User } from '@supabase/supabase-js';
 
@@ -72,9 +72,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Tracks the login_activity row id for the current session so we can update logout_at
+  const loginRowId = useRef<string | null>(null);
+
+  // ── Log a login event ────────────────────────────────────────
+  const logLogin = async (userId: string) => {
+    try {
+      const { data } = await supabase
+        .from('login_activity')
+        .insert({ user_id: userId, logged_in_at: new Date().toISOString() })
+        .select('id')
+        .single();
+      if (data?.id) loginRowId.current = data.id;
+    } catch {
+      // Non-critical — never block the login flow
+    }
+  };
+
+  // ── Log a logout event ───────────────────────────────────────
+  const logLogout = async () => {
+    if (!loginRowId.current) return;
+    try {
+      await supabase
+        .from('login_activity')
+        .update({ logged_out_at: new Date().toISOString() })
+        .eq('id', loginRowId.current);
+      loginRowId.current = null;
+    } catch {
+      // Non-critical
+    }
+  };
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
+      if (event === 'SIGNED_IN' && session?.user) {
+        setUser(session.user);
+        setTimeout(() => fetchProfileAndRole(session.user), 0);
+        logLogin(session.user.id);
+      } else if (event === 'SIGNED_OUT') {
+        await logLogout();
+        setUser(null);
+        setProfile(null);
+        setRole(null);
+      } else if (session?.user) {
         setUser(session.user);
         setTimeout(() => fetchProfileAndRole(session.user), 0);
       } else {
@@ -91,6 +131,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (session?.user) {
           setUser(session.user);
           await fetchProfileAndRole(session.user);
+          // Log login for existing session on app load
+          logLogin(session.user.id);
         }
       } catch (error) {
         console.error('Error initializing auth:', error);

@@ -4,7 +4,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Plus, BarChart3, Bell, LogOut, Sun, Moon, UserCog, Phone,
-  DollarSign, AlertCircle, UsersRound, Shield
+  DollarSign, AlertCircle, UsersRound, Shield, Activity
 } from 'lucide-react';
 import logo from '@/assets/logo.png';
 
@@ -31,6 +31,7 @@ const navItems: NavItem[] = [
   { label: 'Analytics', icon: BarChart3, path: '/analytics', roles: ['ADMIN', 'PROCESS_ANALYST', 'LEAD_TL', 'SALES_TL'] },
   { label: 'Notifications', icon: Bell, path: '/notifications', roles: ['ADMIN', 'PROCESS_ANALYST', 'LEAD_TL', 'LEAD_GEN', 'SALES_TL', 'SALES_TM', 'ACCOUNTANT'] },
   { label: 'User Management', icon: Shield, path: '/users', roles: ['ADMIN'] },
+  { label: 'Login Activity', icon: Activity, path: '/login-activity', roles: ['ADMIN'] },
 ];
 
 interface AppSidebarProps {
