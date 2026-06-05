@@ -76,8 +76,46 @@ const AnalyticsPage: React.FC = () => {
     value: statusCounts[name] || 0,
   })).filter(d => d.value > 0);
 
+  const normalizeSource = (source: string | null | undefined): string => {
+    if (!source) return 'Other';
+    const clean = source.trim().toLowerCase();
+    
+    // LinkedIn typos & variants
+    if (
+      clean.includes('linkedin') ||
+      clean.includes('linkdin') ||
+      clean.includes('linkeln') ||
+      clean.includes('linkin') ||
+      clean.includes('linked')
+    ) {
+      return 'LinkedIn';
+    }
+
+    // Gmail variants
+    if (clean.includes('gmail') || clean.includes('google')) {
+      return 'Gmail';
+    }
+
+    // WhatsApp variants
+    if (clean.includes('whatsapp') || clean.includes('whats app') || clean.includes('whats-app')) {
+      return 'WhatsApp';
+    }
+
+    // OPT Nation variants
+    if (clean.includes('opt') || clean.includes('optnation') || clean.includes('opt nation')) {
+      return 'OPT Nation';
+    }
+
+    // Default formatting: Capitalize first letter of each word
+    return source
+      .trim()
+      .split(/\s+/)
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  };
+
   const sourceCounts = leads?.reduce((acc, l) => {
-    const s = l.lead_source || 'Unknown';
+    const s = normalizeSource(l.lead_source);
     acc[s] = (acc[s] || 0) + 1;
     return acc;
   }, {} as Record<string, number>) || {};
