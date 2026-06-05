@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Trash2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { UserPlus, Trash2, Pencil } from 'lucide-react';
 
 const ROLES = ['ADMIN', 'PROCESS_ANALYST', 'LEAD_TL', 'LEAD_GEN', 'SALES_TL', 'SALES_TM', 'ACCOUNTANT'] as const;
 
@@ -18,6 +19,7 @@ const UserManagementPage: React.FC = () => {
   const { role } = useAuth();
   const queryClient = useQueryClient();
 
+  // ── Create user form state ─────────────────────────────────
   const [form, setForm] = useState({
     email: '',
     password: '',
@@ -26,6 +28,11 @@ const UserManagementPage: React.FC = () => {
     department: '',
     reports_to: '',
   });
+
+  // ── Edit user state ────────────────────────────────────────
+  const [editUser, setEditUser] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({ full_name: '', email: '', password: '' });
+  const [isSaving, setIsSaving] = useState(false);
 
   const { data: users } = useQuery({
     queryKey: ['all-users'],
@@ -79,6 +86,39 @@ const UserManagementPage: React.FC = () => {
     },
     onError: (err: Error) => toast.error(err.message),
   });
+
+  // ── Open edit dialog ───────────────────────────────────────
+  const handleEditOpen = (u: any) => {
+    setEditUser(u);
+    setEditForm({ full_name: u.full_name || '', email: u.email || '', password: '' });
+  };
+
+  // ── Save edited user ───────────────────────────────────────
+  const handleEditSave = async () => {
+    if (!editUser) return;
+    if (!editForm.full_name.trim() && !editForm.email.trim() && !editForm.password.trim()) {
+      toast.error('Please fill in at least one field to update.');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const payload: Record<string, string> = { userId: editUser.user_id };
+      if (editForm.full_name.trim()) payload.full_name = editForm.full_name.trim();
+      if (editForm.email.trim()) payload.email = editForm.email.trim();
+      if (editForm.password.trim()) payload.password = editForm.password.trim();
+
+      const { error } = await supabase.functions.invoke('update-user', { body: payload });
+      if (error) throw new Error(error.message);
+
+      toast.success('User updated successfully!');
+      queryClient.invalidateQueries({ queryKey: ['all-users'] });
+      setEditUser(null);
+    } catch (err: any) {
+      toast.error(err.message ?? 'Failed to update user');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   if (role !== 'ADMIN') {
     return <div className="text-center text-muted-foreground p-8">Access denied</div>;
@@ -159,6 +199,7 @@ const UserManagementPage: React.FC = () => {
                   <th className="text-left p-3 font-medium text-muted-foreground">Role</th>
                   <th className="text-left p-3 font-medium text-muted-foreground">Department</th>
                   <th className="text-left p-3 font-medium text-muted-foreground">Reports To</th>
+                  <th className="text-left p-3 font-medium text-muted-foreground">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -177,6 +218,15 @@ const UserManagementPage: React.FC = () => {
                     </td>
                     <td className="p-3 text-muted-foreground">{u.department || '—'}</td>
                     <td className="p-3 text-muted-foreground">{u.reports_to_name}</td>
+                    <td className="p-3">
+                      <button
+                        onClick={() => handleEditOpen(u)}
+                        className="p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-primary"
+                        title="Edit user"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
                   </motion.tr>
                 ))}
               </tbody>
@@ -184,6 +234,54 @@ const UserManagementPage: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Edit User Dialog ──────────────────────────────────── */}
+      <Dialog open={!!editUser} onOpenChange={(open) => { if (!open) setEditUser(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display">Edit User — {editUser?.full_name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>Full Name</Label>
+              <Input
+                value={editForm.full_name}
+                onChange={e => setEditForm(f => ({ ...f, full_name: e.target.value }))}
+                placeholder="Enter new name"
+              />
+            </div>
+            <div>
+              <Label>Email Address</Label>
+              <Input
+                type="email"
+                value={editForm.email}
+                onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
+                placeholder="Enter new email"
+              />
+              <p className="text-xs text-muted-foreground mt-1">This updates their login email. All existing data stays mapped automatically.</p>
+            </div>
+            <div>
+              <Label>New Password</Label>
+              <Input
+                type="password"
+                value={editForm.password}
+                onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))}
+                placeholder="Leave blank to keep current password"
+                minLength={6}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Only fill this if you want to reset their password.</p>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setEditUser(null)} disabled={isSaving}>
+              Cancel
+            </Button>
+            <Button className="nb-gradient" onClick={handleEditSave} disabled={isSaving}>
+              {isSaving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
