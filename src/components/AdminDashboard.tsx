@@ -163,7 +163,6 @@ const AdminDashboard: React.FC = () => {
   const [globalDateFrom, setGlobalDateFrom] = useState('');
   const [globalDateTo, setGlobalDateTo] = useState('');
   const [globalSearch, setGlobalSearch] = useState('');
-  const [globalSalesTLFilter, setGlobalSalesTLFilter] = useState('all');
   const [globalSalesMemberFilter, setGlobalSalesMemberFilter] = useState('all');
   const [selectedGenerator, setSelectedGenerator] = useState('all');
 
@@ -453,7 +452,6 @@ const AdminDashboard: React.FC = () => {
     return leads.filter(l => {
       if (globalDateFrom && new Date(l.created_at) < new Date(globalDateFrom)) return false;
       if (globalDateTo && new Date(l.created_at) > new Date(globalDateTo + 'T23:59:59')) return false;
-      if (globalSalesTLFilter !== 'all' && l.team_lead_id !== globalSalesTLFilter) return false;
       if (globalSalesMemberFilter !== 'all' && l.assigned_to !== globalSalesMemberFilter) return false;
       if (selectedGenerator !== 'all' && l.lead_generated_by !== selectedGenerator) return false;
       if (globalSearch) {
@@ -467,14 +465,14 @@ const AdminDashboard: React.FC = () => {
       }
       return true;
     });
-  }, [leads, globalDateFrom, globalDateTo, globalSearch, globalSalesTLFilter, globalSalesMemberFilter, selectedGenerator]);
+  }, [leads, globalDateFrom, globalDateTo, globalSearch, globalSalesMemberFilter, selectedGenerator]);
 
   // Derived lists for Global View filter dropdowns
-  const globalSalesTLList = useMemo(() => allUsers.filter(u => u.role === 'SALES_TL'), [allUsers]);
-  const globalSalesMemberList = useMemo(() => {
-    if (globalSalesTLFilter === 'all') return allUsers.filter(u => u.role === 'SALES_TM');
-    return allUsers.filter(u => u.role === 'SALES_TM' && u.reports_to === globalSalesTLFilter);
-  }, [allUsers, globalSalesTLFilter]);
+  const globalSalesMembersList = useMemo(() => {
+    return allUsers
+      .filter(u => u.role === 'SALES_TL' || u.role === 'SALES_TM')
+      .sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
+  }, [allUsers]);
   const globalBdUsersList = useMemo(() => {
     return allUsers.filter(u => u.role === 'LEAD_GEN' || u.role === 'LEAD_TL').sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
   }, [allUsers]);
@@ -920,24 +918,13 @@ const AdminDashboard: React.FC = () => {
                 </div>
                 {/* Advanced Filters Row */}
                 <div className="flex flex-wrap items-center gap-3">
-                  <Select value={globalSalesTLFilter} onValueChange={v => { setGlobalSalesTLFilter(v); setGlobalSalesMemberFilter('all'); }}>
-                    <SelectTrigger className="w-44 h-8 text-xs bg-accent/30 border-border/50">
-                      <SelectValue placeholder="All Sales TLs" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Sales TLs</SelectItem>
-                      {globalSalesTLList.map(u => (
-                        <SelectItem key={u.user_id} value={u.user_id}>{u.full_name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                   <Select value={globalSalesMemberFilter} onValueChange={setGlobalSalesMemberFilter}>
                     <SelectTrigger className="w-44 h-8 text-xs bg-accent/30 border-border/50">
-                      <SelectValue placeholder="All Sales Members" />
+                      <SelectValue placeholder="All Members" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Sales Members</SelectItem>
-                      {globalSalesMemberList.map(u => (
+                      <SelectItem value="all">All Members</SelectItem>
+                      {globalSalesMembersList.map(u => (
                         <SelectItem key={u.user_id} value={u.user_id}>{u.full_name}</SelectItem>
                       ))}
                     </SelectContent>
@@ -953,8 +940,8 @@ const AdminDashboard: React.FC = () => {
                       ))}
                     </SelectContent>
                   </Select>
-                  {(globalSalesTLFilter !== 'all' || globalSalesMemberFilter !== 'all' || selectedGenerator !== 'all') && (
-                    <button onClick={() => { setGlobalSalesTLFilter('all'); setGlobalSalesMemberFilter('all'); setSelectedGenerator('all'); }} className="text-xs text-muted-foreground hover:text-foreground underline">
+                  {(globalSalesMemberFilter !== 'all' || selectedGenerator !== 'all') && (
+                    <button onClick={() => { setGlobalSalesMemberFilter('all'); setSelectedGenerator('all'); }} className="text-xs text-muted-foreground hover:text-foreground underline">
                       Clear filters
                     </button>
                   )}
