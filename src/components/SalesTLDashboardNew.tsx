@@ -33,8 +33,7 @@ const SalesTLDashboard: React.FC = () => {
   const [dateTo, setDateTo] = useState('');
   const [nameSearch, setNameSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [globalSalesTLFilter, setGlobalSalesTLFilter] = useState('all');
-  const [globalSalesMemberFilter, setGlobalSalesMemberFilter] = useState('all');
+  const [globalMemberFilter, setGlobalMemberFilter] = useState('all');
 
   // ── Fetch all team leads (assigned to me or my team) ──
   const { data: leads = [] } = useQuery({
@@ -81,6 +80,19 @@ const SalesTLDashboard: React.FC = () => {
     queryFn: async () => { const { data } = await supabase.from('profiles').select('*'); return data || []; }
   });
 
+  // ── Fetch all sales users (TLs and TMs) for global view dropdown ──
+  const { data: globalSalesUsers = [] } = useQuery({
+    queryKey: ['global-sales-users'],
+    queryFn: async () => {
+      const { data: roles } = await supabase.from('user_roles').select('user_id').in('role', ['SALES_TM', 'SALES_TL']);
+      if (!roles?.length) return [];
+      const userIds = roles.map(r => r.user_id);
+      const { data: profilesData } = await supabase.from('profiles').select('user_id, full_name').in('user_id', userIds);
+      return (profilesData || []).sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
+    },
+    enabled: !!user,
+  });
+
   // ── Call logs ──
   const { data: callLogs = [] } = useQuery({
     queryKey: ['all-call-logs'],
@@ -122,9 +134,8 @@ const SalesTLDashboard: React.FC = () => {
         if (!l.assigned_to || (!myTeamIds.has(l.assigned_to) && l.assigned_to !== user?.id)) return false;
       }
       if (viewMode === 'global' && !l.assigned_to) return false;
-      // Global view team filters
-      if (viewMode === 'global' && globalSalesTLFilter !== 'all' && l.team_lead_id !== globalSalesTLFilter) return false;
-      if (viewMode === 'global' && globalSalesMemberFilter !== 'all' && l.assigned_to !== globalSalesMemberFilter) return false;
+      // Global view member filter
+      if (viewMode === 'global' && globalMemberFilter !== 'all' && l.assigned_to !== globalMemberFilter) return false;
       const d = new Date(l.created_at);
       if (monthFilter !== 'all' && d.getMonth() + 1 !== parseInt(monthFilter)) return false;
       if (dateFrom && d < new Date(dateFrom)) return false;
@@ -140,23 +151,7 @@ const SalesTLDashboard: React.FC = () => {
       if (statusFilter !== 'all' && l.lead_status !== statusFilter) return false;
       return true;
     });
-  }, [leads, viewMode, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, user?.id, myTeamIds, globalSalesTLFilter, globalSalesMemberFilter]);
-
-  // Derived lists for global view dropdowns
-  const allUserRoles = useMemo(() => {
-    const tlIds = salesMembers.filter((m: any) => m.reports_to === undefined || m.reports_to === null).map((m: any) => m.user_id);
-    return { tlIds: new Set(tlIds) };
-  }, [salesMembers]);
-  const globalSalesTLList = useMemo(() => salesMembers.filter((m: any) => {
-    // TLs: members whose user_id appears as reports_to in the list, or from salesMembers fetched with SALES_TL role
-    const reportsToSet = new Set(salesMembers.map((s: any) => s.reports_to).filter(Boolean));
-    return reportsToSet.has(m.user_id) || salesMembers.some((s: any) => s.user_id === m.user_id && s.reports_to == null);
-  }), [salesMembers]);
-  const globalSalesMemberList = useMemo(() => {
-    const members = salesMembers.filter((m: any) => m.reports_to != null);
-    if (globalSalesTLFilter === 'all') return members;
-    return members.filter((m: any) => m.reports_to === globalSalesTLFilter);
-  }, [salesMembers, globalSalesTLFilter]);
+  }, [leads, viewMode, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, user?.id, myTeamIds, globalMemberFilter]);
 
   // ── Unassigned to team member (pool leads) ──
   const poolLeads = leads.filter(l => l.assigned_to === user?.id && l.assignment_type === 'Team');
@@ -551,31 +546,20 @@ const SalesTLDashboard: React.FC = () => {
             {/* Global View Filters */}
             {viewMode === 'global' && (
               <div className="flex flex-wrap items-center gap-3">
-                <Select value={globalSalesTLFilter} onValueChange={v => { setGlobalSalesTLFilter(v); setGlobalSalesMemberFilter('all'); }}>
-                  <SelectTrigger className="w-44 h-8 text-xs">
-                    <SelectValue placeholder="All Sales TLs" />
+                <Select value={globalMemberFilter} onValueChange={setGlobalMemberFilter}>
+                  <SelectTrigger className="w-56 h-8 text-xs">
+                    <SelectValue placeholder="All Members" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Sales TLs</SelectItem>
-                    {globalSalesTLList.map((u: any) => (
+                    <SelectItem value="all">All Members</SelectItem>
+                    {globalSalesUsers.map((u: any) => (
                       <SelectItem key={u.user_id} value={u.user_id}>{u.full_name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <Select value={globalSalesMemberFilter} onValueChange={setGlobalSalesMemberFilter}>
-                  <SelectTrigger className="w-44 h-8 text-xs">
-                    <SelectValue placeholder="All Sales Members" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Sales Members</SelectItem>
-                    {globalSalesMemberList.map((u: any) => (
-                      <SelectItem key={u.user_id} value={u.user_id}>{u.full_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {(globalSalesTLFilter !== 'all' || globalSalesMemberFilter !== 'all') && (
-                  <button onClick={() => { setGlobalSalesTLFilter('all'); setGlobalSalesMemberFilter('all'); }} className="text-xs text-muted-foreground hover:text-foreground underline">
-                    Clear filters
+                {globalMemberFilter !== 'all' && (
+                  <button onClick={() => setGlobalMemberFilter('all')} className="text-xs text-muted-foreground hover:text-foreground underline">
+                    Clear filter
                   </button>
                 )}
               </div>
