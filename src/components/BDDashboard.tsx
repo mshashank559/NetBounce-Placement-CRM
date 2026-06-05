@@ -70,6 +70,12 @@ const BDDashboard: React.FC = () => {
     return Array.from(members).sort();
   }, [leads]);
 
+  // ── Team members reporting to this TL ──────────────────
+  const myTeamIds = useMemo(() => {
+    if (!profiles || !user) return new Set<string>();
+    return new Set(profiles.filter(p => p.reports_to === user.id).map(p => p.user_id));
+  }, [profiles, user]);
+
   // ── Apply Filters ───────────────────────────────────────
   const filteredLeads = useMemo(() => {
     if (!leads) return [];
@@ -78,8 +84,8 @@ const BDDashboard: React.FC = () => {
       if (viewMode === 'personal') {
         if (l.lead_generated_by !== user?.id) return false;
       } else if (viewMode === 'team') {
-        // Team View: ONLY show leads from members, NOT the TL themselves
-        if (l.lead_generated_by === user?.id) return false;
+        // Team View: ONLY show leads from members reporting to this TL, NOT the TL themselves
+        if (!l.lead_generated_by || !myTeamIds.has(l.lead_generated_by) || l.lead_generated_by === user?.id) return false;
       }
       
       // 2. Month Filter
@@ -119,7 +125,7 @@ const BDDashboard: React.FC = () => {
 
       return true;
     });
-  }, [leads, viewMode, monthFilter, dateFrom, dateTo, statusFilter, bdMemberFilter, profiles, user?.id, nameSearch, globalSalesTLFilter, globalSalesMemberFilter]);
+  }, [leads, viewMode, monthFilter, dateFrom, dateTo, statusFilter, bdMemberFilter, profiles, user?.id, nameSearch, globalSalesTLFilter, globalSalesMemberFilter, myTeamIds]);
 
   // ── KPI Calculations (Section 1) ─────────────────────────
   // Total Leads = all leads in the system
@@ -155,9 +161,9 @@ const BDDashboard: React.FC = () => {
 
   // ── Team Performance Overview (Section 2) ────────────────
   const teamMetrics = useMemo(() => {
-    if (!profiles || !leads) return [];
-    // Only map BD Team Members (LEAD_GEN) + TLs
-    const bdUsers = profiles.filter(p => true); // In real app, filter by LEAD_GEN role using user_roles join
+    if (!profiles || !leads || !user) return [];
+    // Only map BD Team Members reporting to this TL
+    const bdUsers = profiles.filter(p => p.reports_to === user.id);
     
     return bdUsers.map(p => {
       const pLeads = leads.filter(l => l.lead_generated_by === p.user_id);
@@ -168,7 +174,7 @@ const BDDashboard: React.FC = () => {
 
       return { ...p, dailyAdded, monthlyAdded, converted, total: pLeads.length };
     }).filter(p => p.total > 0).sort((a, b) => b.monthlyAdded - a.monthlyAdded);
-  }, [leads, profiles, monthFilter]);
+  }, [leads, profiles, monthFilter, user]);
 
   // ── Chart Data (Section 3) ───────────────────────────────
   const chartData = useMemo(() => {

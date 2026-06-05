@@ -118,7 +118,9 @@ const SalesTLDashboard: React.FC = () => {
   const filteredLeads = useMemo(() => {
     return leads.filter(l => {
       if (viewMode === 'personal' && l.assigned_to !== user?.id) return false;
-      if (viewMode === 'team' && l.assigned_to && !myTeamIds.has(l.assigned_to) && l.assigned_to !== user?.id) return false;
+      if (viewMode === 'team') {
+        if (!l.assigned_to || (!myTeamIds.has(l.assigned_to) && l.assigned_to !== user?.id)) return false;
+      }
       if (viewMode === 'global' && !l.assigned_to) return false;
       // Global view team filters
       if (viewMode === 'global' && globalSalesTLFilter !== 'all' && l.team_lead_id !== globalSalesTLFilter) return false;
