@@ -107,7 +107,12 @@ const UserManagementPage: React.FC = () => {
       if (editForm.email.trim()) payload.email = editForm.email.trim();
       if (editForm.password.trim()) payload.password = editForm.password.trim();
 
-      const { error } = await supabase.functions.invoke('update-user', { body: payload });
+      const { error } = await supabase.rpc('update_user_by_admin', {
+        target_user_id: editUser.user_id,
+        new_full_name:  editForm.full_name.trim()  || null,
+        new_email:      editForm.email.trim()       || null,
+        new_password:   editForm.password.trim()    || null,
+      });
       if (error) throw new Error(error.message);
 
       toast.success('User updated successfully!');
