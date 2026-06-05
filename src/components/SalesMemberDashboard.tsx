@@ -70,13 +70,14 @@ const SalesMemberDashboard: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [globalSalesTLFilter, setGlobalSalesTLFilter] = useState('all');
   const [globalSalesMemberFilter, setGlobalSalesMemberFilter] = useState('all');
+  const [selectedGenerator, setSelectedGenerator] = useState('all');
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 50;
 
   // Reset page to 1 whenever any filter changes
   React.useEffect(() => {
     setPage(1);
-  }, [viewMode, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, globalSalesTLFilter, globalSalesMemberFilter]);
+  }, [viewMode, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, globalSalesTLFilter, globalSalesMemberFilter, selectedGenerator]);
 
   const [selectedLead, setSelectedLead] = useState<any>(null);
   const [callLead, setCallLead] = useState<any>(null);
@@ -262,7 +263,7 @@ const SalesMemberDashboard: React.FC = () => {
 
   // ── My assigned leads (paginated) ──
   const { data: leadsResponse, isLoading } = useQuery({
-    queryKey: ['sm-leads-paginated', user?.id, viewMode, page, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, globalSalesTLFilter, globalSalesMemberFilter],
+    queryKey: ['sm-leads-paginated', user?.id, viewMode, page, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, globalSalesTLFilter, globalSalesMemberFilter, selectedGenerator],
     queryFn: async () => {
       let query = supabase.from('leads').select('*', { count: 'exact' });
       if (viewMode === 'personal') {
@@ -307,6 +308,9 @@ const SalesMemberDashboard: React.FC = () => {
       if (viewMode === 'global' && globalSalesMemberFilter !== 'all') {
         query = query.eq('assigned_to', globalSalesMemberFilter);
       }
+      if (viewMode === 'global' && selectedGenerator !== 'all') {
+        query = query.eq('lead_generated_by', selectedGenerator);
+      }
 
       const from = (page - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
@@ -329,7 +333,7 @@ const SalesMemberDashboard: React.FC = () => {
 
   // ── Fetch lightweight lead records for KPIs and charts ──
   const { data: statsLeads = [] } = useQuery({
-    queryKey: ['sm-leads-stats', user?.id, viewMode, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, globalSalesTLFilter, globalSalesMemberFilter],
+    queryKey: ['sm-leads-stats', user?.id, viewMode, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, globalSalesTLFilter, globalSalesMemberFilter, selectedGenerator],
     queryFn: async () => {
       let query = supabase
         .from('leads')
@@ -377,6 +381,9 @@ const SalesMemberDashboard: React.FC = () => {
       if (viewMode === 'global' && globalSalesMemberFilter !== 'all') {
         query = query.eq('assigned_to', globalSalesMemberFilter);
       }
+      if (viewMode === 'global' && selectedGenerator !== 'all') {
+        query = query.eq('lead_generated_by', selectedGenerator);
+      }
 
       const { data, error } = await query;
       if (error) throw error;
@@ -405,6 +412,19 @@ const SalesMemberDashboard: React.FC = () => {
   const { data: allUserRoles = [] } = useQuery({
     queryKey: ['all-user-roles-sm'],
     queryFn: async () => { const { data } = await supabase.from('user_roles').select('user_id, role').in('role', ['SALES_TL', 'SALES_TM']); return data || []; },
+  });
+
+  // ── Fetch all BD users (LEAD_GEN and LEAD_TL) for global view dropdown ──
+  const { data: bdUsers = [] } = useQuery({
+    queryKey: ['global-bd-users-sm'],
+    queryFn: async () => {
+      const { data: roles } = await supabase.from('user_roles').select('user_id').in('role', ['LEAD_GEN', 'LEAD_TL']);
+      if (!roles?.length) return [];
+      const userIds = roles.map(r => r.user_id);
+      const { data: profilesData } = await supabase.from('profiles').select('user_id, full_name').in('user_id', userIds);
+      return (profilesData || []).sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
+    },
+    enabled: !!user,
   });
 
   const globalSalesTLList = useMemo(() => {
@@ -597,7 +617,7 @@ const SalesMemberDashboard: React.FC = () => {
             {viewMode === 'global' && (
               <div className="flex flex-wrap items-center gap-3">
                 <Select value={globalSalesTLFilter} onValueChange={v => { setGlobalSalesTLFilter(v); setGlobalSalesMemberFilter('all'); }}>
-                  <SelectTrigger className="w-44 h-8 text-xs">
+                  <SelectTrigger className="w-44 h-8 text-xs bg-accent/30 border-border/50">
                     <SelectValue placeholder="All Sales TLs" />
                   </SelectTrigger>
                   <SelectContent>
@@ -608,7 +628,7 @@ const SalesMemberDashboard: React.FC = () => {
                   </SelectContent>
                 </Select>
                 <Select value={globalSalesMemberFilter} onValueChange={setGlobalSalesMemberFilter}>
-                  <SelectTrigger className="w-44 h-8 text-xs">
+                  <SelectTrigger className="w-44 h-8 text-xs bg-accent/30 border-border/50">
                     <SelectValue placeholder="All Sales Members" />
                   </SelectTrigger>
                   <SelectContent>
@@ -618,8 +638,19 @@ const SalesMemberDashboard: React.FC = () => {
                     ))}
                   </SelectContent>
                 </Select>
-                {(globalSalesTLFilter !== 'all' || globalSalesMemberFilter !== 'all') && (
-                  <button onClick={() => { setGlobalSalesTLFilter('all'); setGlobalSalesMemberFilter('all'); }} className="text-xs text-muted-foreground hover:text-foreground underline">
+                <Select value={selectedGenerator} onValueChange={setSelectedGenerator}>
+                  <SelectTrigger className="w-48 h-8 text-xs bg-accent/30 border-border/50">
+                    <SelectValue placeholder="All Lead Generators" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Lead Generators</SelectItem>
+                    {bdUsers.map((u: any) => (
+                      <SelectItem key={u.user_id} value={u.user_id}>{u.full_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {(globalSalesTLFilter !== 'all' || globalSalesMemberFilter !== 'all' || selectedGenerator !== 'all') && (
+                  <button onClick={() => { setGlobalSalesTLFilter('all'); setGlobalSalesMemberFilter('all'); setSelectedGenerator('all'); }} className="text-xs text-muted-foreground hover:text-foreground underline">
                     Clear filters
                   </button>
                 )}
@@ -632,14 +663,18 @@ const SalesMemberDashboard: React.FC = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  {['#','ID','Name','Email','Phone','Uni','Tech','LinkedIn','Time','TZ','Category','Source','Status','Generated By','Last Activity','DNR Follow-up','Actions'].map(h => (
+                  {['#','ID','Name','Email','Phone','Uni','Tech','LinkedIn','Time','TZ','Category','Source','Status', ...(viewMode === 'global' ? ['Generated By', 'Assigned To'] : ['Generated By']), 'Last Activity','DNR Follow-up','Actions'].map(h => (
                     <th key={h} className="text-left p-2 text-muted-foreground font-medium whitespace-nowrap text-xs">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {filteredLeads.length === 0 ? (
-                  <tr><td colSpan={15} className="text-center py-8 text-muted-foreground">No leads assigned to you yet.</td></tr>
+                  <tr>
+                    <td colSpan={viewMode === 'global' ? 18 : 17} className="text-center py-8 text-muted-foreground">
+                      {viewMode === 'global' ? 'No leads found.' : 'No leads assigned to you yet.'}
+                    </td>
+                  </tr>
                 ) : filteredLeads.map((lead, idx) => {
                   const isDNR = lead.lead_status?.startsWith('DNR');
                   const isHot = lead.lead_status === 'Hot Prospect';
@@ -686,7 +721,12 @@ const SalesMemberDashboard: React.FC = () => {
                           )}
                         </div>
                       </td>
-                      <td className="p-2 text-xs">{getName(lead.lead_generated_by)}</td>
+                      <td className="p-2 text-xs">
+                        {lead.lead_generated_by ? (profiles.find(p => p.user_id === lead.lead_generated_by)?.full_name || 'System') : 'System'}
+                      </td>
+                      {viewMode === 'global' && (
+                        <td className="p-2 text-xs">{getName(lead.assigned_to)}</td>
+                      )}
                       <td className="p-2 text-xs whitespace-nowrap">{new Date(lead.updated_at).toLocaleDateString()}</td>
                       <td className="p-2">
                         {lead.lead_status?.startsWith('DNR') ? (
