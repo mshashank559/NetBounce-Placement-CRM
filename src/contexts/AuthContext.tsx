@@ -75,12 +75,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Tracks the login_activity row id for the current session so we can update logout_at
   const loginRowId = useRef<string | null>(null);
 
-  // ── Log a login event ────────────────────────────────────────
+  // ── Log a login event (with denormalized user info for Admin panel) ───
   const logLogin = async (userId: string) => {
     try {
+      // Fetch profile + role in parallel so we can store them in the row
+      const [profileRes, roleRes] = await Promise.all([
+        supabase.from('profiles').select('full_name, email').eq('user_id', userId).maybeSingle(),
+        supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle(),
+      ]);
+
       const { data } = await supabase
         .from('login_activity')
-        .insert({ user_id: userId, logged_in_at: new Date().toISOString() })
+        .insert({
+          user_id:     userId,
+          logged_in_at: new Date().toISOString(),
+          user_name:   profileRes.data?.full_name  ?? null,
+          user_email:  profileRes.data?.email      ?? null,
+          user_role:   roleRes.data?.role          ?? null,
+        })
         .select('id')
         .single();
       if (data?.id) loginRowId.current = data.id;
@@ -107,8 +119,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user);
+        // logLogin first so profile data is already in DB by the time we fetch it;
+        // run both concurrently — logLogin has its own profile query inside
+        await logLogin(session.user.id);
         setTimeout(() => fetchProfileAndRole(session.user), 0);
-        logLogin(session.user.id);
       } else if (event === 'SIGNED_OUT') {
         await logLogout();
         setUser(null);
@@ -130,9 +144,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           setUser(session.user);
-          await fetchProfileAndRole(session.user);
-          // Log login for existing session on app load
-          logLogin(session.user.id);
+          // Run both concurrently — logLogin does its own profile fetch internally
+          await Promise.all([
+            fetchProfileAndRole(session.user),
+            logLogin(session.user.id),
+          ]);
         }
       } catch (error) {
         console.error('Error initializing auth:', error);

@@ -91,7 +91,7 @@ const LoginActivityPage: React.FC = () => {
     });
   }, [activity, userFilter, monthFilter, dateFrom, dateTo]);
 
-  // ── Build profile map for display ────────────────────────────
+  // ── Build profile map for display (fallback for legacy rows without denorm data) ──
   const profileMap = useMemo(() => {
     const m: Record<string, { full_name: string; email: string; role: string }> = {};
     allUsers?.forEach(u => { m[u.user_id] = u; });
@@ -219,7 +219,12 @@ const LoginActivityPage: React.FC = () => {
                 </thead>
                 <tbody>
                   {filtered.map((row, i) => {
+                    // Prefer denormalized data stored at login time;
+                    // fall back to profileMap for older rows that predate this fix
                     const profile = profileMap[row.user_id];
+                    const displayName  = (row as any).user_name  || profile?.full_name || null;
+                    const displayEmail = (row as any).user_email || profile?.email     || null;
+                    const displayRole  = (row as any).user_role  || profile?.role      || null;
                     const isActive = !row.logged_out_at;
                     return (
                       <motion.tr
@@ -230,12 +235,12 @@ const LoginActivityPage: React.FC = () => {
                         className="border-b border-border/50 hover:bg-accent/30 transition-colors"
                       >
                         <td className="p-3">
-                          <p className="font-medium">{profile?.full_name || '—'}</p>
-                          <p className="text-xs text-muted-foreground">{profile?.email || '—'}</p>
+                          <p className="font-medium">{displayName || '—'}</p>
+                          <p className="text-xs text-muted-foreground">{displayEmail || '—'}</p>
                         </td>
                         <td className="p-3">
                           <Badge variant="secondary" className="text-xs">
-                            {profile?.role?.replace(/_/g, ' ') || '—'}
+                            {displayRole ? displayRole.replace(/_/g, ' ') : '—'}
                           </Badge>
                         </td>
                         <td className="p-3 text-muted-foreground">{fmtDate(row.logged_in_at)}</td>
