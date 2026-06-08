@@ -170,13 +170,13 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                   <Field label="Payment Mode" value={closure.payment_mode} />
                   {closure.amount != null && <Field label="On-Offer Amount" value={`$${closure.amount}`} />}
                   {closure.percentage != null && <Field label="Percentage" value={`${closure.percentage}%`} />}
-                  {closure.slot1_amount !== null && closure.slot1_amount !== '' && (
+                  {closure.slot1_amount !== null && closure.slot1_amount !== undefined && (
                     <>
                       <Field label="Slot 1 Amount" value={`$${closure.slot1_amount} (${closure.slot1 ? 'Paid' : 'Unpaid'})`} />
                       {closure.slot1_due_date && <Field label="Slot 1 Due Date" value={new Date(closure.slot1_due_date).toLocaleDateString()} />}
                     </>
                   )}
-                  {closure.slot2_amount !== null && closure.slot2_amount !== '' && (
+                  {closure.slot2_amount !== null && closure.slot2_amount !== undefined && (
                     <>
                       <Field label="Next Slot Amount" value={`$${closure.slot2_amount} (${closure.slot2 ? 'Paid' : 'Unpaid'})`} />
                       {closure.next_slot_due_date && <Field label="Next Slot Due Date" value={new Date(closure.next_slot_due_date).toLocaleDateString()} />}
