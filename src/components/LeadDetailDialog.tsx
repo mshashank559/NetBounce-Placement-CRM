@@ -15,7 +15,7 @@ interface LeadDetailDialogProps {
 }
 
 const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose }) => {
-  const { role } = useAuth();
+  const { user, role } = useAuth();
 
   const { data: followups } = useQuery({
     queryKey: ['followups', lead.unique_id],
@@ -49,11 +49,41 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
   const { data: profiles = [] } = useQuery({
     queryKey: ['profiles-map-detail'],
     queryFn: async () => {
-      const { data } = await supabase.from('profiles').select('user_id, full_name');
+      const { data } = await supabase.from('profiles').select('user_id, full_name, reports_to');
       return data || [];
     },
     enabled: open,
   });
+
+  const isSameTeam = React.useMemo(() => {
+    if (!user) return false;
+    if (role === 'ADMIN' || role === 'PROCESS_ANALYST' || role === 'ACCOUNTANT') return true;
+    
+    // For SALES_TL: they can see if it's their own lead, or if the lead's assignee reports to them, or if the lead's team_lead_id matches their user_id
+    if (role === 'SALES_TL') {
+      if (lead.assigned_to === user.id || lead.team_lead_id === user.id) return true;
+      const assigneeProfile = profiles.find(p => p.user_id === lead.assigned_to);
+      if (assigneeProfile?.reports_to === user.id) return true;
+      return false;
+    }
+
+    // For SALES_TM: same team member can view revenue. So they can see if it's their own lead, or if they report to the same TL as the lead's assignee.
+    if (role === 'SALES_TM') {
+      if (lead.assigned_to === user.id) return true;
+      
+      // Find my profile's reports_to (my Sales TL)
+      const myProfile = profiles.find(p => p.user_id === user.id);
+      const myTL = myProfile?.reports_to;
+      if (!myTL) return false;
+      
+      // Check if the lead's assignee reports to the same TL
+      const assigneeProfile = profiles.find(p => p.user_id === lead.assigned_to);
+      if (assigneeProfile?.reports_to === myTL) return true;
+      return false;
+    }
+
+    return false;
+  }, [user, role, lead.assigned_to, lead.team_lead_id, profiles]);
 
   // Status history from logs table
   const { data: statusHistory } = useQuery({
@@ -150,15 +180,16 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                 </>
               )}
             </div>
-
             {lead.comment && (
               <div className="bg-accent/20 p-3 rounded-lg border border-accent/10">
                 <span className="text-xs text-muted-foreground font-semibold">Latest Comment/Remarks:</span>
-                <p className="text-sm mt-1 text-foreground leading-relaxed">{lead.comment}</p>
+                <p className="text-sm mt-1 text-foreground leading-relaxed">
+                  {(!isSameTeam && lead.comment.includes('[Closure Payment]')) ? 'Payment details hidden (cross-team restriction)' : lead.comment}
+                </p>
               </div>
             )}
 
-            {closure && (
+            {closure && isSameTeam && (
               <div className="p-4 rounded-lg bg-green-500/5 border border-green-500/20">
                 <h4 className="text-sm font-semibold mb-3 text-green-600 flex items-center gap-1.5">
                   <CheckCircle2 className="h-4 w-4" /> Closure Details

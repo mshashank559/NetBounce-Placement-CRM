@@ -108,12 +108,6 @@ const SalesTLDashboard: React.FC = () => {
     queryKey: ['salestl-leads', user?.id, role],
     queryFn: async () => {
       if (role === 'SALES_TL') {
-        const { data: teamProfiles } = await supabase
-          .from('profiles')
-          .select('user_id')
-          .or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
-        const teamUserIds = teamProfiles?.map(p => p.user_id) || [user!.id];
-        
         let allLeads: any[] = [];
         let from = 0;
         const step = 1000;
@@ -123,7 +117,7 @@ const SalesTLDashboard: React.FC = () => {
           const { data, error } = await supabase
             .from('leads')
             .select('*')
-            .or(`assigned_to.in.(${teamUserIds.join(',')}),team_lead_id.eq.${user!.id}`)
+            .or(`assigned_to.not.is.null,team_lead_id.eq.${user!.id}`)
             .order('created_at', { ascending: false })
             .range(from, from + step - 1);
             
@@ -188,18 +182,12 @@ const SalesTLDashboard: React.FC = () => {
 
   // ── Fetch all sales users (TLs and TMs) for global view dropdown ──
   const { data: globalSalesUsers = [] } = useQuery({
-    queryKey: ['global-sales-users', user?.id, role],
+    queryKey: ['global-sales-users'],
     queryFn: async () => {
-      let query = supabase.from('profiles').select('user_id, full_name');
-      if (role === 'SALES_TL') {
-        query = query.or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
-      } else {
-        const { data: roles } = await supabase.from('user_roles').select('user_id').in('role', ['SALES_TM', 'SALES_TL']);
-        if (!roles?.length) return [];
-        const userIds = roles.map(r => r.user_id);
-        query = query.in('user_id', userIds);
-      }
-      const { data: profilesData } = await query;
+      const { data: roles } = await supabase.from('user_roles').select('user_id').in('role', ['SALES_TM', 'SALES_TL']);
+      if (!roles?.length) return [];
+      const userIds = roles.map(r => r.user_id);
+      const { data: profilesData } = await supabase.from('profiles').select('user_id, full_name').in('user_id', userIds);
       return (profilesData || []).sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
     },
     enabled: !!user,
@@ -278,11 +266,7 @@ const SalesTLDashboard: React.FC = () => {
         if (!l.assigned_to || (!myTeamIds.has(l.assigned_to) && l.assigned_to !== user?.id)) return false;
       }
       if (viewMode === 'global') {
-        if (role === 'SALES_TL') {
-          if (!l.assigned_to || (!myTeamIds.has(l.assigned_to) && l.assigned_to !== user?.id)) return false;
-        } else {
-          if (!l.assigned_to) return false;
-        }
+        if (!l.assigned_to) return false;
       }
       // Global view member filter
       if (viewMode === 'global' && globalMemberFilter !== 'all' && l.assigned_to !== globalMemberFilter) return false;
@@ -322,7 +306,15 @@ const SalesTLDashboard: React.FC = () => {
 
   const revenue = useMemo(() => {
     return closureData
-      .filter(c => filteredLeadIds.has(c.lead_id))
+      .filter(c => {
+        if (!filteredLeadIds.has(c.lead_id)) return false;
+        if (role === 'SALES_TL') {
+          const lead = leads.find(l => l.unique_id === c.lead_id);
+          if (!lead) return false;
+          return lead.assigned_to === user?.id || myTeamIds.has(lead.assigned_to);
+        }
+        return true;
+      })
       .reduce((s, c) => {
         const s1 = c.slot1 ? (Number(c.slot1_amount) || 0) : 0;
         const s2 = c.slot2 ? (Number(c.slot2_amount) || 0) : 0;
@@ -336,7 +328,7 @@ const SalesTLDashboard: React.FC = () => {
         }
         return s + s1 + s2 + additional;
       }, 0);
-  }, [closureData, filteredLeadIds]);
+  }, [closureData, filteredLeadIds, role, leads, user?.id, myTeamIds]);
 
   // ── SLA Alerts ──
   const staleLeads = useMemo(() => {

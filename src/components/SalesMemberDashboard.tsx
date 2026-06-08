@@ -283,6 +283,8 @@ const SalesMemberDashboard: React.FC = () => {
       let query = supabase.from('leads').select('*', { count: 'exact' });
       if (viewMode === 'personal') {
         query = query.eq('assigned_to', user!.id).neq('assignment_type', 'Team');
+      } else if (viewMode === 'global') {
+        query = query.not('assigned_to', 'is', null);
       } else {
         query = query.in('assigned_to', teamUserIds.length > 0 ? teamUserIds : [user!.id]);
       }
@@ -356,6 +358,8 @@ const SalesMemberDashboard: React.FC = () => {
 
       if (viewMode === 'personal') {
         query = query.eq('assigned_to', user!.id).neq('assignment_type', 'Team');
+      } else if (viewMode === 'global') {
+        query = query.not('assigned_to', 'is', null);
       } else {
         query = query.in('assigned_to', teamUserIds.length > 0 ? teamUserIds : [user!.id]);
       }
@@ -443,16 +447,16 @@ const SalesMemberDashboard: React.FC = () => {
   });
 
   const globalSalesTLList = useMemo(() => {
-    const tlId = profile?.reports_to;
-    if (!tlId) return [];
-    return profiles.filter(p => p.user_id === tlId);
-  }, [profile?.reports_to, profiles]);
+    const tlIds = new Set(allUserRoles.filter((r: any) => r.role === 'SALES_TL').map((r: any) => r.user_id));
+    return profiles.filter(p => tlIds.has(p.user_id));
+  }, [allUserRoles, profiles]);
 
   const globalSalesMemberList = useMemo(() => {
-    const tlId = profile?.reports_to;
-    if (!tlId) return profiles.filter(p => p.user_id === user?.id);
-    return profiles.filter(p => (p.reports_to === tlId || p.user_id === tlId || p.user_id === user?.id));
-  }, [profile?.reports_to, profiles, user?.id]);
+    const tmIds = new Set(allUserRoles.filter((r: any) => r.role === 'SALES_TM').map((r: any) => r.user_id));
+    const members = profiles.filter(p => tmIds.has(p.user_id));
+    if (globalSalesTLFilter === 'all') return members;
+    return members.filter(p => p.reports_to === globalSalesTLFilter);
+  }, [allUserRoles, profiles, globalSalesTLFilter]);
 
   // ── Follow-up history ──
   const { data: followups = [] } = useQuery({
