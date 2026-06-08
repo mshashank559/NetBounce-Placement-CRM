@@ -165,6 +165,12 @@ const AdminDashboard: React.FC = () => {
   const [globalSearch, setGlobalSearch] = useState('');
   const [globalSalesMemberFilter, setGlobalSalesMemberFilter] = useState('all');
   const [selectedGenerator, setSelectedGenerator] = useState('all');
+  const [globalPage, setGlobalPage] = useState(1);
+  const PAGE_SIZE = 50;
+
+  React.useEffect(() => {
+    setGlobalPage(1);
+  }, [globalDateFrom, globalDateTo, globalSearch, globalSalesMemberFilter, selectedGenerator]);
 
   // Dialog state
   const [selectedLead, setSelectedLead] = useState<any>(null);
@@ -973,9 +979,9 @@ const AdminDashboard: React.FC = () => {
                           <TableCell colSpan={13} className="text-center py-10 text-muted-foreground text-sm">No leads found</TableCell>
                         </TableRow>
                       ) : (
-                        globalLeads.map((lead, idx) => (
+                        globalLeads.slice((globalPage - 1) * PAGE_SIZE, globalPage * PAGE_SIZE).map((lead, idx) => (
                           <TableRow key={lead.unique_id} className="hover:bg-accent/20 border-border/50">
-                            <TableCell className="text-xs text-muted-foreground font-medium w-10">{idx + 1}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground font-medium w-10">{(globalPage - 1) * PAGE_SIZE + idx + 1}</TableCell>
                             <TableCell className="text-xs font-mono text-primary font-bold">{(lead as any).display_id || '—'}</TableCell>
                             <TableCell className="text-xs font-medium">{lead.name}</TableCell>
                             <TableCell className="text-xs text-muted-foreground">{lead.email}</TableCell>
@@ -1012,6 +1018,34 @@ const AdminDashboard: React.FC = () => {
                   </Table>
                 </div>
               </CardContent>
+              {globalLeads.length > 0 && (
+                <div className="flex justify-between items-center p-4 border-t border-border flex-wrap gap-2 bg-accent/5">
+                  <span className="text-xs text-muted-foreground">
+                    Showing {Math.min(globalLeads.length, (globalPage - 1) * PAGE_SIZE + 1)} to {Math.min(globalLeads.length, globalPage * PAGE_SIZE)} of {globalLeads.length} leads
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={globalPage === 1}
+                      onClick={() => setGlobalPage(p => Math.max(1, p - 1))}
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-xs font-medium">
+                      Page {globalPage} of {Math.ceil(globalLeads.length / PAGE_SIZE) || 1}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={globalPage * PAGE_SIZE >= globalLeads.length}
+                      onClick={() => setGlobalPage(p => p + 1)}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
             </Card>
           </motion.div>
         )}

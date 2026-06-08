@@ -96,6 +96,12 @@ const ProcessAnalystDashboard: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [globalSalesTLFilter, setGlobalSalesTLFilter] = useState('all');
   const [globalSalesMemberFilter, setGlobalSalesMemberFilter] = useState('all');
+  const [leadsPage, setLeadsPage] = useState(1);
+  const PAGE_SIZE = 50;
+
+  React.useEffect(() => {
+    setLeadsPage(1);
+  }, [monthFilter, searchQuery, teamFilter, statusFilter, globalSalesTLFilter, globalSalesMemberFilter]);
 
   // Queries (READ ONLY)
   const { data: leads } = useQuery({
@@ -361,7 +367,77 @@ const ProcessAnalystDashboard: React.FC = () => {
                   )}
                 </div>
               </CardHeader>
-              <CardContent className="p-0"><div className="overflow-x-auto"><Table><TableHeader className="bg-accent/50"><TableRow><TableHead className="text-xs w-10">#</TableHead><TableHead className="text-xs">Candidate</TableHead><TableHead className="text-xs">Assigned To</TableHead><TableHead className="text-xs">Status</TableHead><TableHead className="text-xs">Activity</TableHead></TableRow></TableHeader><TableBody>{paGlobalLeads.slice(0, 50).map((lead, idx) => (<TableRow key={lead.unique_id}><TableCell className="text-xs text-muted-foreground font-medium w-10">{idx + 1}</TableCell><TableCell className="text-xs font-bold">{lead.name}<p className="text-[10px] font-normal text-muted-foreground">{lead.email}</p></TableCell><TableCell className="text-xs">{allUsers.find(u => u.user_id === lead.assigned_to)?.full_name || 'Unassigned'}</TableCell><TableCell>{getStatusBadge(lead.lead_status || '')}</TableCell><TableCell className="text-[10px] text-muted-foreground font-mono">{format(parseISO(lead.updated_at), 'dd MMM, HH:mm')}</TableCell></TableRow>))}</TableBody></Table></div></CardContent>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader className="bg-accent/50">
+                      <TableRow>
+                        <TableHead className="text-xs w-10">#</TableHead>
+                        <TableHead className="text-xs">Candidate</TableHead>
+                        <TableHead className="text-xs">Assigned To</TableHead>
+                        <TableHead className="text-xs">Status</TableHead>
+                        <TableHead className="text-xs">Activity</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paGlobalLeads.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center py-10 text-muted-foreground text-sm">No leads found</TableCell>
+                        </TableRow>
+                      ) : (
+                        paGlobalLeads.slice((leadsPage - 1) * 50, leadsPage * 50).map((lead, idx) => (
+                          <TableRow key={lead.unique_id}>
+                            <TableCell className="text-xs text-muted-foreground font-medium w-10">
+                              {(leadsPage - 1) * 50 + idx + 1}
+                            </TableCell>
+                            <TableCell className="text-xs font-bold">
+                              {lead.name}
+                              <p className="text-[10px] font-normal text-muted-foreground">{lead.email}</p>
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {allUsers.find(u => u.user_id === lead.assigned_to)?.full_name || 'Unassigned'}
+                            </TableCell>
+                            <TableCell>
+                              {getStatusBadge(lead.lead_status || '')}
+                            </TableCell>
+                            <TableCell className="text-[10px] text-muted-foreground font-mono">
+                              {format(parseISO(lead.updated_at), 'dd MMM, HH:mm')}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+              {paGlobalLeads.length > 0 && (
+                <div className="flex justify-between items-center p-4 border-t border-border flex-wrap gap-2 bg-accent/5">
+                  <span className="text-xs text-muted-foreground">
+                    Showing {Math.min(paGlobalLeads.length, (leadsPage - 1) * 50 + 1)} to {Math.min(paGlobalLeads.length, leadsPage * 50)} of {paGlobalLeads.length} leads
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={leadsPage === 1}
+                      onClick={() => setLeadsPage(p => Math.max(1, p - 1))}
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-xs font-medium">
+                      Page {leadsPage} of {Math.ceil(paGlobalLeads.length / 50) || 1}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={leadsPage * 50 >= paGlobalLeads.length}
+                      onClick={() => setLeadsPage(p => p + 1)}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
             </Card>
           </motion.div>
         )}

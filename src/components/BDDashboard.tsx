@@ -33,6 +33,12 @@ const BDDashboard: React.FC = () => {
   const [nameSearch, setNameSearch] = useState('');
   const [globalSalesMemberFilter, setGlobalSalesMemberFilter] = useState('all');
   const [globalLeadGenFilter, setGlobalLeadGenFilter] = useState('all');
+  const [leadsPage, setLeadsPage] = useState(1);
+  const PAGE_SIZE = 50;
+
+  React.useEffect(() => {
+    setLeadsPage(1);
+  }, [viewMode, monthFilter, dateFrom, dateTo, statusFilter, bdMemberFilter, queueTab, nameSearch, globalSalesMemberFilter, globalLeadGenFilter]);
 
   // ── Data Fetching ───────────────────────────────────────
   const { data: leads, isLoading } = useQuery({
@@ -583,9 +589,9 @@ const BDDashboard: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  displayedLeads.slice(0, 50).map((lead, idx) => (
+                  displayedLeads.slice((leadsPage - 1) * 50, leadsPage * 50).map((lead, idx) => (
                     <tr key={lead.unique_id} className={`border-b border-border/50 hover:bg-accent/30 ${lead.concern ? 'bg-orange-500/10' : ''}`}>
-                      <td className="p-2 text-xs text-muted-foreground font-medium">{idx + 1}</td>
+                      <td className="p-2 text-xs text-muted-foreground font-medium">{(leadsPage - 1) * 50 + idx + 1}</td>
                       <td className="p-2">
                         <div className="font-medium">{lead.name}</div>
                         <div className="text-xs text-muted-foreground">ID: {(lead as any).display_id}</div>
@@ -654,6 +660,34 @@ const BDDashboard: React.FC = () => {
             </table>
           </div>
         </CardContent>
+        {displayedLeads.length > 0 && (
+          <div className="flex justify-between items-center p-4 border-t border-border flex-wrap gap-2 bg-accent/5">
+            <span className="text-xs text-muted-foreground">
+              Showing {Math.min(displayedLeads.length, (leadsPage - 1) * 50 + 1)} to {Math.min(displayedLeads.length, leadsPage * 50)} of {displayedLeads.length} leads
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={leadsPage === 1}
+                onClick={() => setLeadsPage(p => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <span className="text-xs font-medium">
+                Page {leadsPage} of {Math.ceil(displayedLeads.length / 50) || 1}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={leadsPage * 50 >= displayedLeads.length}
+                onClick={() => setLeadsPage(p => p + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Lead Detail Dialog */}

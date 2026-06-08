@@ -35,6 +35,12 @@ const SalesTLDashboard: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [globalMemberFilter, setGlobalMemberFilter] = useState('all');
   const [globalLeadGenFilter, setGlobalLeadGenFilter] = useState('all');
+  const [leadsPage, setLeadsPage] = useState(1);
+  const PAGE_SIZE = 50;
+
+  React.useEffect(() => {
+    setLeadsPage(1);
+  }, [viewMode, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, globalMemberFilter, globalLeadGenFilter]);
 
   // ── Fetch all team leads (assigned to me or my team) ──
   const { data: leads = [] } = useQuery({
@@ -610,14 +616,14 @@ const SalesTLDashboard: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredLeads.slice(0, 50).map((lead, idx) => {
+                  filteredLeads.slice((leadsPage - 1) * 50, leadsPage * 50).map((lead, idx) => {
                     const closure = closureData.find(c => c.lead_id === lead.unique_id);
                     const hoursSince = (Date.now() - new Date(lead.updated_at).getTime()) / 3600000;
                     const isStale = hoursSince > 48 && !['Closed','Non Interested'].includes(lead.lead_status || '');
                     const isDNR = lead.lead_status?.startsWith('DNR');
                     return (
                       <tr key={lead.unique_id} className={`border-b border-border/50 hover:bg-accent/30 ${isStale ? 'bg-red-500/5' : isDNR ? 'bg-orange-500/5' : ''}`}>
-                        <td className="p-2 text-xs text-muted-foreground font-medium">{idx + 1}</td>
+                        <td className="p-2 text-xs text-muted-foreground font-medium">{(leadsPage - 1) * 50 + idx + 1}</td>
                         <td className="p-2 font-mono text-xs text-primary font-bold">{(lead as any).display_id || '—'}</td>
                         <td className="p-2 font-medium">{lead.name}</td>
                         <td className="p-2 text-xs text-muted-foreground">{lead.email}</td>
@@ -668,6 +674,34 @@ const SalesTLDashboard: React.FC = () => {
             </table>
           </div>
         </CardContent>
+        {filteredLeads.length > 0 && (
+          <div className="flex justify-between items-center p-4 border-t border-border flex-wrap gap-2 bg-accent/5">
+            <span className="text-xs text-muted-foreground">
+              Showing {Math.min(filteredLeads.length, (leadsPage - 1) * 50 + 1)} to {Math.min(filteredLeads.length, leadsPage * 50)} of {filteredLeads.length} leads
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={leadsPage === 1}
+                onClick={() => setLeadsPage(p => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <span className="text-xs font-medium">
+                Page {leadsPage} of {Math.ceil(filteredLeads.length / 50) || 1}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={leadsPage * 50 >= filteredLeads.length}
+                onClick={() => setLeadsPage(p => p + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
       {/* Lead Detail Dialog */}
       {selectedLead && (
