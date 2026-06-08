@@ -70,6 +70,8 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
   interface AdditionalSlot {
     amount: string;
     due_date: string;
+    paid?: boolean;
+    slot_number?: number;
   }
   const [additionalSlots, setAdditionalSlots] = useState<AdditionalSlot[]>([]);
 
@@ -79,7 +81,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
   const removeSlot = (index: number) => {
     setAdditionalSlots(prev => prev.filter((_, i) => i !== index));
   };
-  const updateSlot = (index: number, field: keyof AdditionalSlot, value: string) => {
+  const updateSlot = (index: number, field: keyof AdditionalSlot, value: any) => {
     setAdditionalSlots(prev => prev.map((s, i) => i === index ? { ...s, [field]: value } : s));
   };
 
