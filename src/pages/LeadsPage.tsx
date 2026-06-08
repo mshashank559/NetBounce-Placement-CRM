@@ -17,7 +17,7 @@ import AgreementDialog from '@/components/AgreementDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Shuffle, FileSignature, FileText, ChevronDown, Search } from 'lucide-react';
+import { Shuffle, FileSignature, FileText, ChevronDown, Search, RefreshCw } from 'lucide-react';
 import AccountantCommentDialog from '@/components/AccountantCommentDialog';
 import EditLeadDialog from '../components/EditLeadDialog';
 
@@ -386,8 +386,8 @@ const LeadsPage: React.FC = () => {
         comments: `Reassigned to ${type} Queue.`
       });
 
-      const admins = (await supabase.from('user_roles').select('user_id').eq('role', 'ADMIN')).data?.map(r => r.user_id) || [];
-      const targets = new Set<string>([...admins, userId]);
+      const adminsAndTls = (await supabase.from('user_roles').select('user_id').in('role', ['ADMIN', 'LEAD_TL'])).data?.map(r => r.user_id) || [];
+      const targets = new Set<string>([...adminsAndTls, userId]);
       
       const salesName = profilesMap?.[userId]?.full_name || 'Salesperson';
       const notifs = Array.from(targets).map(tId => ({
@@ -1018,18 +1018,13 @@ const LeadsPage: React.FC = () => {
                               <div className="relative reassign-dropdown-container">
                                 <Button
                                   size="sm"
-                                  variant="outline"
+                                  variant="ghost"
                                   disabled={reassignLead.isPending}
-                                  className="h-8 text-xs px-2.5 font-normal flex items-center justify-between gap-1.5 min-w-[135px] border-border/80 bg-background hover:bg-accent hover:text-accent-foreground"
                                   onClick={() => setReassigningLeadId(reassigningLeadId === lead.unique_id ? null : lead.unique_id)}
+                                  className="text-blue-500 hover:text-blue-600 hover:bg-blue-500/10"
                                   title="Reassign Lead"
                                 >
-                                  <span className="truncate">
-                                    {lead.assigned_to && profilesMap?.[lead.assigned_to]
-                                      ? `${profilesMap[lead.assigned_to].full_name} -- ${lead.assignment_type || 'Personal'}`
-                                      : 'Select salesperson'}
-                                  </span>
-                                  <ChevronDown className="h-3.5 w-3.5 opacity-50 shrink-0" />
+                                  <RefreshCw className={`h-3.5 w-3.5 ${reassignLead.isPending && reassigningLeadId === lead.unique_id ? 'animate-spin' : ''}`} />
                                 </Button>
                                 {reassigningLeadId === lead.unique_id && (
                                   <ReassignDropdownMenu
