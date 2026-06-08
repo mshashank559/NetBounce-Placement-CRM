@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
-import { TrendingUp, CheckCircle, Phone, DollarSign, AlertTriangle, Clock, UserPlus, Eye } from 'lucide-react';
+import { TrendingUp, CheckCircle, Phone, DollarSign, AlertTriangle, Clock, UserPlus, Eye, Search, RefreshCw } from 'lucide-react';
 import LeadDetailDialog from './LeadDetailDialog';
 import {
   LineChart, Line, BarChart, Bar, LabelList,
@@ -22,12 +22,73 @@ const COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'];
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const STATUS_FUNNEL = ['New','DNR1','DNR2','DNR3','Connected','Qualified','Hot Prospect','Closed'];
 
+interface SalesTLReassignDropdownMenuProps {
+  candidates: any[];
+  onSelect: (memberId: string) => void;
+  onClose: () => void;
+}
+
+const SalesTLReassignDropdownMenu: React.FC<SalesTLReassignDropdownMenuProps> = ({ candidates, onSelect, onClose }) => {
+  const [search, setSearch] = React.useState('');
+  const menuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside, true);
+    return () => document.removeEventListener('mousedown', handleClickOutside, true);
+  }, [onClose]);
+
+  const filteredCandidates = React.useMemo(() => {
+    const sorted = [...candidates].sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
+    if (!search.trim()) return sorted;
+    const q = search.toLowerCase();
+    return sorted.filter(c => (c.full_name || '').toLowerCase().includes(q));
+  }, [candidates, search]);
+
+  return (
+    <div
+      ref={menuRef}
+      className="absolute right-0 mt-1.5 w-60 rounded-md border border-border bg-popover text-popover-foreground shadow-md z-50 p-1 flex flex-col max-h-[300px]"
+    >
+      <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border/50">
+        <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <Input
+          placeholder="Search team member..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="h-7 text-xs border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+        />
+      </div>
+      <div className="overflow-y-auto flex-1 mt-1 space-y-0.5 max-h-[220px]">
+        {filteredCandidates.length === 0 ? (
+          <div className="text-[11px] text-muted-foreground text-center py-2">No team members found</div>
+        ) : (
+          filteredCandidates.map((c) => (
+            <button
+              key={c.user_id}
+              onClick={() => onSelect(c.user_id)}
+              className="w-full text-left px-2 py-1.5 text-xs rounded-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+            >
+              {c.full_name}
+            </button>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
 const SalesTLDashboard: React.FC = () => {
   const { user, profile, role } = useAuth();
   const queryClient = useQueryClient();
 
   const [viewMode, setViewMode] = useState('team'); // 'personal', 'team', or 'global'
   const [selectedLead, setSelectedLead] = useState<any>(null);
+  const [reassigningLeadId, setReassigningLeadId] = useState<string | null>(null);
   const [monthFilter, setMonthFilter] = useState(() => String(new Date().getMonth() + 1));
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -266,6 +327,79 @@ const SalesTLDashboard: React.FC = () => {
       await supabase.from('leads').update({ assigned_to: memberId }).eq('unique_id', leadId);
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['salestl-leads'] }); toast.success('Lead reassigned!'); }
+  });
+
+  // ── Sales TL Within-Team Reassignment ──
+  const salesReassignLead = useMutation({
+    mutationFn: async ({ leadId, newMemberId }: { leadId: string; newMemberId: string }) => {
+      const { data: lead, error: fetchErr } = await supabase
+        .from('leads')
+        .select('name, assigned_to')
+        .eq('unique_id', leadId)
+        .single();
+      if (fetchErr) throw fetchErr;
+
+      const leadName = lead?.name || 'Lead';
+      const oldAssigneeId = lead?.assigned_to;
+
+      const { error: updateErr } = await supabase
+        .from('leads')
+        .update({
+          assigned_to: newMemberId,
+          assignment_type: 'Personal',
+          team_lead_id: user!.id
+        } as any)
+        .eq('unique_id', leadId);
+      if (updateErr) throw updateErr;
+
+      await supabase.from('lead_history_logs').insert({
+        lead_id: leadId,
+        changed_by: user!.id,
+        action_type: 'OWNER_CHANGE',
+        old_value: oldAssigneeId || 'Unassigned',
+        new_value: newMemberId,
+        comments: `Reassigned within team by Sales TL.`
+      });
+
+      const oldName = oldAssigneeId ? (profiles.find(p => p.user_id === oldAssigneeId)?.full_name || 'former salesperson') : 'unassigned';
+      const newName = profiles.find(p => p.user_id === newMemberId)?.full_name || 'new salesperson';
+
+      const notifs: any[] = [];
+      notifs.push({
+        user_id: newMemberId,
+        title: 'Lead Reassigned to You',
+        message: `Lead "${leadName}" has been reassigned to you from ${oldName}.`,
+        type: 'reassign',
+        lead_id: leadId
+      });
+
+      if (oldAssigneeId && oldAssigneeId !== newMemberId) {
+        notifs.push({
+          user_id: oldAssigneeId,
+          title: 'Lead Reassigned Away',
+          message: `Lead "${leadName}" has been reassigned from you to ${newName}.`,
+          type: 'reassign',
+          lead_id: leadId
+        });
+      }
+
+      if (user!.id !== newMemberId && user!.id !== oldAssigneeId) {
+        notifs.push({
+          user_id: user!.id,
+          title: 'Lead Reassigned within Team',
+          message: `You reassigned Lead "${leadName}" from ${oldName} to ${newName}.`,
+          type: 'reassign',
+          lead_id: leadId
+        });
+      }
+
+      await supabase.from('notifications').insert(notifs);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['salestl-leads'] });
+      toast.success('Lead reassigned successfully within team!');
+    },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const resolveSalesConcernMutation = useMutation({
@@ -657,16 +791,44 @@ const SalesTLDashboard: React.FC = () => {
                           </td>
                         )}
                         <td className="p-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 w-7 p-0"
-                          onClick={() => setSelectedLead(lead)}
-                          title="View Details"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </td>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0"
+                              onClick={() => setSelectedLead(lead)}
+                              title="View Details"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+
+                            {/* Reassign Button (only for Sales TL) */}
+                            {role === 'SALES_TL' && (
+                              <div className="relative reassign-dropdown-container">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 w-7 p-0 text-blue-500 hover:text-blue-600 hover:bg-blue-500/10"
+                                  disabled={salesReassignLead.isPending}
+                                  onClick={() => setReassigningLeadId(reassigningLeadId === lead.unique_id ? null : lead.unique_id)}
+                                  title="Reassign Lead within Team"
+                                >
+                                  <RefreshCw className={`h-4 w-4 ${salesReassignLead.isPending && reassigningLeadId === lead.unique_id ? 'animate-spin' : ''}`} />
+                                </Button>
+                                {reassigningLeadId === lead.unique_id && (
+                                  <SalesTLReassignDropdownMenu
+                                    candidates={salesMembers}
+                                    onSelect={(memberId) => {
+                                      salesReassignLead.mutate({ leadId: lead.unique_id, newMemberId: memberId });
+                                      setReassigningLeadId(null);
+                                    }}
+                                    onClose={() => setReassigningLeadId(null)}
+                                  />
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </td>
                     </tr>
                   );
                 }))}
