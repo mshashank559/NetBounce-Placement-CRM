@@ -974,12 +974,23 @@ const LeadsPage: React.FC = () => {
                           <td className="p-3 text-xs">
                             {(() => {
                               const closure = closureData?.find(c => c.lead_id === lead.unique_id);
-                              return closure ? (
+                              if (!closure) return <span className="text-muted-foreground">—</span>;
+                              
+                              const s1 = closure.slot1 ? (Number(closure.slot1_amount) || 0) : 0;
+                              const s2 = closure.slot2 ? (Number(closure.slot2_amount) || 0) : 0;
+                              let additional = 0;
+                              if (Array.isArray(closure.additional_slots)) {
+                                closure.additional_slots.forEach((slot: any) => {
+                                  if (slot.paid === true) {
+                                    additional += Number(slot.amount) || 0;
+                                  }
+                                });
+                              }
+                              const amountReceived = s1 + s2 + additional;
+                              return (
                                 <span className="text-green-500 font-medium font-mono">
-                                  ${(closure.amount || 0).toLocaleString()}
+                                  ${amountReceived.toLocaleString()}
                                 </span>
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
                               );
                             })()}
                           </td>
