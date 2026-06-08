@@ -129,7 +129,7 @@ const AddLeadPage: React.FC = () => {
         // Sales auto-assign to self; BD leaves null
         assigned_to: (role === 'SALES_TM' || role === 'SALES_TL') ? user?.id : null,
         visa_status: form.visa_status || null,
-        lead_status: form.lead_status,
+        lead_status: (selectedBdm && selectedBdm !== 'none') ? form.lead_status : 'New',
       };
 
       const { data: insertedLead, error } = await supabase
@@ -254,7 +254,7 @@ const AddLeadPage: React.FC = () => {
                   On Behalf Of: {bdmList.find(b => b.user_id === selectedBdm)?.full_name}
                 </Badge>
               )}
-              <Select value={selectedBdm} onValueChange={setSelectedBdm}>
+              <Select value={selectedBdm} onValueChange={(val) => { setSelectedBdm(val); if (val === 'none') { set('lead_status', 'New'); } }}>
                 <SelectTrigger className="w-auto border-0 bg-transparent p-1 hover:bg-accent/40 rounded-full shadow-none focus:ring-0 focus:ring-offset-0 transition-colors">
                   <User className="h-5 w-5 text-muted-foreground hover:text-primary transition-colors cursor-pointer" />
                 </SelectTrigger>
@@ -347,23 +347,25 @@ const AddLeadPage: React.FC = () => {
                 <Label>Visa Status</Label>
                 <Input value={form.visa_status} onChange={e => set('visa_status', e.target.value)} placeholder="Enter visa status" />
               </div>
-              <div>
-                <Label>Status *</Label>
-                <Select value={form.lead_status} onValueChange={v => set('lead_status', v)}>
-                  <SelectTrigger><SelectValue placeholder="Select Status" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="New">Interested / New</SelectItem>
-                    <SelectItem value="DNR1">DNR 1</SelectItem>
-                    <SelectItem value="DNR2">DNR 2</SelectItem>
-                    <SelectItem value="DNR3">DNR 3</SelectItem>
-                    <SelectItem value="Connected">Connected</SelectItem>
-                    <SelectItem value="Qualified">Qualified</SelectItem>
-                    <SelectItem value="Hot Prospect">Hot Prospect</SelectItem>
-                    <SelectItem value="Closed">Closed</SelectItem>
-                    <SelectItem value="Non Interested">Not Interested</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {selectedBdm && selectedBdm !== 'none' && (
+                <div>
+                  <Label>Status</Label>
+                  <Select value={form.lead_status} onValueChange={v => set('lead_status', v)}>
+                    <SelectTrigger><SelectValue placeholder="Select Status" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="New">Interested / New</SelectItem>
+                      <SelectItem value="DNR1">DNR 1</SelectItem>
+                      <SelectItem value="DNR2">DNR 2</SelectItem>
+                      <SelectItem value="DNR3">DNR 3</SelectItem>
+                      <SelectItem value="Connected">Connected</SelectItem>
+                      <SelectItem value="Qualified">Qualified</SelectItem>
+                      <SelectItem value="Hot Prospect">Hot Prospect</SelectItem>
+                      <SelectItem value="Closed">Closed</SelectItem>
+                      <SelectItem value="Non Interested">Not Interested</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
             <div>
