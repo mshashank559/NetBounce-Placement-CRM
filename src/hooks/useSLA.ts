@@ -201,6 +201,88 @@ export const useSLA = () => {
           }
         }
       }
+
+      // ── Rule 5: Follow-up SLA Notification Logic ──
+      const { data: activeFollowupLeads } = await supabase
+        .from('leads')
+        .select('unique_id, name, assigned_to, team_lead_id, lead_status, updated_at, dnr_followup_done');
+
+      if (activeFollowupLeads && activeFollowupLeads.length > 0) {
+        const pendingLeads = activeFollowupLeads.filter(
+          l => !l.dnr_followup_done && ['DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', 'Hot Prospect'].includes(l.lead_status || '')
+        );
+
+        if (pendingLeads.length > 0) {
+          const { data: allProfiles } = await supabase
+            .from('profiles')
+            .select('user_id, reports_to');
+          const profileMap = new Map<string, string | null>();
+          allProfiles?.forEach(p => {
+            profileMap.set(p.user_id, p.reports_to);
+          });
+
+          const admins = await getRoleUserIds(['ADMIN']);
+          const analysts = await getRoleUserIds(['PROCESS_ANALYST']);
+
+          for (const lead of pendingLeads) {
+            let delayDays = 1;
+            const status = lead.lead_status;
+            if (status === 'Hot Prospect') delayDays = 90;
+            else if (status === 'Qualified') delayDays = 60;
+            else if (status === 'Connected') delayDays = 30;
+            else if (status === 'DNR1') delayDays = 20;
+            else if (status === 'DNR2') delayDays = 15;
+            else if (status === 'DNR3') delayDays = 10;
+
+            const updatedDate = new Date(lead.updated_at);
+            updatedDate.setDate(updatedDate.getDate() + delayDays);
+            const followupDateStr = updatedDate.toISOString().split('T')[0];
+
+            if (followupDateStr === today) {
+              // De-dup check
+              const { data: existing } = await supabase
+                .from('notifications')
+                .select('id')
+                .eq('lead_id', lead.unique_id)
+                .eq('type', 'sla_followup_reminder')
+                .gte('created_at', todayStart)
+                .limit(1);
+
+              if (!existing || existing.length === 0) {
+                const recipients = new Set<string>();
+
+                // 1. Assigned Salesperson
+                if (lead.assigned_to) {
+                  recipients.add(lead.assigned_to);
+
+                  // 2. Reporting Sales TL of that Salesperson
+                  const tlId = profileMap.get(lead.assigned_to);
+                  if (tlId) {
+                    recipients.add(tlId);
+                  }
+                }
+
+                // 3. Admin (for monitoring purposes)
+                admins.forEach(id => recipients.add(id));
+
+                // 4. Process Analyst (as per existing permissions)
+                analysts.forEach(id => recipients.add(id));
+
+                if (recipients.size > 0) {
+                  const notificationsToInsert = Array.from(recipients).map(userId => ({
+                    user_id: userId,
+                    title: '⏰ Follow-up SLA Reminder',
+                    message: `Lead "${lead.name}" is scheduled for follow-up today (${followupDateStr}).`,
+                    type: 'sla_followup_reminder',
+                    lead_id: lead.unique_id,
+                  }));
+                  await supabase.from('notifications').insert(notificationsToInsert);
+                }
+              }
+            }
+          }
+        }
+      }
     };
 
     // Run once on mount with a small delay to not block render
