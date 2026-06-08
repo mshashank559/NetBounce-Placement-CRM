@@ -49,7 +49,7 @@ const DNRFollowupsPage: React.FC = () => {
       if (error) throw error;
 
       // Determine who to notify based on the role of the person marking done
-      let notifyRoles: string[] = [];
+      let notifyRoles: any[] = [];
       if (role === 'SALES_TM' || role === 'SALES_TL') {
         notifyRoles = ['SALES_TL', 'ADMIN', 'PROCESS_ANALYST'];
       } else if (role === 'LEAD_GEN') {
@@ -124,7 +124,7 @@ const DNRFollowupsPage: React.FC = () => {
           ) : filtered.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">No DNR leads</div>
           ) : (
-            <>
+            <div>
               <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -245,7 +245,7 @@ const DNRFollowupsPage: React.FC = () => {
                 </div>
               </div>
             )}
-            </>
+            </div>
           )}
         </CardContent>
       </Card>

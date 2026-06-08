@@ -209,7 +209,7 @@ const LoginActivityPage: React.FC = () => {
           ) : filtered.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">No login activity found</div>
           ) : (
-            <>
+            <div>
               <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -312,7 +312,7 @@ const LoginActivityPage: React.FC = () => {
                 </div>
               </div>
             )}
-            </>
+            </div>
           )}
         </CardContent>
       </Card>
