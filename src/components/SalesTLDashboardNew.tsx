@@ -802,8 +802,8 @@ const SalesTLDashboard: React.FC = () => {
                               <Eye className="h-4 w-4" />
                             </Button>
 
-                            {/* Reassign Button (only for Sales TL) */}
-                            {role === 'SALES_TL' && (
+                            {/* Reassign Button (only for Sales TL and not in Global View) */}
+                            {role === 'SALES_TL' && viewMode !== 'global' && (
                               <div className="relative reassign-dropdown-container">
                                 <Button
                                   size="sm"
