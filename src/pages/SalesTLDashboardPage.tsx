@@ -101,7 +101,9 @@ const SalesTLDashboardPage: React.FC = () => {
         let additional = 0;
         if (Array.isArray(c.additional_slots)) {
           c.additional_slots.forEach((slot: any) => {
-            additional += Number(slot.amount) || 0;
+            if (slot.paid === true) {
+              additional += Number(slot.amount) || 0;
+            }
           });
         }
         return s + s1 + s2 + additional;
@@ -239,9 +241,9 @@ const SalesTLDashboardPage: React.FC = () => {
                           <span>{c.plan} · {c.payment_mode}</span>
                           <span className="font-medium">
                             Upfront: ${c.upfront_amount}
-                            {c.slot1 && ` · S1: $${c.slot1_amount}`}
-                            {c.slot2 && ` · S2: $${c.slot2_amount}`}
-                            {Array.isArray(c.additional_slots) && c.additional_slots.map((s: any, idx: number) => ` · S${s.slot_number || (idx + 3)}: $${s.amount}`)}
+                            {c.slot1_amount !== null && ` · S1: $${c.slot1_amount}${c.slot1 ? ' (Paid)' : ' (Unpaid)'}`}
+                            {c.slot2_amount !== null && ` · S2: $${c.slot2_amount}${c.slot2 ? ' (Paid)' : ' (Unpaid)'}`}
+                            {Array.isArray(c.additional_slots) && c.additional_slots.map((s: any, idx: number) => ` · S${s.slot_number || (idx + 3)}: $${s.amount}${s.paid ? ' (Paid)' : ' (Unpaid)'}`)}
                           </span>
                         </div>
                       ))}

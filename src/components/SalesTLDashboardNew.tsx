@@ -260,7 +260,9 @@ const SalesTLDashboard: React.FC = () => {
         let additional = 0;
         if (Array.isArray(c.additional_slots)) {
           c.additional_slots.forEach((slot: any) => {
-            additional += Number(slot.amount) || 0;
+            if (slot.paid === true) {
+              additional += Number(slot.amount) || 0;
+            }
           });
         }
         return s + s1 + s2 + additional;
@@ -673,12 +675,14 @@ const SalesTLDashboard: React.FC = () => {
               <div className="p-4 rounded-lg bg-accent/30 text-center">
                 <p className="text-xs text-muted-foreground">Pending Slots</p>
                 <p className="text-2xl font-bold text-blue-500">${closureData.filter(c => filteredLeadIds.has(c.lead_id)).reduce((s, c) => {
-                  const s1 = c.slot1 ? (Number(c.slot1_amount) || 0) : 0;
-                  const s2 = c.slot2 ? (Number(c.slot2_amount) || 0) : 0;
+                  const s1 = !c.slot1 ? (Number(c.slot1_amount) || 0) : 0;
+                  const s2 = !c.slot2 ? (Number(c.slot2_amount) || 0) : 0;
                   let additional = 0;
                   if (Array.isArray(c.additional_slots)) {
                     c.additional_slots.forEach((slot: any) => {
-                      additional += Number(slot.amount) || 0;
+                      if (!slot.paid) {
+                        additional += Number(slot.amount) || 0;
+                      }
                     });
                   }
                   return s + s1 + s2 + additional;

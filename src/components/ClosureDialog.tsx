@@ -103,7 +103,7 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
       if (form.plan === 'Custom' && !form.custom_plan_note.trim()) throw new Error('Please describe your Custom Plan');
       if (!form.upfront_amount || parseFloat(form.upfront_amount) <= 0) throw new Error('Upfront Amount is required');
       if (!form.amount || parseFloat(form.amount) <= 0) throw new Error('On-Offer Amount is required');
-      if (!form.percentage || parseFloat(form.percentage) <= 0) throw new Error('Percentage is required');
+      if (form.percentage === '' || parseFloat(form.percentage) < 0) throw new Error('Percentage is required');
 
       // Update lead status to Closed
       await supabase.from('leads').update({ lead_status: 'Closed' as any }).eq('unique_id', lead.unique_id);
@@ -127,16 +127,17 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
         amount: parseFloat(form.amount) || 0,
         percentage: parseFloat(form.percentage) || 0,
         slot1: form.slot1,
-        slot1_amount: form.slot1 ? parseFloat(form.slot1_amount) || 0 : null,
-        slot1_due_date: (form.slot1 && form.slot1_due_date) ? form.slot1_due_date : null,
+        slot1_amount: form.slot1_amount ? parseFloat(form.slot1_amount) || 0 : null,
+        slot1_due_date: form.slot1_due_date || null,
         slot2: form.slot2,
-        slot2_amount: form.slot2 ? parseFloat(form.slot2_amount) || 0 : null,
-        next_slot_due_date: (form.slot2 && form.next_slot_due_date) ? form.next_slot_due_date : null,
+        slot2_amount: form.slot2_amount ? parseFloat(form.slot2_amount) || 0 : null,
+        next_slot_due_date: form.next_slot_due_date || null,
         payment_mode: form.payment_mode as any,
         additional_slots: additionalSlots.map((s, idx) => ({
           slot_number: idx + 3,
           amount: parseFloat(s.amount) || 0,
-          due_date: s.due_date || null
+          due_date: s.due_date || null,
+          paid: !!s.paid
         }))
       };
 
@@ -159,9 +160,9 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
             interview_plan: form.interview_plan,
             upfront_amount: parseFloat(form.upfront_amount) || 0,
             slot1: form.slot1,
-            slot1_amount: form.slot1 ? parseFloat(form.slot1_amount) || 0 : null,
+            slot1_amount: form.slot1_amount ? parseFloat(form.slot1_amount) || 0 : null,
             slot2: form.slot2,
-            slot2_amount: form.slot2 ? parseFloat(form.slot2_amount) || 0 : null,
+            slot2_amount: form.slot2_amount ? parseFloat(form.slot2_amount) || 0 : null,
             payment_mode: form.payment_mode as any,
           };
           let fallbackErr;
@@ -202,10 +203,9 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
       }
 
       // Revenue notification for Admin + Sales TL
-      const totalRevenue = (parseFloat(form.upfront_amount) || 0)
-        + (form.slot1 ? (parseFloat(form.slot1_amount) || 0) : 0)
+      const totalRevenue = (form.slot1 ? (parseFloat(form.slot1_amount) || 0) : 0)
         + (form.slot2 ? (parseFloat(form.slot2_amount) || 0) : 0)
-        + additionalSlots.reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
+        + additionalSlots.reduce((sum, s) => sum + (s.paid ? (parseFloat(s.amount) || 0) : 0), 0);
 
       if (totalRevenue > 0) {
         const { data: revenueRoles } = await supabase
@@ -243,7 +243,9 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="glass-card max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-display">Close Lead — {lead?.name}</DialogTitle>
+          <DialogTitle className="font-display">
+            {lead?.lead_status === 'Closed' ? 'Edit Closure & Payment Details' : `Close Lead — ${lead?.name}`}
+          </DialogTitle>
         </DialogHeader>
         
         <form onSubmit={e => { e.preventDefault(); mutation.mutate(); }} className="space-y-4 mt-4">
@@ -324,40 +326,44 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
           </div>
 
           {/* Slot 1 */}
-          <div className="flex items-center gap-2">
-            <Checkbox checked={form.slot1} onCheckedChange={v => set('slot1', !!v)} id="s1" />
-            <Label htmlFor="s1">Slot 1</Label>
-          </div>
-          {form.slot1 && (
-            <div className="space-y-2 pl-6 border-l-2 border-primary/20">
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-                <Input type="number" value={form.slot1_amount} onChange={e => set('slot1_amount', e.target.value)} placeholder="Slot 1 Amount" className="pl-7" />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">Due Date (auto-set to today)</Label>
-                <Input type="date" value={form.slot1_due_date} onChange={e => set('slot1_due_date', e.target.value)} className="text-xs" />
+          <div className="space-y-2 pl-4 border-l-2 border-primary/20">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-foreground">Slot 1 Details</span>
+              <div className="flex items-center gap-2">
+                <Checkbox checked={form.slot1} onCheckedChange={v => set('slot1', !!v)} id="s1" />
+                <Label htmlFor="s1" className="text-xs cursor-pointer">Mark as Paid</Label>
               </div>
             </div>
-          )}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                <Input type="number" value={form.slot1_amount} onChange={e => set('slot1_amount', e.target.value)} placeholder="Slot 1 Amount" className="pl-7 text-xs h-9" />
+              </div>
+              <div>
+                <Input type="date" value={form.slot1_due_date} onChange={e => set('slot1_due_date', e.target.value)} className="text-xs h-9" />
+              </div>
+            </div>
+          </div>
 
           {/* Next Slot (Slot 2) */}
-          <div className="flex items-center gap-2">
-            <Checkbox checked={form.slot2} onCheckedChange={v => set('slot2', !!v)} id="s2" />
-            <Label htmlFor="s2">Next Slot</Label>
-          </div>
-          {form.slot2 && (
-            <div className="space-y-2 pl-6 border-l-2 border-primary/20">
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-                <Input type="number" value={form.slot2_amount} onChange={e => set('slot2_amount', e.target.value)} placeholder="Next Slot Amount" className="pl-7" />
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">Due Date</Label>
-                <Input type="date" value={form.next_slot_due_date} onChange={e => set('next_slot_due_date', e.target.value)} className="text-xs" />
+          <div className="space-y-2 pl-4 border-l-2 border-primary/20">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-foreground">Next Slot (Slot 2) Details</span>
+              <div className="flex items-center gap-2">
+                <Checkbox checked={form.slot2} onCheckedChange={v => set('slot2', !!v)} id="s2" />
+                <Label htmlFor="s2" className="text-xs cursor-pointer">Mark as Paid</Label>
               </div>
             </div>
-          )}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                <Input type="number" value={form.slot2_amount} onChange={e => set('slot2_amount', e.target.value)} placeholder="Next Slot Amount" className="pl-7 text-xs h-9" />
+              </div>
+              <div>
+                <Input type="date" value={form.next_slot_due_date} onChange={e => set('next_slot_due_date', e.target.value)} className="text-xs h-9" />
+              </div>
+            </div>
+          </div>
 
           {/* Additional Slots */}
           <div className="space-y-3 pt-2">
@@ -375,37 +381,46 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
             </div>
             
             {additionalSlots.map((slot, index) => (
-              <div key={index} className="space-y-2 pl-6 border-l-2 border-primary/20 relative">
+              <div key={index} className="space-y-2 pl-4 border-l-2 border-primary/20 relative">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-muted-foreground">Slot {index + 3}</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeSlot(index)}
-                    className="h-6 w-6 text-destructive hover:bg-destructive/10"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  <span className="text-xs font-semibold text-foreground">Slot {index + 3} Details</span>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={!!slot.paid}
+                      onCheckedChange={v => updateSlot(index, 'paid', !!v)}
+                      id={`add-slot-paid-${index}`}
+                    />
+                    <Label htmlFor={`add-slot-paid-${index}`} className="text-xs cursor-pointer">Mark as Paid</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeSlot(index)}
+                      className="h-6 w-6 text-destructive hover:bg-destructive/10 ml-2"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-                  <Input
-                    type="number"
-                    value={slot.amount}
-                    onChange={e => updateSlot(index, 'amount', e.target.value)}
-                    placeholder={`Slot ${index + 3} Amount`}
-                    className="pl-7 text-xs h-9"
-                  />
-                </div>
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">Due Date</Label>
-                  <Input
-                    type="date"
-                    value={slot.due_date}
-                    onChange={e => updateSlot(index, 'due_date', e.target.value)}
-                    className="text-xs h-9 mt-0.5"
-                  />
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                    <Input
+                      type="number"
+                      value={slot.amount}
+                      onChange={e => updateSlot(index, 'amount', e.target.value)}
+                      placeholder={`Slot ${index + 3} Amount`}
+                      className="pl-7 text-xs h-9"
+                    />
+                  </div>
+                  <div>
+                    <Input
+                      type="date"
+                      value={slot.due_date}
+                      onChange={e => updateSlot(index, 'due_date', e.target.value)}
+                      className="text-xs h-9"
+                    />
+                  </div>
                 </div>
               </div>
             ))}
@@ -426,7 +441,7 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
             </Select>
           </div>
           <Button type="submit" className="w-full nb-gradient" disabled={mutation.isPending}>
-            {mutation.isPending ? 'Processing...' : 'Close Lead'}
+            {mutation.isPending ? 'Processing...' : (lead?.lead_status === 'Closed' ? 'Save Closure Details' : 'Close Lead')}
           </Button>
         </form>
       </DialogContent>

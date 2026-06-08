@@ -112,7 +112,8 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
       const parsedAdditionalSlots = Array.isArray(closure.additional_slots)
         ? (closure.additional_slots as any[]).map(s => ({
             amount: s.amount ? String(s.amount) : '',
-            due_date: s.due_date || ''
+            due_date: s.due_date || '',
+            paid: !!s.paid
           }))
         : [];
       setAdditionalSlots(parsedAdditionalSlots);
@@ -130,7 +131,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
         if (plan === 'Custom' && !customPlanNote.trim()) throw new Error('Please describe your Custom Plan');
         if (!upfrontAmount || parseFloat(upfrontAmount) <= 0) throw new Error('Upfront Amount is required');
         if (!amount || parseFloat(amount) <= 0) throw new Error('On-Offer Amount is required');
-        if (!percentage || parseFloat(percentage) <= 0) throw new Error('Percentage is required');
+        if (percentage === '' || parseFloat(percentage) < 0) throw new Error('Percentage is required');
       }
 
       // Validation for Send Document
@@ -197,16 +198,17 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
             amount: parseFloat(amount) || 0,
             percentage: parseFloat(percentage) || 0,
             slot1: slot1,
-            slot1_amount: slot1 ? parseFloat(slot1Amount) || 0 : null,
-            slot1_due_date: (slot1 && slot1DueDate) ? slot1DueDate : null,
+            slot1_amount: slot1Amount ? parseFloat(slot1Amount) || 0 : null,
+            slot1_due_date: slot1DueDate || null,
             slot2: slot2,
-            slot2_amount: slot2 ? parseFloat(slot2Amount) || 0 : null,
-            next_slot_due_date: (slot2 && nextSlotDueDate) ? nextSlotDueDate : null,
+            slot2_amount: slot2Amount ? parseFloat(slot2Amount) || 0 : null,
+            next_slot_due_date: nextSlotDueDate || null,
             payment_mode: paymentMode as any,
             additional_slots: additionalSlots.map((s, idx) => ({
               slot_number: idx + 3,
               amount: parseFloat(s.amount) || 0,
-              due_date: s.due_date || null
+              due_date: s.due_date || null,
+              paid: !!s.paid
             }))
           };
 
@@ -228,9 +230,9 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
                 interview_plan: interviewPlan,
                 upfront_amount: parseFloat(upfrontAmount) || 0,
                 slot1: slot1,
-                slot1_amount: slot1 ? parseFloat(slot1Amount) || 0 : null,
+                slot1_amount: slot1Amount ? parseFloat(slot1Amount) || 0 : null,
                 slot2: slot2,
-                slot2_amount: slot2 ? parseFloat(slot2Amount) || 0 : null,
+                slot2_amount: slot2Amount ? parseFloat(slot2Amount) || 0 : null,
                 payment_mode: paymentMode as any,
               };
               let fallbackErr;
@@ -270,10 +272,9 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
           }
 
           // Revenue notification for Admin + Sales TL
-          const totalRevenue = (parseFloat(upfrontAmount) || 0)
-            + (slot1 ? (parseFloat(slot1Amount) || 0) : 0)
+          const totalRevenue = (slot1 ? (parseFloat(slot1Amount) || 0) : 0)
             + (slot2 ? (parseFloat(slot2Amount) || 0) : 0)
-            + additionalSlots.reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
+            + additionalSlots.reduce((sum, s) => sum + (s.paid ? (parseFloat(s.amount) || 0) : 0), 0);
 
           if (totalRevenue > 0) {
             const { data: revenueRoles } = await supabase
@@ -593,41 +594,45 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 py-1">
-                <Checkbox checked={slot1} onCheckedChange={v => setSlot1(!!v)} id="s1" />
-                <Label htmlFor="s1" className="cursor-pointer">Slot 1</Label>
-              </div>
-              
-              {slot1 && (
-                <div className="space-y-2 pl-6 border-l-2 border-primary/20">
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-                    <Input type="number" value={slot1Amount} onChange={e => setSlot1Amount(e.target.value)} placeholder="Slot 1 Amount" className="pl-7" />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Due Date (auto-set to today)</Label>
-                    <Input type="date" value={slot1DueDate} onChange={e => setSlot1DueDate(e.target.value)} className="text-xs mt-1" />
+              {/* Slot 1 */}
+              <div className="space-y-2 pl-4 border-l-2 border-primary/20">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-foreground">Slot 1 Details</span>
+                  <div className="flex items-center gap-2">
+                    <Checkbox checked={slot1} onCheckedChange={v => setSlot1(!!v)} id="s1" />
+                    <Label htmlFor="s1" className="text-xs cursor-pointer">Mark as Paid</Label>
                   </div>
                 </div>
-              )}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                    <Input type="number" value={slot1Amount} onChange={e => setSlot1Amount(e.target.value)} placeholder="Slot 1 Amount" className="pl-7 text-xs h-9" />
+                  </div>
+                  <div>
+                    <Input type="date" value={slot1DueDate} onChange={e => setSlot1DueDate(e.target.value)} className="text-xs h-9" />
+                  </div>
+                </div>
+              </div>
 
-              <div className="flex items-center gap-2 py-1">
-                <Checkbox checked={slot2} onCheckedChange={v => setSlot2(!!v)} id="s2" />
-                <Label htmlFor="s2" className="cursor-pointer">Next Slot</Label>
-              </div>
-              
-              {slot2 && (
-                <div className="space-y-2 pl-6 border-l-2 border-primary/20">
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-                    <Input type="number" value={slot2Amount} onChange={e => setSlot2Amount(e.target.value)} placeholder="Next Slot Amount" className="pl-7" />
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Due Date</Label>
-                    <Input type="date" value={nextSlotDueDate} onChange={e => setNextSlotDueDate(e.target.value)} className="text-xs mt-1" />
+              {/* Next Slot (Slot 2) */}
+              <div className="space-y-2 pl-4 border-l-2 border-primary/20">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-foreground">Next Slot (Slot 2) Details</span>
+                  <div className="flex items-center gap-2">
+                    <Checkbox checked={slot2} onCheckedChange={v => setSlot2(!!v)} id="s2" />
+                    <Label htmlFor="s2" className="text-xs cursor-pointer">Mark as Paid</Label>
                   </div>
                 </div>
-              )}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                    <Input type="number" value={slot2Amount} onChange={e => setSlot2Amount(e.target.value)} placeholder="Next Slot Amount" className="pl-7 text-xs h-9" />
+                  </div>
+                  <div>
+                    <Input type="date" value={nextSlotDueDate} onChange={e => setNextSlotDueDate(e.target.value)} className="text-xs h-9" />
+                  </div>
+                </div>
+              </div>
 
               {/* Additional Slots */}
               <div className="space-y-3 pt-2">
@@ -645,37 +650,46 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
                 </div>
                 
                 {additionalSlots.map((slot, index) => (
-                  <div key={index} className="space-y-2 pl-6 border-l-2 border-primary/20 relative">
+                  <div key={index} className="space-y-2 pl-4 border-l-2 border-primary/20 relative">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-muted-foreground">Slot {index + 3}</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeSlot(index)}
-                        className="h-6 w-6 text-destructive hover:bg-destructive/10"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      <span className="text-xs font-semibold text-foreground">Slot {index + 3} Details</span>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={!!slot.paid}
+                          onCheckedChange={v => updateSlot(index, 'paid', !!v)}
+                          id={`add-slot-paid-${index}`}
+                        />
+                        <Label htmlFor={`add-slot-paid-${index}`} className="text-xs cursor-pointer">Mark as Paid</Label>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeSlot(index)}
+                          className="h-6 w-6 text-destructive hover:bg-destructive/10 ml-2"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
-                      <Input
-                        type="number"
-                        value={slot.amount}
-                        onChange={e => updateSlot(index, 'amount', e.target.value)}
-                        placeholder={`Slot ${index + 3} Amount`}
-                        className="pl-7 text-xs h-9"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-[10px] text-muted-foreground">Due Date</Label>
-                      <Input
-                        type="date"
-                        value={slot.due_date}
-                        onChange={e => updateSlot(index, 'due_date', e.target.value)}
-                        className="text-xs h-9 mt-0.5"
-                      />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                        <Input
+                          type="number"
+                          value={slot.amount}
+                          onChange={e => updateSlot(index, 'amount', e.target.value)}
+                          placeholder={`Slot ${index + 3} Amount`}
+                          className="pl-7 text-xs h-9"
+                        />
+                      </div>
+                      <div>
+                        <Input
+                          type="date"
+                          value={slot.due_date}
+                          onChange={e => updateSlot(index, 'due_date', e.target.value)}
+                          className="text-xs h-9"
+                        />
+                      </div>
                     </div>
                   </div>
                 ))}

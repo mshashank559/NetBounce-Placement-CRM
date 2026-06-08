@@ -170,13 +170,21 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                   <Field label="Payment Mode" value={closure.payment_mode} />
                   {closure.amount != null && <Field label="On-Offer Amount" value={`$${closure.amount}`} />}
                   {closure.percentage != null && <Field label="Percentage" value={`${closure.percentage}%`} />}
-                  {closure.slot1 && <Field label="Slot 1 Amount" value={`$${closure.slot1_amount}`} />}
-                  {closure.slot1_due_date && <Field label="Slot 1 Due Date" value={new Date(closure.slot1_due_date).toLocaleDateString()} />}
-                  {closure.slot2 && <Field label="Next Slot Amount" value={`$${closure.slot2_amount}`} />}
-                  {closure.next_slot_due_date && <Field label="Next Slot Due Date" value={new Date(closure.next_slot_due_date).toLocaleDateString()} />}
+                  {closure.slot1_amount !== null && closure.slot1_amount !== '' && (
+                    <>
+                      <Field label="Slot 1 Amount" value={`$${closure.slot1_amount} (${closure.slot1 ? 'Paid' : 'Unpaid'})`} />
+                      {closure.slot1_due_date && <Field label="Slot 1 Due Date" value={new Date(closure.slot1_due_date).toLocaleDateString()} />}
+                    </>
+                  )}
+                  {closure.slot2_amount !== null && closure.slot2_amount !== '' && (
+                    <>
+                      <Field label="Next Slot Amount" value={`$${closure.slot2_amount} (${closure.slot2 ? 'Paid' : 'Unpaid'})`} />
+                      {closure.next_slot_due_date && <Field label="Next Slot Due Date" value={new Date(closure.next_slot_due_date).toLocaleDateString()} />}
+                    </>
+                  )}
                   {Array.isArray(closure.additional_slots) && (closure.additional_slots as any[]).map((slot: any, idx: number) => (
                     <React.Fragment key={idx}>
-                      <Field label={`Slot ${slot.slot_number || (idx + 3)} Amount`} value={`$${slot.amount}`} />
+                      <Field label={`Slot ${slot.slot_number || (idx + 3)} Amount`} value={`$${slot.amount} (${slot.paid ? 'Paid' : 'Unpaid'})`} />
                       {slot.due_date && <Field label={`Slot ${slot.slot_number || (idx + 3)} Due Date`} value={new Date(slot.due_date).toLocaleDateString()} />}
                     </React.Fragment>
                   ))}

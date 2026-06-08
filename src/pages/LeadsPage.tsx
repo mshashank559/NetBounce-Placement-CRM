@@ -17,7 +17,7 @@ import AgreementDialog from '@/components/AgreementDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Shuffle, FileSignature, FileText, ChevronDown, Search, RefreshCw } from 'lucide-react';
+import { Shuffle, FileSignature, FileText, ChevronDown, Search, RefreshCw, DollarSign } from 'lucide-react';
 import AccountantCommentDialog from '@/components/AccountantCommentDialog';
 import EditLeadDialog from '../components/EditLeadDialog';
 
@@ -1056,6 +1056,19 @@ const LeadsPage: React.FC = () => {
                                 title="Agreement Workflow"
                               >
                                 <FileSignature className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+
+                            {/* Edit Closure Details Button */}
+                            {currentStatus === 'Closed' && (role === 'ADMIN' || role === 'SALES_TL' || role === 'SALES_TM' || role === 'PROCESS_ANALYST') && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setClosureLead(lead)}
+                                className="text-green-600 hover:text-green-700 hover:bg-green-500/10"
+                                title="Edit Closure details"
+                              >
+                                <DollarSign className="h-3.5 w-3.5" />
                               </Button>
                             )}
 

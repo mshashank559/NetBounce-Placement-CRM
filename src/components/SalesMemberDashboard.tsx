@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { motion } from 'framer-motion';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { TrendingUp, CheckCircle, Phone, Calendar, Eye, AlertTriangle, CheckCircle2, Clock, FileText as FileTextIcon, Send, MessageSquare } from 'lucide-react';
+import { TrendingUp, CheckCircle, Phone, Calendar, Eye, AlertTriangle, CheckCircle2, Clock, FileText as FileTextIcon, Send, MessageSquare, DollarSign } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import LeadDetailDialog from '@/components/LeadDetailDialog';
 import CallActivityDialog from '@/components/CallActivityDialog';
@@ -777,6 +777,17 @@ const SalesMemberDashboard: React.FC = () => {
                               }}
                             >
                               Close
+                            </Button>
+                          )}
+                          {lead.lead_status === 'Closed' && lead.assigned_to === user?.id && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-green-600 hover:text-green-700 hover:bg-green-500/10 h-7 w-7 p-0"
+                              title="Edit Closure Details"
+                              onClick={() => setClosureLead(lead)}
+                            >
+                              <DollarSign className="h-3.5 w-3.5" />
                             </Button>
                           )}
                          </div>

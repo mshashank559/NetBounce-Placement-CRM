@@ -491,7 +491,9 @@ const AdminDashboard: React.FC = () => {
       let additional = 0;
       if (Array.isArray(closure.additional_slots)) {
         closure.additional_slots.forEach((slot: any) => {
-          additional += Number(slot.amount) || 0;
+          if (slot.paid === true) {
+            additional += Number(slot.amount) || 0;
+          }
         });
       }
       return s1 + s2 + additional;
@@ -551,7 +553,11 @@ const AdminDashboard: React.FC = () => {
     const s2 = closure.slot2 ? (Number(closure.slot2_amount) || 0) : 0;
     let additional = 0;
     if (Array.isArray(closure.additional_slots)) {
-      closure.additional_slots.forEach((slot: any) => { additional += Number(slot.amount) || 0; });
+      closure.additional_slots.forEach((slot: any) => {
+        if (slot.paid === true) {
+          additional += Number(slot.amount) || 0;
+        }
+      });
     }
     return s1 + s2 + additional;
   };
