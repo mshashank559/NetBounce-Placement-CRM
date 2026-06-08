@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,6 +12,8 @@ import { toast } from 'sonner';
 const DNRFollowupsPage: React.FC = () => {
   const { user, role } = useAuth();
   const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   const { data: leads, isLoading } = useQuery({
     queryKey: ['dnr-leads'],
@@ -87,6 +89,14 @@ const DNRFollowupsPage: React.FC = () => {
     return true; // ADMIN, PROCESS_ANALYST, TLs see all
   }) || [];
 
+  useEffect(() => {
+    setPage(1);
+  }, [filtered.length]);
+
+  const totalCount = filtered.length;
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE) || 1;
+  const paginatedLeads = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   // Can the current user mark follow-up as done?
   const canMark = (lead: any) => {
     if ((lead as any).dnr_followup_done) return false;
@@ -114,7 +124,8 @@ const DNRFollowupsPage: React.FC = () => {
           ) : filtered.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">No DNR leads</div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border">
@@ -132,7 +143,7 @@ const DNRFollowupsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((lead, i) => {
+                  {paginatedLeads.map((lead, i) => {
                     const gen = lead.lead_generated_by && profilesMap?.[lead.lead_generated_by];
                     const done = (lead as any).dnr_followup_done;
                     const doneBy = (lead as any).dnr_followup_done_by && profilesMap?.[(lead as any).dnr_followup_done_by];
@@ -205,6 +216,36 @@ const DNRFollowupsPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+            {/* Pagination Controls */}
+            {totalCount > 0 && (
+              <div className="flex justify-between items-center p-4 border-t border-border flex-wrap gap-2">
+                <span className="text-xs text-muted-foreground">
+                  Showing {Math.min(totalCount, (page - 1) * PAGE_SIZE + 1)} to {Math.min(totalCount, page * PAGE_SIZE)} of {totalCount} leads
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={page === 1}
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-xs font-medium">
+                    Page {page} of {totalPages}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={page * PAGE_SIZE >= totalCount}
+                    onClick={() => setPage(p => p + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
+            </>
           )}
         </CardContent>
       </Card>

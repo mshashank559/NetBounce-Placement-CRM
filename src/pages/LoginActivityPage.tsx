@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Activity, Calendar, Clock, LogIn, LogOut } from 'lucide-react';
 
 const MONTH_NAMES = [
@@ -43,6 +44,8 @@ const LoginActivityPage: React.FC = () => {
   const [monthFilter, setMonthFilter] = useState('all');
   const [dateFrom, setDateFrom]       = useState('');
   const [dateTo, setDateTo]           = useState('');
+  const [page, setPage]               = useState(1);
+  const PAGE_SIZE = 50;
 
   // ── Fetch all users for the filter dropdown ───────────────────
   const { data: allUsers } = useQuery({
@@ -90,6 +93,14 @@ const LoginActivityPage: React.FC = () => {
       return true;
     });
   }, [activity, userFilter, monthFilter, dateFrom, dateTo]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [userFilter, monthFilter, dateFrom, dateTo, activity.length]);
+
+  const totalCount = filtered.length;
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE) || 1;
+  const paginatedActivity = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // ── Build profile map for display (fallback for legacy rows without denorm data) ──
   const profileMap = useMemo(() => {
@@ -198,7 +209,8 @@ const LoginActivityPage: React.FC = () => {
           ) : filtered.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">No login activity found</div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border">
@@ -218,7 +230,7 @@ const LoginActivityPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((row, i) => {
+                  {paginatedActivity.map((row, i) => {
                     // Prefer denormalized data stored at login time;
                     // fall back to profileMap for older rows that predate this fix
                     const profile = profileMap[row.user_id];
@@ -271,6 +283,36 @@ const LoginActivityPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+            {/* Pagination Controls */}
+            {totalCount > 0 && (
+              <div className="flex justify-between items-center p-4 border-t border-border flex-wrap gap-2">
+                <span className="text-xs text-muted-foreground">
+                  Showing {Math.min(totalCount, (page - 1) * PAGE_SIZE + 1)} to {Math.min(totalCount, page * PAGE_SIZE)} of {totalCount} records
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={page === 1}
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-xs font-medium">
+                    Page {page} of {totalPages}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={page * PAGE_SIZE >= totalCount}
+                    onClick={() => setPage(p => p + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
+            </>
           )}
         </CardContent>
       </Card>
