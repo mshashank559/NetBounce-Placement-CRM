@@ -36,12 +36,20 @@ const SalesTLDashboardPage: React.FC = () => {
   });
 
   const { data: allLeads } = useQuery({
-    queryKey: ['sales-tl-leads'],
+    queryKey: ['sales-tl-leads', user?.id, role],
     queryFn: async () => {
-      // Only fetch the columns needed for per-member KPI calculations — not select('*')
-      const { data } = await supabase
+      let query = supabase
         .from('leads')
         .select('unique_id, lead_status, assigned_to, team_lead_id, created_at');
+      if (role === 'SALES_TL') {
+        const { data: teamProfiles } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
+        const teamUserIds = teamProfiles?.map(p => p.user_id) || [user!.id];
+        query = query.or(`assigned_to.in.(${teamUserIds.join(',')}),team_lead_id.eq.${user!.id}`);
+      }
+      const { data } = await query;
       return data || [];
     },
     enabled: !!user,
@@ -49,18 +57,48 @@ const SalesTLDashboardPage: React.FC = () => {
   });
 
   const { data: callLogs } = useQuery({
-    queryKey: ['sales-tl-calls'],
+    queryKey: ['sales-tl-calls', user?.id, role],
     queryFn: async () => {
-      const { data } = await supabase.from('call_logs').select('*');
+      let query = supabase.from('call_logs').select('*');
+      if (role === 'SALES_TL') {
+        const { data: teamProfiles } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
+        const teamUserIds = teamProfiles?.map(p => p.user_id) || [user!.id];
+        const { data: leadsInTeam } = await supabase
+          .from('leads')
+          .select('unique_id')
+          .or(`assigned_to.in.(${teamUserIds.join(',')}),team_lead_id.eq.${user!.id}`);
+        const teamLeadIds = leadsInTeam?.map(l => l.unique_id) || [];
+        if (teamLeadIds.length === 0) return [];
+        query = query.in('lead_id', teamLeadIds);
+      }
+      const { data } = await query;
       return data || [];
     },
     enabled: !!user,
   });
 
   const { data: closures } = useQuery({
-    queryKey: ['sales-tl-closures'],
+    queryKey: ['sales-tl-closures', user?.id, role],
     queryFn: async () => {
-      const { data } = await supabase.from('lead_closures').select('*');
+      let query = supabase.from('lead_closures').select('*');
+      if (role === 'SALES_TL') {
+        const { data: teamProfiles } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
+        const teamUserIds = teamProfiles?.map(p => p.user_id) || [user!.id];
+        const { data: leadsInTeam } = await supabase
+          .from('leads')
+          .select('unique_id')
+          .or(`assigned_to.in.(${teamUserIds.join(',')}),team_lead_id.eq.${user!.id}`);
+        const teamLeadIds = leadsInTeam?.map(l => l.unique_id) || [];
+        if (teamLeadIds.length === 0) return [];
+        query = query.in('lead_id', teamLeadIds);
+      }
+      const { data } = await query;
       return data || [];
     },
     enabled: !!user,

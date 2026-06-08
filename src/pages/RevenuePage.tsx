@@ -16,14 +16,14 @@ const RevenuePage: React.FC = () => {
   const { data: closures } = useQuery({
     queryKey: ['revenue-closures', user?.id, role],
     queryFn: async () => {
-      let query = supabase.from('lead_closures').select('*, leads!inner(assigned_to)');
+      let query = supabase.from('lead_closures').select('*, leads!inner(assigned_to, team_lead_id)');
       if (role === 'SALES_TL') {
         const { data: teamProfiles } = await supabase
           .from('profiles')
           .select('user_id')
           .or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
         const teamUserIds = teamProfiles?.map(p => p.user_id) || [user!.id];
-        const orConditions = teamUserIds.map(id => `assigned_to.eq.${id}`).join(',');
+        const orConditions = [...teamUserIds.map(id => `assigned_to.eq.${id}`), `team_lead_id.eq.${user!.id}`].join(',');
         query = query.or(orConditions, { foreignTable: 'leads' });
       }
       const { data } = await query;

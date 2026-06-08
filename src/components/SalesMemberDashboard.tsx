@@ -261,15 +261,30 @@ const SalesMemberDashboard: React.FC = () => {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  // ── Fetch all user IDs in the Sales Member's team ──
+  const { data: teamUserIds = [] } = useQuery({
+    queryKey: ['salesmember-team-ids', user?.id, profile?.reports_to],
+    queryFn: async () => {
+      const tlId = profile?.reports_to;
+      if (!tlId) return [user!.id];
+      const { data: teamProfiles } = await supabase
+        .from('profiles')
+        .select('user_id')
+        .or(`reports_to.eq.${tlId},user_id.eq.${tlId}`);
+      return teamProfiles?.map(p => p.user_id) || [user!.id];
+    },
+    enabled: !!user,
+  });
+
   // ── My assigned leads (paginated) ──
   const { data: leadsResponse, isLoading } = useQuery({
-    queryKey: ['sm-leads-paginated', user?.id, viewMode, page, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, globalSalesTLFilter, globalSalesMemberFilter, selectedGenerator],
+    queryKey: ['sm-leads-paginated', user?.id, viewMode, page, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, globalSalesTLFilter, globalSalesMemberFilter, selectedGenerator, teamUserIds],
     queryFn: async () => {
       let query = supabase.from('leads').select('*', { count: 'exact' });
       if (viewMode === 'personal') {
         query = query.eq('assigned_to', user!.id).neq('assignment_type', 'Team');
       } else {
-        query = query.not('assigned_to', 'is', null);
+        query = query.in('assigned_to', teamUserIds.length > 0 ? teamUserIds : [user!.id]);
       }
 
       // Apply search filter
@@ -333,7 +348,7 @@ const SalesMemberDashboard: React.FC = () => {
 
   // ── Fetch lightweight lead records for KPIs and charts ──
   const { data: statsLeads = [] } = useQuery({
-    queryKey: ['sm-leads-stats', user?.id, viewMode, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, globalSalesTLFilter, globalSalesMemberFilter, selectedGenerator],
+    queryKey: ['sm-leads-stats', user?.id, viewMode, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, globalSalesTLFilter, globalSalesMemberFilter, selectedGenerator, teamUserIds],
     queryFn: async () => {
       let query = supabase
         .from('leads')
@@ -342,7 +357,7 @@ const SalesMemberDashboard: React.FC = () => {
       if (viewMode === 'personal') {
         query = query.eq('assigned_to', user!.id).neq('assignment_type', 'Team');
       } else {
-        query = query.not('assigned_to', 'is', null);
+        query = query.in('assigned_to', teamUserIds.length > 0 ? teamUserIds : [user!.id]);
       }
 
       // Apply search filter
@@ -428,16 +443,16 @@ const SalesMemberDashboard: React.FC = () => {
   });
 
   const globalSalesTLList = useMemo(() => {
-    const tlIds = new Set(allUserRoles.filter((r: any) => r.role === 'SALES_TL').map((r: any) => r.user_id));
-    return profiles.filter(p => tlIds.has(p.user_id));
-  }, [allUserRoles, profiles]);
+    const tlId = profile?.reports_to;
+    if (!tlId) return [];
+    return profiles.filter(p => p.user_id === tlId);
+  }, [profile?.reports_to, profiles]);
 
   const globalSalesMemberList = useMemo(() => {
-    const tmIds = new Set(allUserRoles.filter((r: any) => r.role === 'SALES_TM').map((r: any) => r.user_id));
-    const members = profiles.filter(p => tmIds.has(p.user_id));
-    if (globalSalesTLFilter === 'all') return members;
-    return members.filter(p => p.reports_to === globalSalesTLFilter);
-  }, [allUserRoles, profiles, globalSalesTLFilter]);
+    const tlId = profile?.reports_to;
+    if (!tlId) return profiles.filter(p => p.user_id === user?.id);
+    return profiles.filter(p => (p.reports_to === tlId || p.user_id === tlId || p.user_id === user?.id));
+  }, [profile?.reports_to, profiles, user?.id]);
 
   // ── Follow-up history ──
   const { data: followups = [] } = useQuery({

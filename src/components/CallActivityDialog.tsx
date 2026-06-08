@@ -254,48 +254,56 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
             }
           }
 
-          // Notify Admin, Sales TL, BD TL, Process Analyst about closure
-          const { data: notifyRoles } = await supabase
-            .from('user_roles')
-            .select('user_id, role')
-            .in('role', ['ADMIN', 'SALES_TL', 'LEAD_TL', 'PROCESS_ANALYST']);
+          // 1. Identify the target Sales TL for the lead
+          let salesTLId = lead.team_lead_id;
+          if (!salesTLId && lead.assigned_to) {
+            const { data: assigneeProfile } = await supabase
+              .from('profiles')
+              .select('reports_to')
+              .eq('user_id', lead.assigned_to)
+              .maybeSingle();
+            salesTLId = assigneeProfile?.reports_to || null;
+          }
 
-          if (notifyRoles) {
-            const notifications = notifyRoles.map(r => ({
-              user_id: r.user_id,
+          // 2. Fetch ADMIN user IDs
+          const { data: adminRoles } = await supabase
+            .from('user_roles')
+            .select('user_id')
+            .eq('role', 'ADMIN');
+          
+          const adminUserIds = adminRoles?.map(r => r.user_id) || [];
+          const notifyUserIds = new Set<string>(adminUserIds);
+          if (salesTLId) {
+            notifyUserIds.add(salesTLId);
+          }
+          const notifyUserIdsArray = Array.from(notifyUserIds);
+
+          // Notify Admin and the lead's Sales TL about closure
+          if (notifyUserIdsArray.length > 0) {
+            const notifications = notifyUserIdsArray.map(userId => ({
+              user_id: userId,
               title: 'Lead Closed',
               message: `${lead.name} has been closed successfully.`,
               type: 'closure',
               lead_id: lead.unique_id,
             }));
-            if (notifications.length > 0) {
-              await supabase.from('notifications').insert(notifications);
-            }
+            await supabase.from('notifications').insert(notifications);
           }
 
-          // Revenue notification for Admin + Sales TL
+          // Revenue notification for Admin + lead's Sales TL
           const totalRevenue = (slot1 ? (parseFloat(slot1Amount) || 0) : 0)
             + (slot2 ? (parseFloat(slot2Amount) || 0) : 0)
             + additionalSlots.reduce((sum, s) => sum + (s.paid ? (parseFloat(s.amount) || 0) : 0), 0);
 
-          if (totalRevenue > 0) {
-            const { data: revenueRoles } = await supabase
-              .from('user_roles')
-              .select('user_id')
-              .in('role', ['ADMIN', 'SALES_TL']);
-
-            if (revenueRoles) {
-              const revenueNotifs = revenueRoles.map(r => ({
-                user_id: r.user_id,
-                title: 'New Revenue Generated',
-                message: `New revenue of $${totalRevenue.toFixed(2)} generated from ${lead.name}.`,
-                type: 'revenue',
-                lead_id: lead.unique_id,
-              }));
-              if (revenueNotifs.length > 0) {
-                await supabase.from('notifications').insert(revenueNotifs);
-              }
-            }
+          if (totalRevenue > 0 && notifyUserIdsArray.length > 0) {
+            const revenueNotifs = notifyUserIdsArray.map(userId => ({
+              user_id: userId,
+              title: 'New Revenue Generated',
+              message: `New revenue of $${totalRevenue.toFixed(2)} generated from ${lead.name}.`,
+              type: 'revenue',
+              lead_id: lead.unique_id,
+            }));
+            await supabase.from('notifications').insert(revenueNotifs);
           }
         } else {
           // Standard status update

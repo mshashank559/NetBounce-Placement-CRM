@@ -11,6 +11,7 @@ interface Profile {
   email: string;
   department: string | null;
   avatar_url: string | null;
+  reports_to?: string | null;
 }
 
 interface AuthContextType {

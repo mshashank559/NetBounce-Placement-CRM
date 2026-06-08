@@ -105,8 +105,46 @@ const SalesTLDashboard: React.FC = () => {
 
   // ── Fetch all team leads (assigned to me or my team) ──
   const { data: leads = [] } = useQuery({
-    queryKey: ['salestl-leads', user?.id],
-    queryFn: fetchAllLeads,
+    queryKey: ['salestl-leads', user?.id, role],
+    queryFn: async () => {
+      if (role === 'SALES_TL') {
+        const { data: teamProfiles } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
+        const teamUserIds = teamProfiles?.map(p => p.user_id) || [user!.id];
+        
+        let allLeads: any[] = [];
+        let from = 0;
+        const step = 1000;
+        let hasMore = true;
+        
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from('leads')
+            .select('*')
+            .or(`assigned_to.in.(${teamUserIds.join(',')}),team_lead_id.eq.${user!.id}`)
+            .order('created_at', { ascending: false })
+            .range(from, from + step - 1);
+            
+          if (error) throw error;
+          
+          if (data && data.length > 0) {
+            allLeads = [...allLeads, ...data];
+            if (data.length < step) {
+              hasMore = false;
+            } else {
+              from += step;
+            }
+          } else {
+            hasMore = false;
+          }
+        }
+        return allLeads;
+      } else {
+        return fetchAllLeads();
+      }
+    },
     enabled: !!user,
   });
 
@@ -150,12 +188,18 @@ const SalesTLDashboard: React.FC = () => {
 
   // ── Fetch all sales users (TLs and TMs) for global view dropdown ──
   const { data: globalSalesUsers = [] } = useQuery({
-    queryKey: ['global-sales-users'],
+    queryKey: ['global-sales-users', user?.id, role],
     queryFn: async () => {
-      const { data: roles } = await supabase.from('user_roles').select('user_id').in('role', ['SALES_TM', 'SALES_TL']);
-      if (!roles?.length) return [];
-      const userIds = roles.map(r => r.user_id);
-      const { data: profilesData } = await supabase.from('profiles').select('user_id, full_name').in('user_id', userIds);
+      let query = supabase.from('profiles').select('user_id, full_name');
+      if (role === 'SALES_TL') {
+        query = query.or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
+      } else {
+        const { data: roles } = await supabase.from('user_roles').select('user_id').in('role', ['SALES_TM', 'SALES_TL']);
+        if (!roles?.length) return [];
+        const userIds = roles.map(r => r.user_id);
+        query = query.in('user_id', userIds);
+      }
+      const { data: profilesData } = await query;
       return (profilesData || []).sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
     },
     enabled: !!user,
@@ -176,8 +220,27 @@ const SalesTLDashboard: React.FC = () => {
 
   // ── Call logs ──
   const { data: callLogs = [] } = useQuery({
-    queryKey: ['all-call-logs'],
-    queryFn: async () => { const { data } = await supabase.from('call_logs').select('*'); return data || []; }
+    queryKey: ['all-call-logs', user?.id, role],
+    queryFn: async () => {
+      let query = supabase.from('call_logs').select('*');
+      if (role === 'SALES_TL') {
+        const { data: teamProfiles } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
+        const teamUserIds = teamProfiles?.map(p => p.user_id) || [user!.id];
+        const { data: leadsInTeam } = await supabase
+          .from('leads')
+          .select('unique_id')
+          .or(`assigned_to.in.(${teamUserIds.join(',')}),team_lead_id.eq.${user!.id}`);
+        const teamLeadIds = leadsInTeam?.map(l => l.unique_id) || [];
+        if (teamLeadIds.length === 0) return [];
+        query = query.in('lead_id', teamLeadIds);
+      }
+      const { data } = await query;
+      return data || [];
+    },
+    enabled: !!user,
   });
 
   // ── Closures with payment ──
@@ -194,7 +257,7 @@ const SalesTLDashboard: React.FC = () => {
         const { data: leadsInTeam } = await supabase
           .from('leads')
           .select('unique_id')
-          .in('assigned_to', teamUserIds);
+          .or(`assigned_to.in.(${teamUserIds.join(',')}),team_lead_id.eq.${user!.id}`);
         const teamLeadIds = leadsInTeam?.map(l => l.unique_id) || [];
         if (teamLeadIds.length === 0) return [];
         query = query.in('lead_id', teamLeadIds);
@@ -214,7 +277,13 @@ const SalesTLDashboard: React.FC = () => {
       if (viewMode === 'team') {
         if (!l.assigned_to || (!myTeamIds.has(l.assigned_to) && l.assigned_to !== user?.id)) return false;
       }
-      if (viewMode === 'global' && !l.assigned_to) return false;
+      if (viewMode === 'global') {
+        if (role === 'SALES_TL') {
+          if (!l.assigned_to || (!myTeamIds.has(l.assigned_to) && l.assigned_to !== user?.id)) return false;
+        } else {
+          if (!l.assigned_to) return false;
+        }
+      }
       // Global view member filter
       if (viewMode === 'global' && globalMemberFilter !== 'all' && l.assigned_to !== globalMemberFilter) return false;
       if (viewMode === 'global' && globalLeadGenFilter !== 'all' && l.lead_generated_by !== globalLeadGenFilter) return false;
