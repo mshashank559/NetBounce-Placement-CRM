@@ -223,7 +223,7 @@ const BDDashboard: React.FC = () => {
   
   const staleLeads = filteredLeads.filter(l => {
     const hoursSinceUpdate = (new Date().getTime() - new Date(l.updated_at).getTime()) / (1000 * 60 * 60);
-    return hoursSinceUpdate > 48 && !['Closed', 'Non Interested'].includes(l.lead_status || '');
+    return hoursSinceUpdate > 120 && !['Closed', 'Non Interested'].includes(l.lead_status || '');
   });
 
 
@@ -419,7 +419,7 @@ const BDDashboard: React.FC = () => {
               <CardContent className="space-y-2 max-h-40 overflow-y-auto">
                 {staleLeads.map(l => (
                   <div key={l.unique_id} className="text-xs p-2 bg-background rounded border border-red-500/20">
-                    <span className="font-semibold">{l.name}</span> — No update &gt; 48h
+                    <span className="font-semibold">{l.name}</span> — No update &gt; 5 days
                   </div>
                 ))}
               </CardContent>

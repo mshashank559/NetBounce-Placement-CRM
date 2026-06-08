@@ -19,6 +19,7 @@ export const useSLA = () => {
 
     const runSLAChecks = async () => {
       const today = new Date().toISOString().split('T')[0];
+      const todayStart = `${today}T00:00:00`;
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
@@ -31,20 +32,20 @@ export const useSLA = () => {
         return data?.map(r => r.user_id) || [];
       };
 
-      // ── Rule 1: Same-Day Sales Update Rule ──
-      const todayStart = `${today}T00:00:00`;
-      const { data: activeAssignedLeads } = (await supabase
+      // ── Rule 1: Unassigned Lead (5 Days) Rule ──
+      const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: unassignedLeads } = (await supabase
         .from('leads')
         .select('unique_id, name, assigned_to, team_lead_id' as any)
-        .not('assigned_to', 'is', null)
+        .is('assigned_to', null)
         .not('lead_status', 'in', '("Closed","Non Interested")')
-        .lt('updated_at', todayStart)) as { data: any[] | null };
+        .lte('created_at', fiveDaysAgo)) as { data: any[] | null };
 
-      if (activeAssignedLeads && activeAssignedLeads.length > 0) {
+      if (unassignedLeads && unassignedLeads.length > 0) {
         const admins = await getRoleUserIds(['ADMIN']);
         const salesTLs = await getRoleUserIds(['SALES_TL']);
 
-        for (const lead of activeAssignedLeads) {
+        for (const lead of unassignedLeads) {
           // De-dup: check if SLA same-day notification already sent today
           const { data: existing } = await supabase
             .from('notifications')
@@ -65,8 +66,8 @@ export const useSLA = () => {
             if (targets.size > 0) {
               const notifs = Array.from(targets).map(userId => ({
                 user_id: userId,
-                title: '🔴 SLA Alert: Missed Same-Day Update',
-                message: `Lead "${lead.name}" (assigned to salesperson) has not received a mandatory same-day update today.`,
+                title: '🔴 SLA Alert: Unassigned Lead (5 Days)',
+                message: `Lead "${lead.name}" has been in the system for 5 days and has not yet been assigned to a salesperson.`,
                 type: 'sla_sales_update_missed',
                 lead_id: lead.unique_id,
               }));

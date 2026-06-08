@@ -237,10 +237,10 @@ const LeadsPage: React.FC = () => {
   const { data: teamMembers } = useQuery({
     queryKey: ['team-members-list', user?.id, role],
     queryFn: async () => {
-      const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('role', ['SALES_TM', 'SALES_TL']);
+      const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('role', ['SALES_TM', 'SALES_TL', 'LEAD_TL']);
       if (!roles) return [];
       
-      const tlIds = roles.filter(r => r.role === 'SALES_TL').map(r => r.user_id);
+      const tlIds = roles.filter(r => r.role === 'SALES_TL' || r.role === 'LEAD_TL').map(r => r.user_id);
       const tmIds = roles.filter(r => r.role === 'SALES_TM').map(r => r.user_id);
       
       let tlQuery = supabase.from('profiles').select('user_id, full_name').in('user_id', tlIds) as any;
