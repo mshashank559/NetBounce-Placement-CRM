@@ -17,7 +17,7 @@ import AgreementDialog from '@/components/AgreementDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Shuffle, FileSignature, FileText } from 'lucide-react';
+import { Shuffle, FileSignature, FileText, ChevronDown, Search } from 'lucide-react';
 import AccountantCommentDialog from '@/components/AccountantCommentDialog';
 import EditLeadDialog from '../components/EditLeadDialog';
 
@@ -66,6 +66,79 @@ const HIGHLIGHT_COLORS = [
 // ── Month label helper ────────────────────────────────────────────────────────
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+interface ReassignDropdownMenuProps {
+  candidates: { user_id: string; full_name: string; role: string }[];
+  onSelect: (selection: string) => void;
+  onClose: () => void;
+}
+
+const ReassignDropdownMenu: React.FC<ReassignDropdownMenuProps> = ({ candidates, onSelect, onClose }) => {
+  const [search, setSearch] = useState('');
+  const menuRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside, true);
+    return () => document.removeEventListener('mousedown', handleClickOutside, true);
+  }, [onClose]);
+
+  // Flatten candidates to show Personal and Team options
+  const options = React.useMemo(() => {
+    const opts: { label: string; value: string }[] = [];
+    candidates.forEach(c => {
+      if (c.role === 'SALES_TL') {
+        opts.push({ label: `${c.full_name.trim()} -- Personal`, value: `${c.user_id}_Personal` });
+        opts.push({ label: `${c.full_name.trim()} -- Team`, value: `${c.user_id}_Team` });
+      } else {
+        opts.push({ label: `${c.full_name.trim()} -- Personal`, value: `${c.user_id}_Personal` });
+      }
+    });
+    return opts;
+  }, [candidates]);
+
+  const filteredOptions = React.useMemo(() => {
+    if (!search.trim()) return options;
+    const q = search.toLowerCase();
+    return options.filter(o => o.label.toLowerCase().includes(q));
+  }, [options, search]);
+
+  return (
+    <div
+      ref={menuRef}
+      className="absolute right-0 mt-1.5 w-60 rounded-md border border-border bg-popover text-popover-foreground shadow-md z-50 p-1 flex flex-col max-h-[300px]"
+    >
+      <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border/50">
+        <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <Input
+          placeholder="Search salesperson..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="h-7 text-xs border-0 bg-transparent p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+        />
+      </div>
+      <div className="overflow-y-auto flex-1 mt-1 space-y-0.5 max-h-[220px]">
+        {filteredOptions.length === 0 ? (
+          <div className="text-[11px] text-muted-foreground text-center py-2">No options found</div>
+        ) : (
+          filteredOptions.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => onSelect(opt.value)}
+              className="w-full text-left px-2 py-1.5 text-xs rounded-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+            >
+              {opt.label}
+            </button>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
 const LeadsPage: React.FC = () => {
   const { user, role } = useAuth();
   const queryClient = useQueryClient();
@@ -84,6 +157,7 @@ const LeadsPage: React.FC = () => {
   const [callLead, setCallLead] = useState<any>(null);
   const [agreementLead, setAgreementLead] = useState<any>(null);
   const [highlightLead, setHighlightLead] = useState<string | null>(null);
+  const [reassigningLeadId, setReassigningLeadId] = useState<string | null>(null);
   const [accountantLead, setAccountantLead] = useState<any>(null);
   const [editLead, setEditLead] = useState<any>(null);
   const [deleteConfirmLead, setDeleteConfirmLead] = useState<any>(null);
@@ -263,6 +337,73 @@ const LeadsPage: React.FC = () => {
       return Object.values(uniqueMap);
     },
     enabled: !!user && (role === 'ADMIN' || role === 'SALES_TL' || role === 'LEAD_TL'),
+  });
+
+  // ── Reassign candidates list (SALES_TL members) ───────────────
+  const reassignCandidates = useMemo(() => {
+    if (!profilesMap || !userRolesMap) return [];
+    return Object.entries(userRolesMap)
+      .filter(([_, r]) => r === 'SALES_TL')
+      .map(([userId, r]) => {
+        const profile = profilesMap[userId];
+        return {
+          user_id: userId,
+          full_name: profile?.full_name || 'Unknown',
+          role: r
+        };
+      })
+      .sort((a, b) => a.full_name.localeCompare(b.full_name));
+  }, [profilesMap, userRolesMap]);
+
+  // ── Reassign lead mutation ────────────────────────────────────
+  const reassignLead = useMutation({
+    mutationFn: async ({ leadId, selection }: { leadId: string; selection: string }) => {
+      const [userId, type] = selection.split('_');
+      
+      const { data: lead, error: fetchErr } = await supabase
+        .from('leads')
+        .select('name, assigned_to')
+        .eq('unique_id', leadId)
+        .single();
+      if (fetchErr) throw fetchErr;
+
+      const leadName = lead?.name || 'Lead';
+      const oldAssignee = lead?.assigned_to;
+
+      const { error } = await supabase.from('leads').update({ 
+        assigned_to: userId,
+        assignment_type: type,
+        team_lead_id: userId
+      } as any).eq('unique_id', leadId);
+      if (error) throw error;
+
+      await supabase.from('lead_history_logs').insert({
+        lead_id: leadId,
+        changed_by: user!.id,
+        action_type: 'OWNER_CHANGE',
+        old_value: oldAssignee || 'Unassigned',
+        new_value: userId,
+        comments: `Reassigned to ${type} Queue.`
+      });
+
+      const admins = (await supabase.from('user_roles').select('user_id').eq('role', 'ADMIN')).data?.map(r => r.user_id) || [];
+      const targets = new Set<string>([...admins, userId]);
+      
+      const salesName = profilesMap?.[userId]?.full_name || 'Salesperson';
+      const notifs = Array.from(targets).map(tId => ({
+        user_id: tId,
+        title: 'Lead Reassigned',
+        message: `Lead "${leadName}" has been reassigned to ${salesName} (${type} Queue).`,
+        type: 'reassign',
+        lead_id: leadId,
+      }));
+      await supabase.from('notifications').insert(notifs);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast.success('Lead reassigned successfully!');
+    },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   // ── Update status mutation (requires comment) ────────────────
@@ -870,6 +1011,37 @@ const LeadsPage: React.FC = () => {
                               >
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
+                            )}
+
+                            {/* Reassign Dropdown (only for Admin and LEAD_TL) */}
+                            {(role === 'ADMIN' || role === 'LEAD_TL') && (
+                              <div className="relative reassign-dropdown-container">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={reassignLead.isPending}
+                                  className="h-8 text-xs px-2.5 font-normal flex items-center justify-between gap-1.5 min-w-[135px] border-border/80 bg-background hover:bg-accent hover:text-accent-foreground"
+                                  onClick={() => setReassigningLeadId(reassigningLeadId === lead.unique_id ? null : lead.unique_id)}
+                                  title="Reassign Lead"
+                                >
+                                  <span className="truncate">
+                                    {lead.assigned_to && profilesMap?.[lead.assigned_to]
+                                      ? `${profilesMap[lead.assigned_to].full_name} -- ${lead.assignment_type || 'Personal'}`
+                                      : 'Select salesperson'}
+                                  </span>
+                                  <ChevronDown className="h-3.5 w-3.5 opacity-50 shrink-0" />
+                                </Button>
+                                {reassigningLeadId === lead.unique_id && (
+                                  <ReassignDropdownMenu
+                                    candidates={reassignCandidates}
+                                    onSelect={(selection) => {
+                                      reassignLead.mutate({ leadId: lead.unique_id, selection });
+                                      setReassigningLeadId(null);
+                                    }}
+                                    onClose={() => setReassigningLeadId(null)}
+                                  />
+                                )}
+                              </div>
                             )}
 
 
