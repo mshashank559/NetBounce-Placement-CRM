@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
@@ -12,9 +12,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useNavigate } from 'react-router-dom';
+import { User } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 const AddLeadPage: React.FC = () => {
-  const { user, role } = useAuth();
+  const { user, role, profile } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -28,6 +30,30 @@ const AddLeadPage: React.FC = () => {
     );
   }
 
+  const [selectedBdm, setSelectedBdm] = useState('none');
+
+  // Fetch active BDMs for BDTL/TL/Admin BDM dropdown
+  const { data: bdmList = [] } = useQuery({
+    queryKey: ['active-bdms'],
+    queryFn: async () => {
+      const { data: roles, error: roleErr } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'LEAD_GEN');
+      if (roleErr) throw roleErr;
+      if (!roles || roles.length === 0) return [];
+
+      const bdmIds = roles.map(r => r.user_id);
+      const { data: profiles, error: profileErr } = await supabase
+        .from('profiles')
+        .select('user_id, full_name')
+        .in('user_id', bdmIds);
+      if (profileErr) throw profileErr;
+      return profiles || [];
+    },
+    enabled: role === 'LEAD_TL' || role === 'ADMIN',
+  });
+
   const [form, setForm] = useState({
     name: '', email: '', phone: '', university: '', technology: '',
     linkedin_url: '', time_for_call: '', timezone: '',
@@ -35,6 +61,7 @@ const AddLeadPage: React.FC = () => {
     lead_type: 'New' as 'New' | 'Reference',
     referee_name: '', lead_source: '', resume_url: '',
     comment: '', concern: false, visa_status: '',
+    lead_status: 'New',
   });
 
   const set = (key: string, val: any) => setForm(f => ({ ...f, [key]: val }));
@@ -98,10 +125,11 @@ const AddLeadPage: React.FC = () => {
         resume_url: form.resume_url || null,
         comment: form.comment || null,
         concern: form.concern,
-        lead_generated_by: user?.id,
+        lead_generated_by: selectedBdm && selectedBdm !== 'none' ? selectedBdm : user?.id,
         // Sales auto-assign to self; BD leaves null
         assigned_to: (role === 'SALES_TM' || role === 'SALES_TL') ? user?.id : null,
         visa_status: form.visa_status || null,
+        lead_status: form.lead_status,
       };
 
       const { data: insertedLead, error } = await supabase
@@ -111,6 +139,24 @@ const AddLeadPage: React.FC = () => {
         .single();
       if (error) throw error;
       const leadId = insertedLead.unique_id;
+
+      // ── Create lead history log entry for audit tracking ──
+      const creatorName = profile?.full_name || user?.email || 'Unknown';
+      const isBdmSelected = selectedBdm && selectedBdm !== 'none';
+      const targetBdmName = isBdmSelected
+        ? (bdmList.find(b => b.user_id === selectedBdm)?.full_name || 'Selected BDM')
+        : creatorName;
+
+      await supabase.from('lead_history_logs').insert({
+        lead_id: leadId,
+        changed_by: user!.id,
+        action_type: 'LEAD_CREATION',
+        old_value: null,
+        new_value: isBdmSelected ? selectedBdm : user!.id,
+        comments: isBdmSelected
+          ? `Created by ${creatorName} (BDTL/TL) on behalf of ${targetBdmName} (BDM).`
+          : `Created by ${creatorName} for themselves.`
+      });
 
       // ── Create concern entry in database ─────────────────────
       if (form.concern) {
@@ -199,8 +245,30 @@ const AddLeadPage: React.FC = () => {
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto">
       <Card className="glass-card">
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <CardTitle className="font-display text-xl">Add New Lead</CardTitle>
+          {(role === 'LEAD_TL' || role === 'ADMIN') && (
+            <div className="flex items-center gap-2">
+              {selectedBdm && selectedBdm !== 'none' && (
+                <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/20">
+                  On Behalf Of: {bdmList.find(b => b.user_id === selectedBdm)?.full_name}
+                </Badge>
+              )}
+              <Select value={selectedBdm} onValueChange={setSelectedBdm}>
+                <SelectTrigger className="w-auto border-0 bg-transparent p-1 hover:bg-accent/40 rounded-full shadow-none focus:ring-0 focus:ring-offset-0 transition-colors">
+                  <User className="h-5 w-5 text-muted-foreground hover:text-primary transition-colors cursor-pointer" />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  <SelectItem value="none">Create as Personal Lead</SelectItem>
+                  {bdmList.map(bdm => (
+                    <SelectItem key={bdm.user_id} value={bdm.user_id}>
+                      Assign to {bdm.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <form onSubmit={e => { e.preventDefault(); mutation.mutate(); }} className="space-y-4">
@@ -278,6 +346,23 @@ const AddLeadPage: React.FC = () => {
               <div>
                 <Label>Visa Status</Label>
                 <Input value={form.visa_status} onChange={e => set('visa_status', e.target.value)} placeholder="Enter visa status" />
+              </div>
+              <div>
+                <Label>Status *</Label>
+                <Select value={form.lead_status} onValueChange={v => set('lead_status', v)}>
+                  <SelectTrigger><SelectValue placeholder="Select Status" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="New">Interested / New</SelectItem>
+                    <SelectItem value="DNR1">DNR 1</SelectItem>
+                    <SelectItem value="DNR2">DNR 2</SelectItem>
+                    <SelectItem value="DNR3">DNR 3</SelectItem>
+                    <SelectItem value="Connected">Connected</SelectItem>
+                    <SelectItem value="Qualified">Qualified</SelectItem>
+                    <SelectItem value="Hot Prospect">Hot Prospect</SelectItem>
+                    <SelectItem value="Closed">Closed</SelectItem>
+                    <SelectItem value="Non Interested">Not Interested</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
