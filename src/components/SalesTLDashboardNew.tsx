@@ -727,15 +727,15 @@ const SalesTLDashboard: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <div className="p-4 rounded-lg bg-accent/30 text-center">
                 <p className="text-xs text-muted-foreground">Total Revenue</p>
-                <p className="text-2xl font-bold text-amber-500">${revenue.toLocaleString()}</p>
+                <p className="text-2xl font-bold text-green-600">${revenue.toLocaleString()}</p>
               </div>
               <div className="p-4 rounded-lg bg-accent/30 text-center">
-                <p className="text-xs text-muted-foreground">Upfront Collected</p>
-                <p className="text-2xl font-bold text-green-500">${closureData.filter(c => filteredLeadIds.has(c.lead_id)).reduce((s, c) => s + (c.upfront_amount || 0), 0).toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">Total Upfront</p>
+                <p className="text-2xl font-bold text-blue-600">${closureData.filter(c => filteredLeadIds.has(c.lead_id)).reduce((s, c) => s + (c.upfront_amount || 0), 0).toLocaleString()}</p>
               </div>
               <div className="p-4 rounded-lg bg-accent/30 text-center">
                 <p className="text-xs text-muted-foreground">Pending Slots</p>
-                <p className="text-2xl font-bold text-blue-500">${closureData.filter(c => filteredLeadIds.has(c.lead_id)).reduce((s, c) => {
+                <p className="text-2xl font-bold text-red-600">${closureData.filter(c => filteredLeadIds.has(c.lead_id)).reduce((s, c) => {
                   const s1 = !c.slot1 ? (Number(c.slot1_amount) || 0) : 0;
                   const s2 = !c.slot2 ? (Number(c.slot2_amount) || 0) : 0;
                   let additional = 0;
