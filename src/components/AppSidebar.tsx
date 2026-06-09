@@ -57,70 +57,66 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ isOpen = false, onClose }) => {
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 h-screen bg-sidebar flex flex-col border-r border-sidebar-border transition-transform duration-300 md:sticky md:translate-x-0 ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed inset-y-0 left-0 z-50 w-64 h-screen bg-sidebar flex flex-col border-r border-sidebar-border transition-transform duration-300 md:sticky md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
       >
-      <div className="p-5 flex items-center justify-center border-b border-sidebar-border">
-        <img
-          src={logo}
-          alt="NetBounce Placement"
-          className="h-10 w-auto object-contain max-w-[200px]"
-          style={{
-            filter: theme === 'dark' 
-              ? 'invert(1) hue-rotate(180deg) drop-shadow(0 0 10px rgba(67,97,238,0.25))' 
-              : 'drop-shadow(0 0 10px rgba(67,97,238,0.15))'
-          }}
-        />
-      </div>
-
-      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        {filteredItems.map(item => {
-          const isActive = location.pathname === item.path;
-          return (
-            <button
-              key={item.path}
-              onClick={() => {
-                navigate(item.path);
-                if (onClose) onClose();
-              }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${
-                isActive
-                  ? 'bg-sidebar-primary text-sidebar-primary-foreground nb-glow'
-                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-              }`}
-            >
-              <item.icon className="h-4 w-4" />
-              {item.label}
-            </button>
-          );
-        })}
-      </nav>
-
-      <div className="p-3 border-t border-sidebar-border space-y-2">
-        <div className="px-3 py-2">
-          <p className="text-xs text-sidebar-foreground/60 truncate">{profile?.full_name}</p>
-          <p className="text-xs text-sidebar-foreground/40 truncate">{role?.replace('_', ' ')}</p>
+        <div className="p-5 flex items-center justify-center border-b border-sidebar-border">
+          <img
+            src={logo}
+            alt="NetBounce Placement"
+            className="h-10 w-auto object-contain max-w-[200px]"
+            style={{
+              filter: 'invert(1) hue-rotate(180deg) drop-shadow(0 0 10px rgba(67,97,238,0.25))'
+            }}
+          />
         </div>
-        <button
-          onClick={toggleTheme}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent transition-all"
-        >
-          {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
-        </button>
-        <button
-          onClick={() => {
-            signOut();
-            if (onClose) onClose();
-          }}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-destructive hover:bg-sidebar-accent transition-all"
-        >
-          <LogOut className="h-4 w-4" />
-          Sign Out
-        </button>
-      </div>
-    </aside>
+
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+          {filteredItems.map(item => {
+            const isActive = location.pathname === item.path;
+            return (
+              <button
+                key={item.path}
+                onClick={() => {
+                  navigate(item.path);
+                  if (onClose) onClose();
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${isActive
+                    ? 'bg-sidebar-primary text-sidebar-primary-foreground nb-glow'
+                    : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                  }`}
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="p-3 border-t border-sidebar-border space-y-2">
+          <div className="px-3 py-2">
+            <p className="text-xs text-sidebar-foreground/60 truncate">{profile?.full_name}</p>
+            <p className="text-xs text-sidebar-foreground/40 truncate">{role?.replace('_', ' ')}</p>
+          </div>
+          <button
+            onClick={toggleTheme}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent transition-all"
+          >
+            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+          </button>
+          <button
+            onClick={() => {
+              signOut();
+              if (onClose) onClose();
+            }}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-destructive hover:bg-sidebar-accent transition-all"
+          >
+            <LogOut className="h-4 w-4" />
+            Sign Out
+          </button>
+        </div>
+      </aside>
     </>
   );
 };
