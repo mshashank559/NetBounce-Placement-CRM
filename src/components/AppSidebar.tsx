@@ -61,17 +61,17 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ isOpen = false, onClose }) => {
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-      <div className="p-5 flex items-center gap-3 border-b border-sidebar-border">
+      <div className="p-5 flex items-center justify-center border-b border-sidebar-border">
         <img
           src={logo}
-          alt="NetBounce"
-          className="h-10 w-10"
-          style={{ filter: 'drop-shadow(0 0 10px hsla(222, 100%, 50%, 0.5))' }}
+          alt="NetBounce Placement"
+          className="h-10 w-auto object-contain max-w-[200px]"
+          style={{
+            filter: theme === 'dark' 
+              ? 'invert(1) hue-rotate(180deg) drop-shadow(0 0 10px rgba(67,97,238,0.25))' 
+              : 'drop-shadow(0 0 10px rgba(67,97,238,0.15))'
+          }}
         />
-        <div>
-          <h2 className="font-display font-bold text-sidebar-foreground text-sm">NetBounce</h2>
-          <p className="text-xs text-sidebar-foreground/60">CRM</p>
-        </div>
       </div>
 
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">

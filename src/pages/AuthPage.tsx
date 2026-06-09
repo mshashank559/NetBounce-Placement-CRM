@@ -358,12 +358,13 @@ const AuthPage: React.FC = () => {
           }}
         >
           {/* Top logo */}
-          <div className="flex items-center gap-3 relative z-10">
-            <img src={logoIcon} alt="NB" className="h-10 w-10 object-contain" style={{ filter: 'brightness(0) invert(1)' }} />
-            <div className="leading-tight">
-              <div className="text-white font-bold text-[15px] tracking-wide">NETBOUNCE</div>
-              <div className="text-white/60 text-[10px] tracking-[0.25em] uppercase">Placement LLC</div>
-            </div>
+          <div className="flex items-center relative z-10">
+            <img 
+              src={logoIcon} 
+              alt="NetBounce Placement" 
+              className="h-11 w-auto object-contain max-w-[220px]" 
+              style={{ filter: 'invert(1) hue-rotate(180deg)' }} 
+            />
           </div>
 
           {/* PS5-style floating orbs */}
@@ -387,12 +388,13 @@ const AuthPage: React.FC = () => {
           {/* Logo + Header */}
           <div className="flex flex-col items-center mb-7">
             {/* Horizontal white logo matching reference */}
-            <div className="flex items-center gap-3 mb-5">
-              <img src={logoIcon} alt="NB" className="h-11 w-11 object-contain" style={{ filter: 'brightness(0) invert(1) drop-shadow(0 0 12px rgba(67,97,238,0.25))' }} />
-              <div className="leading-tight">
-                <div className="text-white font-bold text-[20px] tracking-wider">NETBOUNCE</div>
-                <div className="text-white/50 text-[10px] tracking-[0.3em] uppercase">Placement &nbsp; LLC</div>
-              </div>
+            <div className="flex items-center mb-5">
+              <img 
+                src={logoIcon} 
+                alt="NetBounce Placement" 
+                className="h-12 w-auto object-contain max-w-[240px]" 
+                style={{ filter: 'invert(1) hue-rotate(180deg) drop-shadow(0 0 12px rgba(67,97,238,0.25))' }} 
+              />
             </div>
             <h1 className="text-[22px] font-bold text-white">
               {isSignUp ? 'Create Account' : 'Sign in to your account'}
