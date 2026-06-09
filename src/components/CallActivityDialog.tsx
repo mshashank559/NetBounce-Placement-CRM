@@ -143,26 +143,28 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
 
       const todayDate = new Date().toISOString().split('T')[0];
 
-      // 1. Log the call
-      const { data: existing } = await supabase
-        .from('call_logs')
-        .select('*')
-        .eq('user_id', user!.id)
-        .eq('lead_id', lead.unique_id)
-        .eq('call_date', todayDate)
-        .maybeSingle();
+      // 1. Log the call only if the communication method is 'Call'
+      if (wayOfContact.toLowerCase() === 'call') {
+        const { data: existing } = await supabase
+          .from('call_logs')
+          .select('*')
+          .eq('user_id', user!.id)
+          .eq('lead_id', lead.unique_id)
+          .eq('call_date', todayDate)
+          .maybeSingle();
 
-      if (existing) {
-        await supabase.from('call_logs')
-          .update({ call_count: (existing.call_count || 0) + 1 })
-          .eq('id', existing.id);
-      } else {
-        await supabase.from('call_logs').insert({
-          user_id: user!.id,
-          lead_id: lead.unique_id,
-          call_date: todayDate,
-          call_count: 1,
-        });
+        if (existing) {
+          await supabase.from('call_logs')
+            .update({ call_count: (existing.call_count || 0) + 1 })
+            .eq('id', existing.id);
+        } else {
+          await supabase.from('call_logs').insert({
+            user_id: user!.id,
+            lead_id: lead.unique_id,
+            call_date: todayDate,
+            call_count: 1,
+          });
+        }
       }
 
       // 2. Insert follow-up record
