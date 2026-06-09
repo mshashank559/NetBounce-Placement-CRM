@@ -205,11 +205,11 @@ export const useSLA = () => {
       // ── Rule 5: Follow-up SLA Notification Logic ──
       const { data: activeFollowupLeads } = await supabase
         .from('leads')
-        .select('unique_id, name, assigned_to, team_lead_id, lead_status, updated_at, dnr_followup_done');
+        .select('unique_id, display_id, name, assigned_to, team_lead_id, lead_status, updated_at, dnr_followup_done');
 
       if (activeFollowupLeads && activeFollowupLeads.length > 0) {
         const pendingLeads = activeFollowupLeads.filter(
-          l => !l.dnr_followup_done && ['DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', 'Hot Prospect'].includes(l.lead_status || '')
+          l => !l.dnr_followup_done && ['New', 'DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', 'Hot Prospect', 'Non Interested', 'Not Interested'].includes(l.lead_status || '')
         );
 
         if (pendingLeads.length > 0) {
@@ -223,6 +223,8 @@ export const useSLA = () => {
 
           const admins = await getRoleUserIds(['ADMIN']);
           const analysts = await getRoleUserIds(['PROCESS_ANALYST']);
+          const bdTLs = await getRoleUserIds(['LEAD_TL']);
+          const salesTLs = await getRoleUserIds(['SALES_TL']);
 
           for (const lead of pendingLeads) {
             let delayDays = 1;
@@ -233,6 +235,9 @@ export const useSLA = () => {
             else if (status === 'DNR1') delayDays = 20;
             else if (status === 'DNR2') delayDays = 15;
             else if (status === 'DNR3') delayDays = 10;
+            else if (status === 'New') delayDays = 5;
+            else if (status === 'Non Interested' || status === 'Not Interested') delayDays = 2;
+            else continue;
 
             const updatedDate = new Date(lead.updated_at);
             updatedDate.setDate(updatedDate.getDate() + delayDays);
@@ -262,17 +267,28 @@ export const useSLA = () => {
                   }
                 }
 
-                // 3. Admin (for monitoring purposes)
+                // 3. BD TL (assigned team_lead_id or all BD TLs)
+                if (lead.team_lead_id) {
+                  recipients.add(lead.team_lead_id);
+                } else {
+                  bdTLs.forEach(id => recipients.add(id));
+                }
+
+                // 4. Sales TLs
+                salesTLs.forEach(id => recipients.add(id));
+
+                // 5. Admin (for monitoring purposes)
                 admins.forEach(id => recipients.add(id));
 
-                // 4. Process Analyst (as per existing permissions)
+                // 6. Process Analyst
                 analysts.forEach(id => recipients.add(id));
 
                 if (recipients.size > 0) {
+                  const leadId = (lead as any).display_id || lead.name;
                   const notificationsToInsert = Array.from(recipients).map(userId => ({
                     user_id: userId,
-                    title: '⏰ Follow-up SLA Reminder',
-                    message: `Lead "${lead.name}" is scheduled for follow-up today (${followupDateStr}).`,
+                    title: '⏰ Action Required: Final Follow-up Day',
+                    message: `Action Required: Lead ${leadId} has reached its final follow-up day for ${status}. Please review immediately.`,
                     type: 'sla_followup_reminder',
                     lead_id: lead.unique_id,
                   }));

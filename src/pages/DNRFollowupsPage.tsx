@@ -23,9 +23,40 @@ const DNRFollowupsPage: React.FC = () => {
       const { data } = await supabase
         .from('leads')
         .select('*')
-        .in('lead_status', ['DNR1', 'DNR2', 'DNR3', 'Non Interested'])
+        .in('lead_status', ['New', 'DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', 'Hot Prospect', 'Non Interested', 'Not Interested'])
         .order('updated_at', { ascending: false });
-      return data || [];
+
+      const getStatusThreshold = (status: string): number | null => {
+        switch (status) {
+          case 'New': return 5;
+          case 'DNR1': return 20;
+          case 'DNR2': return 15;
+          case 'DNR3': return 10;
+          case 'Connected': return 30;
+          case 'Qualified': return 60;
+          case 'Hot Prospect': return 90;
+          case 'Non Interested':
+          case 'Not Interested':
+            return 2;
+          default: return null;
+        }
+      };
+
+      const now = new Date();
+      const filteredLeads = (data || []).filter(lead => {
+        const threshold = getStatusThreshold(lead.lead_status);
+        if (threshold === null) return false;
+        
+        const updatedDate = new Date(lead.updated_at);
+        const start = new Date(updatedDate.getFullYear(), updatedDate.getMonth(), updatedDate.getDate());
+        const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const diffTime = end.getTime() - start.getTime();
+        const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        
+        return days === threshold;
+      });
+
+      return filteredLeads;
     },
     enabled: !!user,
   });

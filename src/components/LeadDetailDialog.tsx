@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { History, CalendarDays, FileText, Info, MessageSquare, CheckCircle2, Phone } from 'lucide-react';
+import { History, CalendarDays, FileText, Info, MessageSquare, CheckCircle2, Phone, AlertCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface LeadDetailDialogProps {
@@ -140,6 +140,46 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
             </Badge>
           </DialogTitle>
         </DialogHeader>
+
+        {lead && (() => {
+          const status = lead.lead_status;
+          const updatedDate = lead.updated_at ? new Date(lead.updated_at) : null;
+          if (!status || !updatedDate) return null;
+          
+          const now = new Date();
+          const start = new Date(updatedDate.getFullYear(), updatedDate.getMonth(), updatedDate.getDate());
+          const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const diffTime = end.getTime() - start.getTime();
+          const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          
+          const getStatusThreshold = (st: string) => {
+            switch (st) {
+              case 'New': return 5;
+              case 'DNR1': return 20;
+              case 'DNR2': return 15;
+              case 'DNR3': return 10;
+              case 'Connected': return 30;
+              case 'Qualified': return 60;
+              case 'Hot Prospect': return 90;
+              case 'Non Interested': case 'Not Interested': return 2;
+              default: return null;
+            }
+          };
+          
+          const threshold = getStatusThreshold(status);
+          if (threshold !== null && days === threshold) {
+            return (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-3 rounded-md text-xs flex items-center gap-2 mt-4">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <div>
+                  <span className="font-semibold block">⚠️ Aging Deadline Reached</span>
+                  <span>Status: {status} – No activity for exactly {days} days. This lead is eligible for immediate reassignment.</span>
+                </div>
+              </div>
+            );
+          }
+          return null;
+        })()}
 
         <Tabs defaultValue="general" className="w-full mt-4">
           <TabsList className="grid w-full grid-cols-4 bg-background/50 border border-accent/20 p-1 rounded-lg">
