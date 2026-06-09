@@ -66,6 +66,16 @@ const HIGHLIGHT_COLORS = [
 // ── Month label helper ────────────────────────────────────────────────────────
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+const formatDate = (dateString?: string) => {
+  if (!dateString) return '—';
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return '—';
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
 interface ReassignDropdownMenuProps {
   candidates: { user_id: string; full_name: string; role: string }[];
   onSelect: (selection: string) => void;
@@ -865,6 +875,7 @@ const LeadsPage: React.FC = () => {
                 <thead>
                   <tr className="border-b border-border">
                     <th className="text-left p-3 font-medium text-muted-foreground">ID</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">Date</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Name</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Email</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Phone</th>
@@ -901,6 +912,7 @@ const LeadsPage: React.FC = () => {
                         style={lead.highlight_color ? { backgroundColor: lead.highlight_color + '20' } : {}}
                       >
                         <td className="p-3 text-xs font-mono text-muted-foreground">{(lead as any).display_id || '—'}</td>
+                        <td className="p-3 text-xs text-muted-foreground">{formatDate(lead.created_at)}</td>
                         <td className="p-3 font-medium">{lead.name}</td>
                         <td className="p-3 text-muted-foreground">{lead.email}</td>
                         <td className="p-3 text-muted-foreground">{lead.phone}</td>

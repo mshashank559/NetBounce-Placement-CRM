@@ -89,6 +89,16 @@ import { format, subDays, isBefore, parseISO, isSameDay } from 'date-fns';
 const ROLES = ['ADMIN', 'PROCESS_ANALYST', 'LEAD_TL', 'LEAD_GEN', 'SALES_TL', 'SALES_TM'] as const;
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
+const formatDate = (dateString?: string) => {
+  if (!dateString) return '—';
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return '—';
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
 const StatCard: React.FC<{
   title: string;
   value: string | number;
@@ -730,6 +740,7 @@ const AdminDashboard: React.FC = () => {
                     <TableHeader className="bg-accent/50 sticky top-0">
                       <TableRow>
                         <TableHead className="text-xs">ID</TableHead>
+                        <TableHead className="text-xs">Date</TableHead>
                         <TableHead className="text-xs">Candidate</TableHead>
                         <TableHead className="text-xs">Status</TableHead>
                         <TableHead className="text-xs">Assigned To</TableHead>
@@ -741,6 +752,7 @@ const AdminDashboard: React.FC = () => {
                       {adminViewLeads.slice(0, 30).map(lead => (
                         <TableRow key={lead.unique_id} className={lead.lead_status === 'Hot Prospect' ? 'bg-red-500/10' : ''}>
                           <TableCell className="text-[10px] text-muted-foreground font-mono">{lead.display_id || lead.unique_id?.slice(0,8)}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{formatDate(lead.created_at)}</TableCell>
                           <TableCell>
                             <div className="text-xs font-bold">{lead.name}</div>
                             <div className="text-[10px] text-muted-foreground">{lead.email}</div>
@@ -966,6 +978,7 @@ const AdminDashboard: React.FC = () => {
                       <TableRow>
                         <TableHead className="text-xs w-10">#</TableHead>
                         <TableHead className="text-xs">ID</TableHead>
+                        <TableHead className="text-xs">Date</TableHead>
                         <TableHead className="text-xs">Name</TableHead>
                         <TableHead className="text-xs">Email</TableHead>
                         <TableHead className="text-xs">Phone</TableHead>
@@ -989,6 +1002,7 @@ const AdminDashboard: React.FC = () => {
                           <TableRow key={lead.unique_id} className="hover:bg-accent/20 border-border/50">
                             <TableCell className="text-xs text-muted-foreground font-medium w-10">{(globalPage - 1) * PAGE_SIZE + idx + 1}</TableCell>
                             <TableCell className="text-xs font-mono text-primary font-bold">{(lead as any).display_id || '—'}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{formatDate(lead.created_at)}</TableCell>
                             <TableCell className="text-xs font-medium">{lead.name}</TableCell>
                             <TableCell className="text-xs text-muted-foreground">{lead.email}</TableCell>
                             <TableCell className="text-xs">{lead.phone || '—'}</TableCell>

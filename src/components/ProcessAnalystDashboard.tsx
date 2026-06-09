@@ -60,6 +60,16 @@ import { format, subDays, isBefore, parseISO, isSameDay } from 'date-fns';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
+const formatDate = (dateString?: string) => {
+  if (!dateString) return '—';
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return '—';
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
 const StatCard: React.FC<{
   title: string;
   value: string | number;
@@ -375,6 +385,7 @@ const ProcessAnalystDashboard: React.FC = () => {
                     <TableHeader className="bg-accent/50">
                       <TableRow>
                         <TableHead className="text-xs w-10">#</TableHead>
+                        <TableHead className="text-xs">Date</TableHead>
                         <TableHead className="text-xs">Candidate</TableHead>
                         <TableHead className="text-xs">Assigned To</TableHead>
                         <TableHead className="text-xs">Status</TableHead>
@@ -384,13 +395,16 @@ const ProcessAnalystDashboard: React.FC = () => {
                     <TableBody>
                       {paGlobalLeads.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center py-10 text-muted-foreground text-sm">No leads found</TableCell>
+                          <TableCell colSpan={6} className="text-center py-10 text-muted-foreground text-sm">No leads found</TableCell>
                         </TableRow>
                       ) : (
                         paGlobalLeads.slice((leadsPage - 1) * 50, leadsPage * 50).map((lead, idx) => (
                           <TableRow key={lead.unique_id}>
                             <TableCell className="text-xs text-muted-foreground font-medium w-10">
                               {(leadsPage - 1) * 50 + idx + 1}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              {formatDate(lead.created_at)}
                             </TableCell>
                             <TableCell className="text-xs font-bold">
                               {lead.name}

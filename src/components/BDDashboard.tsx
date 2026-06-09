@@ -17,6 +17,16 @@ import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, Tool
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
+const formatDate = (dateString?: string) => {
+  if (!dateString) return '—';
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return '—';
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
 const BDDashboard: React.FC = () => {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
@@ -568,6 +578,7 @@ const BDDashboard: React.FC = () => {
               <thead>
                 <tr className="border-b border-border">
                   <th className="text-left p-2 text-muted-foreground font-medium w-10">#</th>
+                  <th className="text-left p-2 text-muted-foreground font-medium">Date</th>
                   <th className="text-left p-2 text-muted-foreground font-medium">Name</th>
                   <th className="text-left p-2 text-muted-foreground font-medium">Email</th>
                   <th className="text-left p-2 text-muted-foreground font-medium">Phone</th>
@@ -584,7 +595,7 @@ const BDDashboard: React.FC = () => {
               <tbody>
                 {displayedLeads.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="text-center py-8 text-muted-foreground">
+                    <td colSpan={13} className="text-center py-8 text-muted-foreground">
                       No leads in this queue.
                     </td>
                   </tr>
@@ -592,6 +603,7 @@ const BDDashboard: React.FC = () => {
                   displayedLeads.slice((leadsPage - 1) * 50, leadsPage * 50).map((lead, idx) => (
                     <tr key={lead.unique_id} className={`border-b border-border/50 hover:bg-accent/30 ${lead.concern ? 'bg-orange-500/10' : ''}`}>
                       <td className="p-2 text-xs text-muted-foreground font-medium">{(leadsPage - 1) * 50 + idx + 1}</td>
+                      <td className="p-2 text-xs text-muted-foreground">{formatDate(lead.created_at)}</td>
                       <td className="p-2">
                         <div className="font-medium">{lead.name}</div>
                         <div className="text-xs text-muted-foreground">ID: {(lead as any).display_id}</div>
