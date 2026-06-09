@@ -6,13 +6,15 @@ import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, CheckCircle2, Clock } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, Eye } from 'lucide-react';
 import { toast } from 'sonner';
+import LeadDetailDialog from '@/components/LeadDetailDialog';
 
 const DNRFollowupsPage: React.FC = () => {
   const { user, role } = useAuth();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
+  const [selectedLead, setSelectedLead] = useState<any>(null);
   const PAGE_SIZE = 50;
 
   const { data: leads, isLoading } = useQuery({
@@ -170,25 +172,36 @@ const DNRFollowupsPage: React.FC = () => {
                           {new Date(lead.updated_at).toLocaleDateString()}
                         </td>
                         <td className="p-3">
-                          {done ? (
-                            <div className="flex flex-col gap-0.5">
-                              <span className="flex items-center gap-1 text-xs font-medium text-green-600">
-                                <CheckCircle2 className="h-3.5 w-3.5" />
-                                Follow-up Done
-                              </span>
-                              {doneBy && (
-                                <span className="text-xs text-muted-foreground">
-                                  by {doneBy.full_name}
-                                  {doneAt && ` · ${new Date(doneAt).toLocaleDateString()}`}
+                          <div className="flex items-center gap-2">
+                            <div>
+                              {done ? (
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="flex items-center gap-1 text-xs font-medium text-green-600">
+                                    <CheckCircle2 className="h-3.5 w-3.5" />
+                                    Follow-up Done
+                                  </span>
+                                  {doneBy && (
+                                    <span className="text-xs text-muted-foreground">
+                                      by {doneBy.full_name}
+                                      {doneAt && ` · ${new Date(doneAt).toLocaleDateString()}`}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="flex items-center gap-1 text-xs text-orange-500">
+                                  <Clock className="h-3.5 w-3.5" />
+                                  Pending
                                 </span>
                               )}
                             </div>
-                          ) : (
-                            <span className="flex items-center gap-1 text-xs text-orange-500">
-                              <Clock className="h-3.5 w-3.5" />
-                              Pending
-                            </span>
-                          )}
+                            <button
+                              title="View Details & Comments"
+                              onClick={() => setSelectedLead(lead)}
+                              className="ml-1 text-muted-foreground hover:text-primary transition-colors"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </td>
                         {(role === 'SALES_TM' || role === 'LEAD_GEN') && (
                           <td className="p-3">
@@ -249,6 +262,14 @@ const DNRFollowupsPage: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {selectedLead && (
+        <LeadDetailDialog
+          lead={selectedLead}
+          open={!!selectedLead}
+          onClose={() => setSelectedLead(null)}
+        />
+      )}
     </div>
   );
 };
