@@ -36,7 +36,7 @@ const AssignLeadsPage: React.FC = () => {
   const { data: unassignedLeads } = useQuery({
     queryKey: ['unassigned-leads'],
     queryFn: async () => {
-      if (role !== 'ADMIN' && role !== 'LEAD_TL') return [];
+      if (role !== 'ADMIN' && role !== 'LEAD_TL' && role !== 'LEAD_GEN') return [];
       let allLeads: any[] = [];
       let from = 0;
       const step = 1000;
@@ -65,7 +65,7 @@ const AssignLeadsPage: React.FC = () => {
       }
       return allLeads;
     },
-    enabled: (role === 'ADMIN' || role === 'LEAD_TL') && !!user,
+    enabled: (role === 'ADMIN' || role === 'LEAD_TL' || role === 'LEAD_GEN') && !!user,
   });
 
   const { data: profilesMap } = useQuery({
@@ -452,7 +452,7 @@ const AssignLeadsPage: React.FC = () => {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  if (role !== 'ADMIN' && role !== 'LEAD_TL' && role !== 'SALES_TL') {
+  if (role !== 'ADMIN' && role !== 'LEAD_TL' && role !== 'SALES_TL' && role !== 'LEAD_GEN') {
     return <div className="text-center text-muted-foreground p-8">Access denied</div>;
   }
 
@@ -470,7 +470,7 @@ const AssignLeadsPage: React.FC = () => {
               className="pl-9 h-9 bg-accent/20"
             />
           </div>
-          {(role === 'ADMIN' || role === 'LEAD_TL') && (
+          {(role === 'ADMIN' || role === 'LEAD_TL' || role === 'LEAD_GEN') && (
             <Button onClick={() => roundRobin.mutate()} disabled={roundRobin.isPending} className="nb-gradient h-9">
               <Shuffle className="h-4 w-4 mr-2" />
               Round Robin Assign
@@ -479,7 +479,7 @@ const AssignLeadsPage: React.FC = () => {
         </div>
       </div>
 
-      {(role === 'ADMIN' || role === 'LEAD_TL') && (
+      {(role === 'ADMIN' || role === 'LEAD_TL' || role === 'LEAD_GEN') && (
         <Card className="glass-card">
           <CardHeader>
             <CardTitle className="text-lg font-display">Unassigned Leads ({filteredUnassigned?.length || 0})</CardTitle>
@@ -520,8 +520,8 @@ const AssignLeadsPage: React.FC = () => {
                         </SelectTrigger>
                         <SelectContent>
                           {salesMembers?.filter(m => {
-                            // If Admin or BD TL, only show Sales TLs
-                            if (role === 'ADMIN' || role === 'LEAD_TL') return m.role === 'SALES_TL';
+                            // If Admin, BD TL, or BD Member (LEAD_GEN), only show Sales TLs
+                            if (role === 'ADMIN' || role === 'LEAD_TL' || role === 'LEAD_GEN') return m.role === 'SALES_TL';
                             // If Sales TL, only show their team members (already filtered in query)
                             return true;
                           }).map(m => 
@@ -705,7 +705,7 @@ const AssignLeadsPage: React.FC = () => {
                               </SelectTrigger>
                               <SelectContent>
                                 {salesMembers?.filter(m => {
-                                  if (role === 'ADMIN' || role === 'LEAD_TL') return m.role === 'SALES_TL';
+                                  if (role === 'ADMIN' || role === 'LEAD_TL' || role === 'LEAD_GEN') return m.role === 'SALES_TL';
                                   return true;
                                 }).map(m => 
                                   m.role === 'SALES_TL' ? (
