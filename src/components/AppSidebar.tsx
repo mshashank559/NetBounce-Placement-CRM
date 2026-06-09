@@ -49,6 +49,16 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ isOpen = false, onClose }) => {
 
   return (
     <>
+      <svg className="absolute w-0 h-0 pointer-events-none" aria-hidden="true">
+        <filter id="lighten-black-keep-blue">
+          <feColorMatrix type="matrix" values="
+            0 0 -1.116 0 1
+            0 0 -0.953 0 1
+            0 0 -0.163 0 1
+            0 0  0     1 0
+          " />
+        </filter>
+      </svg>
       {/* Mobile Sidebar Backdrop */}
       {isOpen && (
         <div
@@ -64,9 +74,9 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ isOpen = false, onClose }) => {
           <img
             src={logo}
             alt="NetBounce Placement"
-            className="h-10 w-auto object-contain max-w-[200px]"
+            className="h-12 w-auto object-contain max-w-[220px]"
             style={{
-              filter: 'invert(1) hue-rotate(180deg) drop-shadow(0 0 10px rgba(67,97,238,0.25))'
+              filter: 'url(#lighten-black-keep-blue) drop-shadow(0 0 10px rgba(67,97,238,0.25))'
             }}
           />
         </div>
