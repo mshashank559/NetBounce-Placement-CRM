@@ -479,10 +479,35 @@ const SalesMemberDashboard: React.FC = () => {
   });
   const monthlyCalls = monthCallLogs.reduce((s, c) => s + (c.call_count || 0), 0);
 
-  // ── SLA: stale leads (no update >24h) ──
+  const getStatusThreshold = (st: string) => {
+    switch (st) {
+      case 'New': return 5;
+      case 'DNR1': return 20;
+      case 'DNR2': return 15;
+      case 'DNR3': return 10;
+      case 'Connected': return 30;
+      case 'Qualified': return 60;
+      case 'Hot Prospect': return 90;
+      case 'Non Interested': return 2;
+      default: return null;
+    }
+  };
+
+  // ── SLA: stale leads (reaching deadline today) ──
   const staleLeads = statsLeads.filter(l => {
-    const hrs = (Date.now() - new Date(l.updated_at).getTime()) / 3600000;
-    return hrs > 24 && !['Closed','Non Interested'].includes(l.lead_status || '');
+    const status = l.lead_status;
+    const updatedDate = l.updated_at ? new Date(l.updated_at) : null;
+    if (!status || !updatedDate) return false;
+    if ((l as any).dnr_followup_done || ['Closed', 'Non Interested'].includes(status)) return false;
+
+    const now = new Date();
+    const start = new Date(updatedDate.getFullYear(), updatedDate.getMonth(), updatedDate.getDate());
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const diffTime = end.getTime() - start.getTime();
+    const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    const threshold = getStatusThreshold(status);
+    return threshold !== null && days === threshold;
   });
 
   // ── Chart data ──
@@ -569,7 +594,7 @@ const SalesMemberDashboard: React.FC = () => {
         <Card className="border-red-500/50 bg-red-500/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-red-600 flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" /> Attention Required — {staleLeads.length} lead(s) with no update in 24h
+              <AlertTriangle className="h-4 w-4" /> Attention Required — {staleLeads.length} lead(s) reaching aging deadline today
             </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
