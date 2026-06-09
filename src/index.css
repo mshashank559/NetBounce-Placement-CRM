@@ -27,14 +27,14 @@
     --ring: 222 100% 50%;
     --radius: 0.75rem;
 
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 215 25% 27%;
-    --sidebar-primary: 221.2 83.2% 53.3%;
+    --sidebar-background: 222 47% 5%;
+    --sidebar-foreground: 220 20% 85%;
+    --sidebar-primary: 222 100% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 40% 96.1%;
-    --sidebar-accent-foreground: 221.2 83.2% 53.3%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 221.2 83.2% 53.3%;
+    --sidebar-accent: 222 40% 12%;
+    --sidebar-accent-foreground: 213 94% 68%;
+    --sidebar-border: 222 30% 15%;
+    --sidebar-ring: 222 100% 55%;
 
     --nb-glow: 0 0 30px hsla(222, 100%, 50%, 0.3);
     --nb-glow-strong: 0 0 60px hsla(222, 100%, 50%, 0.5);

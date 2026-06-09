@@ -63,13 +63,11 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ isOpen = false, onClose }) => {
       >
         <div className="px-4 py-4 flex items-center gap-3 border-b border-sidebar-border">
           <img
-            src={theme === 'dark' ? logoDark : logo}
+            src={logoDark}
             alt="NetBounce Placement"
             className="h-11 w-auto object-contain max-w-[210px]"
             style={{
-              filter: theme === 'dark' 
-                ? 'drop-shadow(0 0 10px rgba(67,97,238,0.25))' 
-                : 'drop-shadow(0 0 10px rgba(67,97,238,0.05))'
+              filter: 'drop-shadow(0 0 10px rgba(67,97,238,0.25))'
             }}
           />
         </div>
