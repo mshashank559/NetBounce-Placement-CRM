@@ -596,7 +596,7 @@ const AssignLeadsPage: React.FC = () => {
         <CardHeader>
           <div className="flex items-center gap-2">
             <UserPlus className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg font-display">Assign Leads to Team ({agingLeads?.length || 0} pending)</CardTitle>
+            <CardTitle className="text-lg font-display">Lead To Be Reassigned ({agingLeads?.length || 0} pending)</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
