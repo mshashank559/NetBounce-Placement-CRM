@@ -209,7 +209,7 @@ export const useSLA = () => {
 
       if (activeFollowupLeads && activeFollowupLeads.length > 0) {
         const pendingLeads = activeFollowupLeads.filter(
-          l => !l.dnr_followup_done && ['New', 'DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', 'Hot Prospect', 'Non Interested', 'Not Interested'].includes(l.lead_status || '')
+          l => !l.dnr_followup_done && ['New', 'DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', 'Hot Prospect', 'Non Interested'].includes(l.lead_status || '')
         );
 
         if (pendingLeads.length > 0) {
@@ -236,7 +236,7 @@ export const useSLA = () => {
             else if (status === 'DNR2') delayDays = 15;
             else if (status === 'DNR3') delayDays = 10;
             else if (status === 'New') delayDays = 5;
-            else if (status === 'Non Interested' || status === 'Not Interested') delayDays = 2;
+            else if (status === 'Non Interested') delayDays = 2;
             else continue;
 
             const updatedDate = new Date(lead.updated_at);

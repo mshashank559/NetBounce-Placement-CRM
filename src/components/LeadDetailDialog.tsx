@@ -161,7 +161,7 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
               case 'Connected': return 30;
               case 'Qualified': return 60;
               case 'Hot Prospect': return 90;
-              case 'Non Interested': case 'Not Interested': return 2;
+              case 'Non Interested': return 2;
               default: return null;
             }
           };

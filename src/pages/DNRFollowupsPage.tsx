@@ -23,7 +23,7 @@ const DNRFollowupsPage: React.FC = () => {
       const { data } = await supabase
         .from('leads')
         .select('*')
-        .in('lead_status', ['New', 'DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', 'Hot Prospect', 'Non Interested', 'Not Interested'])
+        .in('lead_status', ['New', 'DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', 'Hot Prospect', 'Non Interested'])
         .order('updated_at', { ascending: false });
 
       const getStatusThreshold = (status: string): number | null => {
@@ -36,7 +36,6 @@ const DNRFollowupsPage: React.FC = () => {
           case 'Qualified': return 60;
           case 'Hot Prospect': return 90;
           case 'Non Interested':
-          case 'Not Interested':
             return 2;
           default: return null;
         }

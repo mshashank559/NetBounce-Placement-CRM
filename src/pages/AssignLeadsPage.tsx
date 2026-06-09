@@ -91,7 +91,7 @@ const AssignLeadsPage: React.FC = () => {
         const { data, error } = await supabase
           .from('leads')
           .select('*')
-          .in('lead_status', ['New', 'DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', 'Hot Prospect', 'Non Interested', 'Not Interested'])
+          .in('lead_status', ['New', 'DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', 'Hot Prospect', 'Non Interested'])
           .range(from, from + step - 1);
           
         if (error) throw error;
@@ -118,7 +118,6 @@ const AssignLeadsPage: React.FC = () => {
           case 'Qualified': return 60;
           case 'Hot Prospect': return 90;
           case 'Non Interested':
-          case 'Not Interested':
             return 2;
           default: return null;
         }
