@@ -460,7 +460,17 @@ const AssignLeadsPage: React.FC = () => {
                   >
                     <div className="min-w-0">
                       <p className="font-medium text-sm truncate">{lead.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{lead.email} · {lead.phone}</p>
+                      <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                        <span className="text-xs text-muted-foreground truncate">{lead.email} · {lead.phone}</span>
+                        {lead.lead_source && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-500/10 text-blue-500">{lead.lead_source}</span>
+                        )}
+                        {lead.lead_category && (
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                            lead.lead_category === 'Hot' ? 'bg-orange-500/10 text-orange-500' : 'bg-slate-500/10 text-slate-400'
+                          }`}>{lead.lead_category}</span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Select
@@ -536,7 +546,17 @@ const AssignLeadsPage: React.FC = () => {
                   >
                     <div className="min-w-0">
                       <p className="font-medium text-sm truncate">{lead.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{lead.email} · {lead.phone}</p>
+                      <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                        <span className="text-xs text-muted-foreground truncate">{lead.email} · {lead.phone}</span>
+                        {lead.lead_source && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-500/10 text-blue-500">{lead.lead_source}</span>
+                        )}
+                        {lead.lead_category && (
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                            lead.lead_category === 'Hot' ? 'bg-orange-500/10 text-orange-500' : 'bg-slate-500/10 text-slate-400'
+                          }`}>{lead.lead_category}</span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Select
