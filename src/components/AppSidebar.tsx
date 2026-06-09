@@ -70,13 +70,15 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ isOpen = false, onClose }) => {
         className={`fixed inset-y-0 left-0 z-50 w-64 h-screen bg-sidebar flex flex-col border-r border-sidebar-border transition-transform duration-300 md:sticky md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
       >
-        <div className="p-5 flex items-center justify-center border-b border-sidebar-border">
+        <div className="px-4 py-4 flex items-center gap-3 border-b border-sidebar-border">
           <img
             src={logo}
             alt="NetBounce Placement"
-            className="h-12 w-auto object-contain max-w-[220px]"
+            className="h-11 w-auto object-contain max-w-[210px]"
             style={{
-              filter: 'url(#lighten-black-keep-blue) drop-shadow(0 0 10px rgba(67,97,238,0.25))'
+              filter: theme === 'dark' 
+                ? 'url(#lighten-black-keep-blue) drop-shadow(0 0 10px rgba(67,97,238,0.25))' 
+                : 'drop-shadow(0 0 10px rgba(67,97,238,0.05))'
             }}
           />
         </div>
@@ -92,7 +94,7 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ isOpen = false, onClose }) => {
                   if (onClose) onClose();
                 }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${isActive
-                    ? 'bg-sidebar-primary text-sidebar-primary-foreground nb-glow'
+                    ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
                     : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
                   }`}
               >
