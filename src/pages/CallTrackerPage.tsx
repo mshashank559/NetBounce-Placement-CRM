@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,6 +14,13 @@ const CallTrackerPage: React.FC = () => {
   const { user, role } = useAuth();
   const [viewMode, setViewMode] = useState<'my' | 'team'>('team');
   const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
+
+  // Reset page when search query or viewMode changes
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, viewMode]);
 
   // 1. Fetch all profiles to map user_id -> Full Name
   const { data: profiles = [] } = useQuery({
@@ -97,6 +104,12 @@ const CallTrackerPage: React.FC = () => {
       );
     });
   }, [followups, searchQuery, profiles]);
+
+  const totalCount = filteredFollowups.length;
+  const paginatedFollowups = useMemo(() => {
+    const startIndex = (page - 1) * PAGE_SIZE;
+    return filteredFollowups.slice(startIndex, startIndex + PAGE_SIZE);
+  }, [filteredFollowups, page, PAGE_SIZE]);
 
   // Compute live KPIs dynamically based on what is currently displayed
   const stats = useMemo(() => {
@@ -238,14 +251,14 @@ const CallTrackerPage: React.FC = () => {
               </thead>
               <tbody>
                 <AnimatePresence mode="popLayout">
-                  {!filteredFollowups.length ? (
+                  {!paginatedFollowups.length ? (
                     <tr>
                       <td colSpan={5} className="text-center py-10 text-muted-foreground text-sm">
                         No call logs matched the current view/filters.
                       </td>
                     </tr>
                   ) : (
-                    filteredFollowups.map((log: any, idx: number) => {
+                    paginatedFollowups.map((log: any, idx: number) => {
                       const salespersonName = getProfileName(log.user_id);
                       const candidateName = log.leads?.name || 'Unknown Candidate';
                       const formattedDate = new Date(log.created_at).toLocaleDateString('en-US', {
@@ -306,6 +319,38 @@ const CallTrackerPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          {totalCount > 0 && (
+            <div className="flex justify-between items-center p-4 border-t border-border flex-wrap gap-2 bg-background/50">
+              <span className="text-xs text-muted-foreground">
+                Showing {Math.min(totalCount, (page - 1) * PAGE_SIZE + 1)} to {Math.min(totalCount, page * PAGE_SIZE)} of {totalCount} leads
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={page === 1}
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  className="h-8 text-xs"
+                >
+                  Previous
+                </Button>
+                <span className="text-xs font-medium">
+                  Page {page} of {Math.ceil(totalCount / PAGE_SIZE) || 1}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={page * PAGE_SIZE >= totalCount}
+                  onClick={() => setPage(p => p + 1)}
+                  className="h-8 text-xs"
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
