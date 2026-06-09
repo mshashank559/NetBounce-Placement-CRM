@@ -501,7 +501,14 @@ const BDMemberDashboard: React.FC = () => {
                     <td className="p-2 text-xs">{lead.phone}</td>
                     <td className="p-2 text-xs">
                       {lead.linkedin_url ? (
-                        <a href={lead.linkedin_url} target="_blank" rel="noreferrer" className="text-primary underline text-xs">View</a>
+                        <a 
+                          href={lead.linkedin_url.trim().startsWith('http') || lead.linkedin_url.trim().startsWith('//') ? lead.linkedin_url.trim() : `https://${lead.linkedin_url.trim()}`} 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          className="text-primary underline text-xs"
+                        >
+                          View
+                        </a>
                       ) : '—'}
                     </td>
                     <td className="p-2 text-xs">{lead.university || '—'}</td>

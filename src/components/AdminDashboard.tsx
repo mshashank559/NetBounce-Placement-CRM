@@ -1008,7 +1008,14 @@ const AdminDashboard: React.FC = () => {
                             <TableCell className="text-xs">{lead.phone || '—'}</TableCell>
                             <TableCell className="text-xs">
                               {lead.linkedin_url ? (
-                                <a href={lead.linkedin_url} target="_blank" rel="noreferrer" className="text-primary underline">View</a>
+                                <a 
+                                  href={lead.linkedin_url.trim().startsWith('http') || lead.linkedin_url.trim().startsWith('//') ? lead.linkedin_url.trim() : `https://${lead.linkedin_url.trim()}`} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  className="text-primary underline"
+                                >
+                                  View
+                                </a>
                               ) : '—'}
                             </TableCell>
                             <TableCell className="text-xs">{lead.technology || '—'}</TableCell>
