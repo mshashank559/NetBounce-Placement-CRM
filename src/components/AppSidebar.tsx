@@ -7,6 +7,7 @@ import {
   DollarSign, AlertCircle, UsersRound, Shield, Activity
 } from 'lucide-react';
 import logo from '@/assets/logo.png';
+import logoDark from '@/assets/logo-dark.png';
 
 type AppRole = 'ADMIN' | 'PROCESS_ANALYST' | 'LEAD_TL' | 'LEAD_GEN' | 'SALES_TL' | 'SALES_TM' | 'ACCOUNTANT';
 
@@ -62,12 +63,12 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ isOpen = false, onClose }) => {
       >
         <div className="px-4 py-4 flex items-center gap-3 border-b border-sidebar-border">
           <img
-            src={logo}
+            src={theme === 'dark' ? logoDark : logo}
             alt="NetBounce Placement"
             className="h-11 w-auto object-contain max-w-[210px]"
             style={{
               filter: theme === 'dark' 
-                ? 'url(#lighten-black-keep-blue) drop-shadow(0 0 10px rgba(67,97,238,0.25))' 
+                ? 'drop-shadow(0 0 10px rgba(67,97,238,0.25))' 
                 : 'drop-shadow(0 0 10px rgba(67,97,238,0.05))'
             }}
           />

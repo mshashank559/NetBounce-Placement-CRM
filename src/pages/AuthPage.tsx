@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import logoIcon from '@/assets/logo.png';
+import logoDarkIcon from '@/assets/logo-dark.png';
 import { Eye, EyeOff } from 'lucide-react';
 
 type AppRole = 'ADMIN' | 'PROCESS_ANALYST' | 'LEAD_TL' | 'LEAD_GEN' | 'SALES_TL' | 'SALES_TM' | 'ACCOUNTANT';
@@ -360,10 +361,9 @@ const AuthPage: React.FC = () => {
           {/* Top logo */}
           <div className="flex items-center relative z-10">
             <img 
-              src={logoIcon} 
+              src={logoDarkIcon} 
               alt="NetBounce Placement" 
               className="h-12 w-auto object-contain max-w-[240px]" 
-              style={{ filter: 'url(#lighten-black-keep-blue)' }} 
             />
           </div>
 
@@ -390,10 +390,10 @@ const AuthPage: React.FC = () => {
             {/* Horizontal white logo matching reference */}
             <div className="flex items-center mb-5">
               <img 
-                src={logoIcon} 
+                src={logoDarkIcon} 
                 alt="NetBounce Placement" 
                 className="h-13 w-auto object-contain max-w-[260px]" 
-                style={{ filter: 'url(#lighten-black-keep-blue) drop-shadow(0 0 12px rgba(67,97,238,0.25))' }} 
+                style={{ filter: 'drop-shadow(0 0 12px rgba(67,97,238,0.25))' }} 
               />
             </div>
             <h1 className="text-[22px] font-bold text-white">
