@@ -101,15 +101,7 @@ const AddLeadPage: React.FC = () => {
         throw new Error('Comment is mandatory for BD team');
       }
 
-      // ── Auto-generate NBC ID (NBC001, NBC002, ...) ────────────
-      const { count: totalLeads } = await supabase
-        .from('leads')
-        .select('*', { count: 'exact', head: true });
-      const nextNum = (totalLeads ?? 0) + 1;
-      const displayId = `NBC${String(nextNum).padStart(3, '0')}`;
-
       const leadData: any = {
-        display_id: displayId,
         name: form.name,
         email: form.email,
         phone: form.phone,
