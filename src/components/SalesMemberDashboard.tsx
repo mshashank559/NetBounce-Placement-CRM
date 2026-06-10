@@ -480,7 +480,7 @@ const SalesMemberDashboard: React.FC = () => {
 
   // ── KPIs ──
   const today = new Date().toISOString().split('T')[0];
-  const activeLeads = statsLeads.filter(l => !['Closed','Non Interested'].includes(l.lead_status || '')).length;
+  const activeLeads = statsLeads.filter(l => l.lead_status !== 'Closed').length;
   const closures = statsLeads.filter(l => l.lead_status === 'Closed').length;
   const todayCalls = callLogs.filter(c => c.call_date === today).reduce((s, c) => s + (c.call_count || 0), 0);
   const monthCallLogs = callLogs.filter(c => {

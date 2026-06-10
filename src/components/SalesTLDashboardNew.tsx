@@ -303,7 +303,7 @@ const SalesTLDashboard: React.FC = () => {
 
   // ── KPIs ──
   const today = new Date().toISOString().split('T')[0];
-  const activeLeads = filteredLeads.filter(l => !['Closed','Non Interested'].includes(l.lead_status || '')).length;
+  const activeLeads = filteredLeads.filter(l => l.lead_status !== 'Closed').length;
   const closures = filteredLeads.filter(l => l.lead_status === 'Closed').length;
 
   const filteredLeadIds = useMemo(() => new Set(filteredLeads.map(l => l.unique_id)), [filteredLeads]);
