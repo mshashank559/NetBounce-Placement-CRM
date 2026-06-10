@@ -292,7 +292,7 @@ const SalesMemberDashboard: React.FC = () => {
     queryFn: async () => {
       let query = supabase.from('leads').select('*', { count: 'exact' });
       if (viewMode === 'personal') {
-        query = query.eq('assigned_to', user!.id).neq('assignment_type', 'Team');
+        query = query.eq('assigned_to', user!.id);
       } else if (viewMode === 'global') {
         query = query.not('assigned_to', 'is', null);
       } else {
@@ -367,7 +367,7 @@ const SalesMemberDashboard: React.FC = () => {
         .select('created_at, updated_at, assigned_to, team_lead_id, lead_status, lead_source, lead_category, name, email, phone, display_id, unique_id');
 
       if (viewMode === 'personal') {
-        query = query.eq('assigned_to', user!.id).neq('assignment_type', 'Team');
+        query = query.eq('assigned_to', user!.id);
       } else if (viewMode === 'global') {
         query = query.not('assigned_to', 'is', null);
       } else {
