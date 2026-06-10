@@ -115,6 +115,19 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
     enabled: open,
   });
 
+  const parsedOnOfferAmount = React.useMemo(() => {
+    if (closure && closure.amount != null) return `$${closure.amount}`;
+    
+    // Parse from lead.comment if available
+    if (lead?.comment && lead.comment.includes('[Closure Payment]')) {
+      const match = lead.comment.match(/Amount:\s*\$?([0-9.]+)/);
+      if (match && match[1]) {
+        return `$${match[1]}`;
+      }
+    }
+    return null;
+  }, [closure, lead?.comment]);
+
   const canSeeGeneratedBy = role === 'SALES_TM' || role === 'SALES_TL' || role === 'LEAD_TL' || role === 'PROCESS_ANALYST' || role === 'ADMIN';
 
   const Field = ({ label, value }: { label: string; value: any }) => (
@@ -239,7 +252,7 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                   <Field label="Interview Plan" value={closure.interview_plan ? 'Yes' : 'No'} />
                   <Field label="Upfront Amount" value={`$${closure.upfront_amount}`} />
                   <Field label="Payment Mode" value={closure.payment_mode} />
-                  {closure.amount != null && <Field label="On-Offer Amount" value={`$${closure.amount}`} />}
+                  {parsedOnOfferAmount && <Field label="On-Offer Amount" value={parsedOnOfferAmount} />}
                   {closure.percentage != null && <Field label="Percentage" value={`${closure.percentage}%`} />}
                   {closure.slot1_amount !== null && closure.slot1_amount !== undefined && (
                     <>

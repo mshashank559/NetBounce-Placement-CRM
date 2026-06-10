@@ -617,6 +617,17 @@ export default function AccountantDashboard() {
                         } catch (e) {}
                       }
 
+                      const closure = lead.lead_closures?.[0];
+                      let onOfferAmt = null;
+                      if (closure && closure.amount != null) {
+                        onOfferAmt = `$${closure.amount}`;
+                      } else if (lead.comment && lead.comment.includes('[Closure Payment]')) {
+                        const match = lead.comment.match(/Amount:\s*\$?([0-9.]+)/);
+                        if (match && match[1]) {
+                          onOfferAmt = `$${match[1]}`;
+                        }
+                      }
+
                       return (
                         <TableRow 
                           key={lead.unique_id}
@@ -641,6 +652,12 @@ export default function AccountantDashboard() {
                                 <span className="text-muted-foreground">Plan:</span>
                                 <span className="font-medium text-primary uppercase">{lead.lead_closures?.[0]?.plan}</span>
                               </div>
+                              {onOfferAmt && (
+                                <div className="flex items-center justify-between">
+                                  <span className="text-muted-foreground">On-Offer:</span>
+                                  <span className="font-semibold text-foreground">{onOfferAmt}</span>
+                                </div>
+                              )}
                               <div className="flex items-center justify-between">
                                 <span className="text-muted-foreground">Total:</span>
                                 <span className="font-semibold text-foreground">${lead.payment_ledgers?.[0]?.total_amount || 0}</span>
