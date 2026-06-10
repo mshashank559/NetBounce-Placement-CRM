@@ -45,6 +45,7 @@ const BDMemberDashboard: React.FC = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [nameSearch, setNameSearch] = useState('');
+  const [localSearch, setLocalSearch] = useState('');
   const [selectedGenerator, setSelectedGenerator] = useState('all');
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 50;
@@ -53,6 +54,14 @@ const BDMemberDashboard: React.FC = () => {
   useEffect(() => {
     setPage(1);
   }, [viewMode, monthFilter, dateFrom, dateTo, nameSearch, selectedGenerator]);
+
+  // Debounce search input to avoid lag
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setNameSearch(localSearch);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [localSearch]);
 
   // ── Concern Dialog State ─────────────────────────────────
   const [concernLead, setConcernLead] = useState<any>(null);
@@ -373,8 +382,8 @@ const BDMemberDashboard: React.FC = () => {
           )}
           <Input
             placeholder="Search name, id, email, phone..."
-            value={nameSearch}
-            onChange={e => setNameSearch(e.target.value)}
+            value={localSearch}
+            onChange={e => setLocalSearch(e.target.value)}
             className="w-56"
           />
           <Select value={monthFilter} onValueChange={setMonthFilter}>
