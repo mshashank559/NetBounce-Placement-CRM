@@ -150,17 +150,30 @@ const AnalyticsPage: React.FC = () => {
             <CardHeader>
               <CardTitle className="text-lg font-display">Source Analysis</CardTitle>
             </CardHeader>
-            <CardContent className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={sourceData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label>
-                    {sourceData.map((_, i) => (
-                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+            <CardContent className="h-64 flex flex-row items-center justify-between gap-4">
+              <div className="w-1/2 h-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={sourceData} cx="50%" cy="50%" outerRadius={70} dataKey="value" label={false}>
+                      {sourceData.map((_, i) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="w-1/2 h-full overflow-y-auto pr-2 space-y-1.5 text-xs custom-scrollbar">
+                {sourceData.map((item, i) => (
+                  <div key={item.name} className="flex items-center justify-between gap-2 py-1 border-b border-border/40">
+                    <div className="flex items-center gap-1.5 truncate">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                      <span className="font-medium truncate" title={item.name}>{item.name}</span>
+                    </div>
+                    <span className="text-muted-foreground font-semibold shrink-0">{item.value}</span>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </motion.div>
