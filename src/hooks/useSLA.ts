@@ -205,7 +205,7 @@ export const useSLA = () => {
       // ── Rule 5: Follow-up SLA Notification Logic ──
       const { data: activeFollowupLeads } = await supabase
         .from('leads')
-        .select('unique_id, display_id, name, assigned_to, team_lead_id, lead_status, updated_at, dnr_followup_done');
+        .select('unique_id, display_id, name, assigned_to, team_lead_id, lead_status, updated_at, dnr_followup_done, assigned_at');
 
       if (activeFollowupLeads && activeFollowupLeads.length > 0) {
         const pendingLeads = activeFollowupLeads.filter(
@@ -235,11 +235,15 @@ export const useSLA = () => {
             else if (status === 'DNR1') delayDays = 20;
             else if (status === 'DNR2') delayDays = 15;
             else if (status === 'DNR3') delayDays = 10;
-            else if (status === 'New') delayDays = 5;
+            else if (status === 'New') {
+              if (!lead.assigned_to) continue; // Unassigned "New" leads are handled by Rule 1
+              delayDays = 5;
+            }
             else if (status === 'Non Interested') delayDays = 2;
             else continue;
 
-            const updatedDate = new Date(lead.updated_at);
+            const baseDateStr = status === 'New' ? (lead.assigned_at || lead.updated_at) : lead.updated_at;
+            const updatedDate = new Date(baseDateStr);
             updatedDate.setDate(updatedDate.getDate() + delayDays);
             const followupDateStr = updatedDate.toISOString().split('T')[0];
 

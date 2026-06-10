@@ -224,6 +224,7 @@ export type Database = {
         Row: {
           agreement_sent_at: string | null
           agreement_status: Database["public"]["Enums"]["agreement_status"] | null
+          assigned_at: string | null
           assigned_to: string | null
           assignment_type: string | null
           comment: string | null
@@ -258,6 +259,7 @@ export type Database = {
         Insert: {
           agreement_sent_at?: string | null
           agreement_status?: Database["public"]["Enums"]["agreement_status"] | null
+          assigned_at?: string | null
           assigned_to?: string | null
           assignment_type?: string | null
           comment?: string | null
@@ -292,6 +294,7 @@ export type Database = {
         Update: {
           agreement_sent_at?: string | null
           agreement_status?: Database["public"]["Enums"]["agreement_status"] | null
+          assigned_at?: string | null
           assigned_to?: string | null
           assignment_type?: string | null
           comment?: string | null

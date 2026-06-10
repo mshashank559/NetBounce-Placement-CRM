@@ -425,6 +425,13 @@ const AdminDashboard: React.FC = () => {
     const today = new Date();
     return leads.filter(l => {
       if (['Closed', 'Non Interested'].includes(l.lead_status || '')) return false;
+
+      if (l.lead_status === 'New') {
+        const assignmentDate = l.assigned_at ? new Date(l.assigned_at) : new Date(l.created_at || l.updated_at);
+        const daysSinceAssignment = (Date.now() - assignmentDate.getTime()) / (1000 * 60 * 60 * 24);
+        return daysSinceAssignment > 5;
+      }
+
       const lastUpdate = parseISO(l.updated_at);
       return !isSameDay(lastUpdate, today) || isBefore(lastUpdate, subDays(today, 2));
     });

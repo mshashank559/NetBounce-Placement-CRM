@@ -344,8 +344,16 @@ const SalesTLDashboard: React.FC = () => {
   const staleLeads = useMemo(() => {
     return leads.filter(l => {
       if (l.assigned_to !== user?.id && !myTeamIds.has(l.assigned_to)) return false;
+      if (['Closed','Non Interested'].includes(l.lead_status || '')) return false;
+
+      if (l.lead_status === 'New') {
+        const assignmentDate = l.assigned_at ? new Date(l.assigned_at) : new Date(l.updated_at);
+        const daysSinceAssignment = (Date.now() - assignmentDate.getTime()) / (1000 * 60 * 60 * 24);
+        return daysSinceAssignment > 5;
+      }
+
       const hrs = (Date.now() - new Date(l.updated_at).getTime()) / 3600000;
-      return hrs > 24 && !['Closed','Non Interested'].includes(l.lead_status || '');
+      return hrs > 24;
     });
   }, [leads, myTeamIds, user?.id]);
 
