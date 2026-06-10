@@ -119,58 +119,33 @@ export default function AccountantDashboard() {
   // Agreement Workflow state
   const [agreementLead, setAgreementLead] = useState<any>(null);
 
-  // Fetch closed leads with payment data OR leads with performas
+  // Fetch closed leads with payment data
   const { data: closures, isLoading } = useQuery({
     queryKey: ['account-closures'],
     queryFn: async () => {
-      // First get all unique lead_ids from performas
-      const { data: perfData } = await supabase
-        .from('performas')
-        .select('lead_id');
-      
-      const leadIdsWithDocs = Array.from(new Set(perfData?.map(p => p.lead_id) || []));
-
-      let query = supabase
+      const { data, error } = await supabase
         .from('leads')
         .select(`
           *,
           lead_closures (*),
           payment_ledgers (*)
-        `);
+        `)
+        .eq('lead_status', 'Closed');
 
-      if (leadIdsWithDocs.length > 0) {
-        const idListStr = leadIdsWithDocs.map(id => `"${id}"`).join(',');
-        query = query.or(`lead_status.eq.Closed,unique_id.in.(${idListStr})`);
-      } else {
-        query = query.eq('lead_status', 'Closed');
-      }
-
-      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     }
   });
 
-  // Fetch all leads for Leads View (Closed OR has documents)
+  // Fetch all leads for Leads View (Only Closed)
   const { data: allLeads, isLoading: isAllLeadsLoading, refetch: refetchAllLeads } = useQuery({
     queryKey: ['all-leads-accountant'],
     queryFn: async () => {
-      const { data: perfData } = await supabase
-        .from('performas')
-        .select('lead_id');
-      
-      const leadIdsWithDocs = Array.from(new Set(perfData?.map(p => p.lead_id) || []));
-
-      let query = supabase.from('leads').select('*');
-
-      if (leadIdsWithDocs.length > 0) {
-        const idListStr = leadIdsWithDocs.map(id => `"${id}"`).join(',');
-        query = query.or(`lead_status.eq.Closed,unique_id.in.(${idListStr})`);
-      } else {
-        query = query.eq('lead_status', 'Closed');
-      }
-
-      const { data, error } = await query.order('created_at', { ascending: false });
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('lead_status', 'Closed')
+        .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
     }
