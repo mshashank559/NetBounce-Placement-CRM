@@ -201,8 +201,10 @@ export default function AccountantDashboard() {
         if (leadsSearch.trim()) {
           const s = leadsSearch.toLowerCase();
           const nameMatch = lead.name?.toLowerCase().includes(s);
+          const emailMatch = lead.email?.toLowerCase().includes(s);
+          const phoneMatch = lead.phone?.toLowerCase().includes(s);
           const idMatch = lead.display_id?.toLowerCase().includes(s) || lead.unique_id?.toLowerCase().includes(s);
-          if (!nameMatch && !idMatch) return false;
+          if (!nameMatch && !emailMatch && !phoneMatch && !idMatch) return false;
         }
 
         if (leadsTypeFilter !== 'all') {
@@ -742,7 +744,7 @@ export default function AccountantDashboard() {
               {/* Search and Filters */}
               <div className="flex flex-wrap items-center gap-2 md:self-end">
                 <Input 
-                  placeholder="Search name or ID..."
+                  placeholder="Search name, id, email, phone..."
                   value={leadsSearch}
                   onChange={e => setLeadsSearch(e.target.value)}
                   className="w-[200px] h-9 bg-background/50 border-accent/20"

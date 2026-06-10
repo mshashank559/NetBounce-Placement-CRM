@@ -212,7 +212,7 @@ const LeadsPage: React.FC = () => {
       // 1. Search filter
       if (search.trim()) {
         const s = `%${search.trim()}%`;
-        query = query.or(`name.ilike.${s},email.ilike.${s}`);
+        query = query.or(`name.ilike.${s},email.ilike.${s},phone.ilike.${s},display_id.ilike.${s}`);
       }
 
       // 2. Status filter
@@ -792,7 +792,7 @@ const LeadsPage: React.FC = () => {
         <div className="flex items-center gap-2 flex-wrap">
           {/* Name search */}
           <Input
-            placeholder="Search name or email..."
+            placeholder="Search name, id, email, phone..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="w-52"

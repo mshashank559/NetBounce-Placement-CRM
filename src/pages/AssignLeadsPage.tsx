@@ -203,7 +203,11 @@ const AssignLeadsPage: React.FC = () => {
     if (!searchQuery) return unassignedLeads;
     const q = searchQuery.toLowerCase().trim();
     return unassignedLeads.filter(l => 
-      l.name?.toLowerCase().includes(q)
+      l.name?.toLowerCase().includes(q) ||
+      l.email?.toLowerCase().includes(q) ||
+      l.phone?.toLowerCase().includes(q) ||
+      l.display_id?.toLowerCase().includes(q) ||
+      l.unique_id?.toLowerCase().includes(q)
     );
   }, [unassignedLeads, searchQuery]);
 
@@ -212,7 +216,11 @@ const AssignLeadsPage: React.FC = () => {
     if (!searchQuery) return teamQueueLeads;
     const q = searchQuery.toLowerCase().trim();
     return teamQueueLeads.filter(l => 
-      l.name?.toLowerCase().includes(q)
+      l.name?.toLowerCase().includes(q) ||
+      l.email?.toLowerCase().includes(q) ||
+      l.phone?.toLowerCase().includes(q) ||
+      l.display_id?.toLowerCase().includes(q) ||
+      l.unique_id?.toLowerCase().includes(q)
     );
   }, [teamQueueLeads, searchQuery]);
 
@@ -464,7 +472,7 @@ const AssignLeadsPage: React.FC = () => {
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search leads..."
+              placeholder="Search name, id, email, phone..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 h-9 bg-accent/20"

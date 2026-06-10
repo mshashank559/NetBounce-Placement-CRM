@@ -447,8 +447,13 @@ const AdminDashboard: React.FC = () => {
       fLeads = fLeads.filter(l => (teamFilter === 'Lead Gen' && teamUserIds.includes(l.lead_generated_by || '')) || (teamFilter === 'Sales' && teamUserIds.includes(l.assigned_to || '')));
     }
     if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      fLeads = fLeads.filter(l => l.name.toLowerCase().includes(q) || l.email.toLowerCase().includes(q) || (l.display_id || '').toLowerCase().includes(q));
+      const q = searchQuery.toLowerCase().trim();
+      fLeads = fLeads.filter(
+        l => l.name?.toLowerCase().includes(q) || 
+             l.email?.toLowerCase().includes(q) || 
+             l.phone?.toLowerCase().includes(q) || 
+             (l.display_id || '').toLowerCase().includes(q)
+      );
     }
     return { leads: fLeads, closures: fClosures };
   }, [leads, leadClosures, monthFilter, statusFilter, teamFilter, searchQuery, allUsers]);
@@ -692,7 +697,7 @@ const AdminDashboard: React.FC = () => {
             </SelectContent>
           </Select>
           <Select value={teamFilter} onValueChange={setTeamFilter}><SelectTrigger className="w-32 h-9 bg-accent/30 border-border/50 text-xs"><SelectValue placeholder="Team" /></SelectTrigger><SelectContent><SelectItem value="all">All Teams</SelectItem><SelectItem value="Lead Gen">Lead Gen</SelectItem><SelectItem value="Sales">Sales</SelectItem></SelectContent></Select>
-          <div className="relative w-48 h-9"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" /><Input placeholder="Search..." className="pl-9 h-full bg-accent/30 border-border/50 focus-visible:ring-primary/30 text-xs" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div>
+          <div className="relative w-48 h-9"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" /><Input placeholder="Search name, id, email, phone..." className="pl-9 h-full bg-accent/30 border-border/50 focus-visible:ring-primary/30 text-xs" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div>
         </div>
       </div>
 
@@ -936,7 +941,7 @@ const AdminDashboard: React.FC = () => {
                     </div>
                     <div className="relative h-9 w-48">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                      <Input placeholder="Search..." className="pl-9 h-full bg-accent/30 border-border/50 text-xs" value={globalSearch} onChange={e => setGlobalSearch(e.target.value)} />
+                      <Input placeholder="Search name, id, email, phone..." className="pl-9 h-full bg-accent/30 border-border/50 text-xs" value={globalSearch} onChange={e => setGlobalSearch(e.target.value)} />
                     </div>
                   </div>
                 </div>
