@@ -119,7 +119,10 @@ const AnalyticsPage: React.FC = () => {
     acc[s] = (acc[s] || 0) + 1;
     return acc;
   }, {} as Record<string, number>) || {};
-  const sourceData = Object.entries(sourceCounts).map(([name, value]) => ({ name, value }));
+  const sourceData: { name: string; value: number }[] = Object.entries(sourceCounts).map(([name, value]) => ({
+    name,
+    value: value as number
+  }));
 
   return (
     <div className="space-y-6">
