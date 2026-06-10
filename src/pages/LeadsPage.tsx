@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Phone, Eye, Filter, Palette, AlertTriangle, MessageSquare, FileText as FileTextIcon, Send, Pencil, Trash2 } from 'lucide-react';
+import { Phone, Eye, Filter, Palette, AlertTriangle, MessageSquare, FileText as FileTextIcon, Send, Pencil, Trash2, UserMinus } from 'lucide-react';
 import LeadDetailDialog from '@/components/LeadDetailDialog';
 import ClosureDialog from '@/components/ClosureDialog';
 import CallActivityDialog from '@/components/CallActivityDialog';
@@ -412,6 +412,104 @@ const LeadsPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       toast.success('Lead reassigned successfully!');
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  // ── Unassign lead mutation ────────────────────────────────────
+  const unassignLead = useMutation({
+    mutationFn: async ({ leadId }: { leadId: string }) => {
+      // 1. Fetch details of the lead before clearing them
+      const { data: lead, error: fetchErr } = await supabase
+        .from('leads')
+        .select('name, display_id, assigned_to, team_lead_id')
+        .eq('unique_id', leadId)
+        .single();
+      if (fetchErr) throw fetchErr;
+      if (!lead) throw new Error('Lead not found');
+
+      const leadName = lead.name || 'Lead';
+      const leadDisplayId = lead.display_id || '';
+      const oldAssigneeId = lead.assigned_to;
+      const teamLeadId = lead.team_lead_id;
+
+      // 2. Clear assignment on lead
+      const { error: updateErr } = await supabase
+        .from('leads')
+        .update({
+          assigned_to: null,
+          assignment_type: null,
+          team_lead_id: null,
+          assigned_at: null
+        } as any)
+        .eq('unique_id', leadId);
+      if (updateErr) throw updateErr;
+
+      // 3. Log history
+      const oldAssigneeName = oldAssigneeId && profilesMap?.[oldAssigneeId]
+        ? profilesMap[oldAssigneeId].full_name
+        : 'Unassigned';
+      
+      const currentUserName = user && profilesMap?.[user.id]?.full_name ? profilesMap[user.id].full_name : 'Admin/BD TL';
+
+      await supabase.from('lead_history_logs').insert({
+        lead_id: leadId,
+        changed_by: user!.id,
+        action_type: 'OWNER_CHANGE',
+        old_value: oldAssigneeId || 'Unassigned',
+        new_value: 'Unassigned',
+        comments: `Unassigned by ${currentUserName}.`
+      });
+
+      // 4. Send Notifications
+      const notifs: any[] = [];
+      const adminAndBdTlIds = Object.entries(userRolesMap || {})
+        .filter(([_, r]) => r === 'ADMIN' || r === 'LEAD_TL')
+        .map(([uid]) => uid);
+
+      // A. To Respective Salesperson (if was assigned)
+      if (oldAssigneeId) {
+        notifs.push({
+          user_id: oldAssigneeId,
+          title: 'Lead Unassigned',
+          message: `Lead "${leadName}" (${leadDisplayId || '—'}) has been unassigned from you by ${currentUserName}.`,
+          type: 'lead_unassigned',
+          lead_id: leadId,
+        });
+
+        // B. To Respective Sales TL
+        const salespersonProfile = allProfilesList?.find(p => p.user_id === oldAssigneeId);
+        const salesTLId = teamLeadId || salespersonProfile?.reports_to;
+        if (salesTLId && salesTLId !== oldAssigneeId) {
+          notifs.push({
+            user_id: salesTLId,
+            title: 'Lead Unassigned from Team Member',
+            message: `Lead "${leadName}" (${leadDisplayId || '—'}) has been unassigned from your team member ${oldAssigneeName} by ${currentUserName}.`,
+            type: 'lead_unassigned',
+            lead_id: leadId,
+          });
+        }
+      }
+
+      // C. To Admins and BD TLs
+      adminAndBdTlIds.forEach(uid => {
+        notifs.push({
+          user_id: uid,
+          title: 'Lead Unassigned',
+          message: `Lead "${leadName}" (${leadDisplayId || '—'}) has been successfully unassigned and moved back to the Assign Lead queue by ${currentUserName}.`,
+          type: 'lead_unassigned',
+          lead_id: leadId,
+        });
+      });
+
+      if (notifs.length > 0) {
+        const { error: notifErr } = await supabase.from('notifications').insert(notifs);
+        if (notifErr) console.error('Failed to create unassign notifications:', notifErr);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast.success('Lead unassigned successfully and returned to queue');
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -1066,6 +1164,24 @@ const LeadsPage: React.FC = () => {
                                   />
                                 )}
                               </div>
+                            )}
+
+                            {/* Unassign Lead (only for Admin and LEAD_TL) */}
+                            {(role === 'ADMIN' || role === 'LEAD_TL') && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled={!lead.assigned_to || unassignLead.isPending}
+                                onClick={() => {
+                                  if (window.confirm(`Are you sure you want to unassign "${lead.name}"?`)) {
+                                    unassignLead.mutate({ leadId: lead.unique_id });
+                                  }
+                                }}
+                                className="text-red-500 hover:text-red-600 hover:bg-red-500/10 disabled:opacity-30"
+                                title="Unassign Lead"
+                              >
+                                <UserMinus className="h-3.5 w-3.5" />
+                              </Button>
                             )}
 
 
