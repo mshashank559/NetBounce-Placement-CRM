@@ -20,6 +20,7 @@ import DNRFollowupsPage from "@/pages/DNRFollowupsPage";
 import BDTLDashboardPage from "@/pages/BDTLDashboardPage";
 import UserManagementPage from "@/pages/UserManagementPage";
 import LoginActivityPage from "@/pages/LoginActivityPage";
+import AssignmentAnalysisPage from "@/pages/AssignmentAnalysisPage";
 
 const queryClient = new QueryClient();
 
@@ -69,6 +70,7 @@ const App = () => (
                   <Route path="/bd-performance" element={<BDTLDashboardPage />} />
                   <Route path="/users" element={<UserManagementPage />} />
                   <Route path="/login-activity" element={<LoginActivityPage />} />
+                  <Route path="/assignment-analysis" element={<AssignmentAnalysisPage />} />
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 </Route>
               </Route>
