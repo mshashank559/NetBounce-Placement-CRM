@@ -71,20 +71,6 @@ const AssignmentAnalysisPage: React.FC = () => {
     },
     enabled: !!user,
   });
-
-  // Guard: Access restricted to ADMIN, LEAD_TL, SALES_TL
-  if (role !== 'ADMIN' && role !== 'LEAD_TL' && role !== 'SALES_TL') {
-    return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center p-8 text-center">
-        <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
-        <h2 className="text-xl font-bold font-display mb-2">Access Denied</h2>
-        <p className="text-muted-foreground max-w-md">
-          You do not have permission to view the Lead Assignment Analysis panel.
-        </p>
-      </div>
-    );
-  }
-
   // 3. Compute stats
   const analysisData = useMemo(() => {
     if (!salesAgents || !leadStats) return { agents: [], totalPoolLeads: 0, idleCount: 0, avgLoad: 0 };
@@ -175,6 +161,19 @@ const AssignmentAnalysisPage: React.FC = () => {
           <div className="lg:col-span-2 h-96 bg-accent/30 rounded-xl" />
           <div className="h-96 bg-accent/30 rounded-xl" />
         </div>
+      </div>
+    );
+  }
+
+  // Guard: Access restricted to ADMIN, LEAD_TL, SALES_TL
+  if (role !== 'ADMIN' && role !== 'LEAD_TL' && role !== 'SALES_TL') {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center p-8 text-center">
+        <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
+        <h2 className="text-xl font-bold font-display mb-2">Access Denied</h2>
+        <p className="text-muted-foreground max-w-md">
+          You do not have permission to view the Lead Assignment Analysis panel.
+        </p>
       </div>
     );
   }
