@@ -129,14 +129,20 @@ const AssignLeadsPage: React.FC = () => {
         }
       };
 
-      const nowMs = Date.now();
+      const getIstMidnight = (dateVal: Date | string | number) => {
+        const date = new Date(dateVal);
+        const istTime = new Date(date.getTime() + (5.5 * 60 * 60 * 1000));
+        return new Date(Date.UTC(istTime.getUTCFullYear(), istTime.getUTCMonth(), istTime.getUTCDate()));
+      };
+
+      const end = getIstMidnight(new Date());
       return allLeads.map(lead => {
         const threshold = getStatusThreshold(lead.lead_status);
         if (threshold === null) return null;
         
-        const updatedMs = new Date(lead.updated_at).getTime();
-        const diffMs = nowMs - updatedMs;
-        const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const start = getIstMidnight(lead.updated_at);
+        const diffTime = end.getTime() - start.getTime();
+        const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
         
         return { ...lead, aging_days: days, threshold };
       })
