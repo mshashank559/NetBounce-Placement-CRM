@@ -83,7 +83,15 @@ const AssignmentAnalysisPage: React.FC = () => {
 
     const agents = salesAgents.map(agent => {
       const agentLeads = leadStats.filter(l => l.assigned_to === agent.user_id);
-      const activeLeads = agentLeads.filter(l => activeStatuses.includes(l.lead_status || '')).length;
+      
+      const isTL = agent.role === 'SALES_TL';
+      const activeLeads = isTL
+        ? agentLeads.filter(l => l.assignment_type === 'Team').length
+        : agentLeads.filter(l => activeStatuses.includes(l.lead_status || '')).length;
+
+      const totalLeads = isTL
+        ? activeLeads
+        : agentLeads.length;
       
       let queueStatus: 'EMPTY' | 'LOW' | 'LOADED' = 'LOADED';
       if (activeLeads === 0) {
@@ -95,7 +103,7 @@ const AssignmentAnalysisPage: React.FC = () => {
       return {
         ...agent,
         activeLeads,
-        totalLeads: agentLeads.length,
+        totalLeads,
         queueStatus
       };
     });
@@ -329,10 +337,24 @@ const AssignmentAnalysisPage: React.FC = () => {
                           </Badge>
                         </td>
                         <td className="px-5 py-3.5 text-center font-bold font-display">
-                          {agent.activeLeads}
+                          {agent.role === 'SALES_TL' ? (
+                            <span>
+                              {agent.activeLeads}
+                              <span className="text-[10px] font-normal text-muted-foreground block">Queue Leads</span>
+                            </span>
+                          ) : (
+                            agent.activeLeads
+                          )}
                         </td>
                         <td className="px-5 py-3.5 text-center text-muted-foreground font-display">
-                          {agent.totalLeads}
+                          {agent.role === 'SALES_TL' ? (
+                            <span>
+                              {agent.totalLeads}
+                              <span className="text-[10px] font-normal text-muted-foreground block">Pending</span>
+                            </span>
+                          ) : (
+                            agent.totalLeads
+                          )}
                         </td>
                         <td className="px-5 py-3.5">
                           {agent.queueStatus === 'EMPTY' && (
@@ -355,7 +377,15 @@ const AssignmentAnalysisPage: React.FC = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => navigate('/assign')}
+                            onClick={() => {
+                              if (agent.role === 'SALES_TL') {
+                                navigate(`/assign?tlId=${agent.user_id}`, {
+                                  state: { tlId: agent.user_id, tlName: agent.full_name, queueCount: agent.activeLeads }
+                                });
+                              } else {
+                                navigate('/assign');
+                              }
+                            }}
                             className="hover:bg-primary/15 text-primary hover:text-primary gap-1 text-xs"
                           >
                             Assign <ArrowRight className="h-3 w-3" />

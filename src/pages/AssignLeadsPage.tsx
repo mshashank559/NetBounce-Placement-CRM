@@ -10,10 +10,16 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 import { Shuffle, UserPlus, AlertCircle, User, RefreshCw, Search, Eye } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import LeadDetailDialog from '@/components/LeadDetailDialog';
 
 const AssignLeadsPage: React.FC = () => {
   const { role, user, profile } = useAuth();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const paramTlId = searchParams.get('tlId') || location.state?.tlId || '';
+  const activeTlId = (role === 'SALES_TL') ? user?.id : (paramTlId || '');
+
   const queryClient = useQueryClient();
   const [selectedSales, setSelectedSales] = useState<Record<string, string>>({});
   const [selectedTeamMember, setSelectedTeamMember] = useState<Record<string, string>>({});
@@ -143,18 +149,18 @@ const AssignLeadsPage: React.FC = () => {
 
   const filteredAgingLeads = useMemo(() => {
     if (!agingLeads) return [];
-    if (role === 'SALES_TL') {
+    if (role === 'SALES_TL' || activeTlId) {
       return agingLeads.filter(lead => {
         if (!lead.assigned_to) return false;
         const assignee = profilesMap?.[lead.assigned_to];
-        return assignee?.reports_to === user?.id;
+        return assignee?.reports_to === activeTlId;
       });
     }
     return agingLeads;
-  }, [agingLeads, role, profilesMap, user?.id]);
+  }, [agingLeads, role, profilesMap, activeTlId]);
 
   const { data: salesMembers } = useQuery({
-    queryKey: ['sales-members', user?.id],
+    queryKey: ['sales-members', activeTlId, role],
     queryFn: async () => {
       const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('role', ['SALES_TM', 'SALES_TL']);
       if (!roles) return [];
@@ -163,8 +169,8 @@ const AssignLeadsPage: React.FC = () => {
       const { data: profiles } = await supabase.from('profiles').select('*').in('user_id', userIds);
       if (!profiles) return [];
       
-      const filteredProfiles = role === 'SALES_TL'
-        ? profiles.filter((p: any) => p.reports_to === user!.id)
+      const filteredProfiles = (role === 'SALES_TL' || activeTlId)
+        ? profiles.filter((p: any) => p.reports_to === activeTlId)
         : profiles;
       
       return filteredProfiles.map(p => ({
@@ -175,9 +181,9 @@ const AssignLeadsPage: React.FC = () => {
   });
 
   const { data: teamQueueLeads } = useQuery({
-    queryKey: ['team-queue-leads', user?.id],
+    queryKey: ['team-queue-leads', activeTlId],
     queryFn: async () => {
-      if (role !== 'SALES_TL') return [];
+      if (!activeTlId) return [];
       let allLeads: any[] = [];
       let from = 0;
       const step = 1000;
@@ -187,7 +193,7 @@ const AssignLeadsPage: React.FC = () => {
         const { data, error } = await supabase
           .from('leads')
           .select('*')
-          .eq('assigned_to', user!.id)
+          .eq('assigned_to', activeTlId)
           .eq('assignment_type', 'Team')
           .order('created_at', { ascending: false })
           .range(from, from + step - 1);
@@ -207,7 +213,7 @@ const AssignLeadsPage: React.FC = () => {
       }
       return allLeads;
     },
-    enabled: role === 'SALES_TL' && !!user,
+    enabled: !!activeTlId,
   });
 
   const filteredUnassigned = useMemo(() => {
@@ -396,7 +402,7 @@ const AssignLeadsPage: React.FC = () => {
     mutationFn: async ({ leadId, salesUserId }: { leadId: string; salesUserId: string }) => {
       const { data: lead } = await supabase.from('leads').select('name, team_lead_id, assigned_to').eq('unique_id', leadId).single();
       const leadName = lead?.name || 'Lead';
-      const originalTL = lead?.team_lead_id || user!.id;
+      const originalTL = lead?.team_lead_id || activeTlId;
       const prevOwnerId = lead?.assigned_to;
 
       const { error } = await supabase.from('leads').update({ 
@@ -451,7 +457,7 @@ const AssignLeadsPage: React.FC = () => {
       });
 
       const admins = (await supabase.from('user_roles').select('user_id').eq('role', 'ADMIN')).data?.map(r => r.user_id) || [];
-      const currentTL = user!.id;
+      const currentTL = activeTlId;
 
       // Perform one update per team member (bulk update using .in())
       for (const [salesUserId, leadIds] of Object.entries(groups)) {
@@ -601,12 +607,14 @@ const AssignLeadsPage: React.FC = () => {
         </Card>
       )}
 
-      {role === 'SALES_TL' && (
+      {(role === 'SALES_TL' || activeTlId) && (
         <Card className="glass-card">
           <CardHeader className="flex flex-row items-center justify-between">
             <div className="flex items-center gap-2">
               <RefreshCw className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg font-display">My Team Queue Leads ({filteredTeamQueue?.length || 0})</CardTitle>
+              <CardTitle className="text-lg font-display">
+                {role === 'SALES_TL' ? 'My Team Queue Leads' : `${profilesMap?.[activeTlId]?.full_name || 'Agent'}'s Team Queue Leads`} ({filteredTeamQueue?.length || 0})
+              </CardTitle>
             </div>
             {filteredTeamQueue && filteredTeamQueue.length > 0 && (
               <Button onClick={() => roundRobinTeam.mutate()} disabled={roundRobinTeam.isPending} size="sm" className="nb-gradient">
@@ -618,7 +626,7 @@ const AssignLeadsPage: React.FC = () => {
           <CardContent>
             {!filteredTeamQueue?.length ? (
               <p className="text-muted-foreground text-center py-4">
-                {searchQuery ? 'No matching leads in your team queue' : 'Your team queue is empty'}
+                {searchQuery ? 'No matching leads in this team queue' : 'This team queue is empty'}
               </p>
             ) : (
               <div className="space-y-3">
