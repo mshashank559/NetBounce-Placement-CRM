@@ -256,7 +256,7 @@ const LeadsPage: React.FC = () => {
         totalCount: count || 0,
       };
     },
-    enabled: !!user,
+    enabled: !!user && !!role,
   });
 
   const leads = leadsData?.leads || [];

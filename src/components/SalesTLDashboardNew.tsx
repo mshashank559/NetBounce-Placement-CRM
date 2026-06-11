@@ -149,7 +149,7 @@ const SalesTLDashboard: React.FC = () => {
         return fetchAllLeads();
       }
     },
-    enabled: !!user,
+    enabled: !!user && !!role,
   });
 
   // ── Sales team members ──
@@ -181,7 +181,7 @@ const SalesTLDashboard: React.FC = () => {
       });
       return Object.values(uniqueMap);
     },
-    enabled: !!user,
+    enabled: !!user && !!role,
   });
 
   // ── All profiles map ──
@@ -200,7 +200,7 @@ const SalesTLDashboard: React.FC = () => {
       const { data: profilesData } = await supabase.from('profiles').select('user_id, full_name').in('user_id', userIds);
       return (profilesData || []).sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
     },
-    enabled: !!user,
+    enabled: !!user && !!role,
   });
 
   // ── Fetch all BD users (LEAD_GEN and LEAD_TL) for global view dropdown ──
@@ -213,7 +213,7 @@ const SalesTLDashboard: React.FC = () => {
       const { data: profilesData } = await supabase.from('profiles').select('user_id, full_name').in('user_id', userIds);
       return (profilesData || []).sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
     },
-    enabled: !!user,
+    enabled: !!user && !!role,
   });
 
   // ── Call logs ──
@@ -238,7 +238,7 @@ const SalesTLDashboard: React.FC = () => {
       const { data } = await query;
       return data || [];
     },
-    enabled: !!user,
+    enabled: !!user && !!role,
   });
 
   // ── Closures with payment ──
@@ -263,7 +263,7 @@ const SalesTLDashboard: React.FC = () => {
       const { data } = await query;
       return data || [];
     },
-    enabled: !!user,
+    enabled: !!user && !!role,
   });
 
   // ── Filters ──

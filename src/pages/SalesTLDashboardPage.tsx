@@ -32,7 +32,7 @@ const SalesTLDashboardPage: React.FC = () => {
       const { data: profiles } = await query;
       return profiles || [];
     },
-    enabled: !!user,
+    enabled: !!user && !!role,
   });
 
   const { data: allLeads } = useQuery({
@@ -52,7 +52,7 @@ const SalesTLDashboardPage: React.FC = () => {
       const { data } = await query;
       return data || [];
     },
-    enabled: !!user,
+    enabled: !!user && !!role,
     staleTime: 60_000,
   });
 
@@ -77,7 +77,7 @@ const SalesTLDashboardPage: React.FC = () => {
       const { data } = await query;
       return data || [];
     },
-    enabled: !!user,
+    enabled: !!user && !!role,
   });
 
   const { data: closures } = useQuery({
@@ -101,7 +101,7 @@ const SalesTLDashboardPage: React.FC = () => {
       const { data } = await query;
       return data || [];
     },
-    enabled: !!user,
+    enabled: !!user && !!role,
   });
 
   const today = new Date().toISOString().split('T')[0];
