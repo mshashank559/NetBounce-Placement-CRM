@@ -32,7 +32,7 @@ const AssignmentAnalysisPage: React.FC = () => {
       const { data: rolesData, error: rolesError } = await supabase
         .from('user_roles')
         .select('user_id, role')
-        .in('role', ['SALES_TL', 'SALES_TM']);
+        .eq('role', 'SALES_TL');
       
       if (rolesError) throw rolesError;
       
@@ -47,7 +47,7 @@ const AssignmentAnalysisPage: React.FC = () => {
       if (profilesError) throw profilesError;
 
       return profilesData.map(p => {
-        const matchingRole = rolesData.find(r => r.user_id === p.user_id)?.role || 'SALES_TM';
+        const matchingRole = rolesData.find(r => r.user_id === p.user_id)?.role || 'SALES_TL';
         return {
           user_id: p.user_id,
           full_name: p.full_name || 'Unknown',
@@ -286,16 +286,7 @@ const AssignmentAnalysisPage: React.FC = () => {
                     />
                   </div>
                   
-                  <Select value={roleFilter} onValueChange={setRoleFilter}>
-                    <SelectTrigger className="w-28 h-9 text-xs">
-                      <SelectValue placeholder="All Roles" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL">All Roles</SelectItem>
-                      <SelectItem value="SALES_TM">Sales TM</SelectItem>
-                      <SelectItem value="SALES_TL">Sales TL</SelectItem>
-                    </SelectContent>
-                  </Select>
+
 
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger className="w-28 h-9 text-xs">
