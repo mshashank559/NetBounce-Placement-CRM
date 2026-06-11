@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
@@ -662,7 +662,15 @@ const AssignLeadsPage: React.FC = () => {
                           <SelectValue placeholder="Select salesperson" />
                         </SelectTrigger>
                         <SelectContent>
-                          {salesMembers?.filter(m => m.role === 'SALES_TM').map(m => (
+                          {(role === 'SALES_TL' || role === 'ADMIN') && activeTlId && profilesMap?.[activeTlId] && (
+                            <>
+                              <SelectItem value={activeTlId}>
+                                {profilesMap[activeTlId].full_name} (Assign to Me / Self)
+                              </SelectItem>
+                              <SelectSeparator />
+                            </>
+                          )}
+                          {salesMembers?.filter(m => m.role === 'SALES_TM' && m.user_id !== activeTlId).map(m => (
                             <SelectItem key={m.user_id} value={m.user_id}>{m.full_name}</SelectItem>
                           ))}
                         </SelectContent>

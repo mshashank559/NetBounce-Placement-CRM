@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchAllLeads } from '@/lib/leads';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -401,7 +401,7 @@ const SalesTLDashboard: React.FC = () => {
         ? `Lead "${lead?.name}" has been reassigned from ${prevOwnerName} to ${memberName} by ${performerName}.`
         : `Lead "${lead?.name}" has been assigned from ${prevOwnerName} to ${memberName} by ${performerName}.`;
 
-      await supabase.from('leads').update({ assigned_to: memberId }).eq('unique_id', leadId);
+      await supabase.from('leads').update({ assigned_to: memberId, assignment_type: 'Personal' }).eq('unique_id', leadId);
 
       await supabase.from('notifications').insert([
         { user_id: memberId, title: prevOwnerId ? 'Lead Reassigned' : 'Lead Assigned', message: msg, type: 'assignment', lead_id: leadId },
@@ -780,7 +780,27 @@ const SalesTLDashboard: React.FC = () => {
                   <Select onValueChange={v => assignMutation.mutate({ leadId: lead.unique_id, memberId: v })}>
                     <SelectTrigger className="w-40 h-8 text-xs"><SelectValue placeholder="Assign to..." /></SelectTrigger>
                     <SelectContent>
-                      {salesMembers.map(m => <SelectItem key={m.user_id} value={m.user_id}>{m.full_name}</SelectItem>)}
+                      {(() => {
+                        const selfMember = salesMembers.find(m => m.user_id === user?.id);
+                        const teamMembersOnly = salesMembers.filter(m => m.user_id !== user?.id);
+                        return (
+                          <>
+                            {(role === 'SALES_TL' || role === 'ADMIN') && (
+                              <>
+                                <SelectItem value={user?.id || ''}>
+                                  {(selfMember?.full_name || profile?.full_name || 'Self')} (Assign to Me / Self)
+                                </SelectItem>
+                                <SelectSeparator />
+                              </>
+                            )}
+                            {teamMembersOnly.map(m => (
+                              <SelectItem key={m.user_id} value={m.user_id}>
+                                {m.full_name}
+                              </SelectItem>
+                            ))}
+                          </>
+                        );
+                      })()}
                     </SelectContent>
                   </Select>
                 </div>
