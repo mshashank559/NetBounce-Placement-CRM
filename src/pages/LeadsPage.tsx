@@ -983,6 +983,7 @@ const LeadsPage: React.FC = () => {
                     <th className="text-left p-3 font-medium text-muted-foreground">Name</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Email</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Phone</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground">LinkedIn</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">University</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Technology</th>
                     <th className="text-left p-3 font-medium text-muted-foreground">Source</th>
@@ -1020,6 +1021,20 @@ const LeadsPage: React.FC = () => {
                         <td className="p-3 font-medium">{lead.name}</td>
                         <td className="p-3 text-muted-foreground">{lead.email}</td>
                         <td className="p-3 text-muted-foreground">{lead.phone}</td>
+                        <td className="p-3">
+                          {lead.linkedin_url ? (
+                            <a
+                              href={lead.linkedin_url.trim().startsWith('http') || lead.linkedin_url.trim().startsWith('//') ? lead.linkedin_url.trim() : `https://${lead.linkedin_url.trim()}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary hover:underline font-medium text-xs"
+                            >
+                              View
+                            </a>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                        </td>
                         <td className="p-3 text-muted-foreground">{lead.university || '—'}</td>
                         <td className="p-3 text-muted-foreground">{lead.technology || '—'}</td>
                         <td className="p-3 text-muted-foreground">{lead.lead_source || '—'}</td>
