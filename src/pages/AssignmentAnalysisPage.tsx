@@ -165,8 +165,8 @@ const AssignmentAnalysisPage: React.FC = () => {
     );
   }
 
-  // Guard: Access restricted to ADMIN, LEAD_TL, SALES_TL
-  if (role !== 'ADMIN' && role !== 'LEAD_TL' && role !== 'SALES_TL') {
+  // Guard: Access restricted to ADMIN, LEAD_TL
+  if (role !== 'ADMIN' && role !== 'LEAD_TL') {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center p-8 text-center">
         <ShieldAlert className="h-16 w-16 text-destructive mb-4" />
