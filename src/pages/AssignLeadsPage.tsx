@@ -71,9 +71,9 @@ const AssignLeadsPage: React.FC = () => {
   const { data: profilesMap } = useQuery({
     queryKey: ['profiles-map'],
     queryFn: async () => {
-      const { data } = await supabase.from('profiles').select('user_id, full_name, email');
-      const map: Record<string, { full_name: string; email: string }> = {};
-      data?.forEach(p => { map[p.user_id] = { full_name: p.full_name, email: p.email }; });
+      const { data } = await supabase.from('profiles').select('user_id, full_name, email, reports_to');
+      const map: Record<string, { full_name: string; email: string; reports_to: string | null }> = {};
+      data?.forEach(p => { map[p.user_id] = { full_name: p.full_name, email: p.email, reports_to: p.reports_to }; });
       return map;
     },
     enabled: !!user,
@@ -140,6 +140,18 @@ const AssignLeadsPage: React.FC = () => {
       .sort((a, b) => b.aging_days - a.aging_days);
     },
   });
+
+  const filteredAgingLeads = useMemo(() => {
+    if (!agingLeads) return [];
+    if (role === 'SALES_TL') {
+      return agingLeads.filter(lead => {
+        if (!lead.assigned_to) return false;
+        const assignee = profilesMap?.[lead.assigned_to];
+        return assignee?.reports_to === user?.id;
+      });
+    }
+    return agingLeads;
+  }, [agingLeads, role, profilesMap, user?.id]);
 
   const { data: salesMembers } = useQuery({
     queryKey: ['sales-members', user?.id],
@@ -667,13 +679,13 @@ const AssignLeadsPage: React.FC = () => {
         <CardHeader>
           <div className="flex items-center gap-2">
             <UserPlus className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg font-display">Lead To Be Reassigned ({agingLeads?.length || 0} pending)</CardTitle>
+            <CardTitle className="text-lg font-display">Lead To Be Reassigned ({filteredAgingLeads?.length || 0} pending)</CardTitle>
           </div>
         </CardHeader>
         <CardContent>
           {agingLoading ? (
             <p className="text-muted-foreground text-center py-4">Analyzing lifecycle aging...</p>
-          ) : !agingLeads?.length ? (
+          ) : !filteredAgingLeads?.length ? (
             <p className="text-muted-foreground text-center py-4">No aging leads require reassignment at this time.</p>
           ) : (
             <div className="overflow-x-auto">
@@ -688,7 +700,7 @@ const AssignLeadsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {agingLeads.map((lead) => {
+                  {filteredAgingLeads.map((lead) => {
                     const assignedProfile = lead.assigned_to && profilesMap?.[lead.assigned_to];
                     const targetVal = selectedReassignTarget[lead.unique_id] || '';
                     return (
