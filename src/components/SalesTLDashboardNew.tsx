@@ -392,12 +392,19 @@ const SalesTLDashboard: React.FC = () => {
   // ── Assign lead mutation ──
   const assignMutation = useMutation({
     mutationFn: async ({ leadId, memberId }: { leadId: string; memberId: string }) => {
-      await supabase.from('leads').update({ assigned_to: memberId }).eq('unique_id', leadId);
       const lead = leads.find(l => l.unique_id === leadId);
+      const prevOwnerId = lead?.assigned_to;
+      const prevOwnerName = prevOwnerId ? (profiles.find(p => p.user_id === prevOwnerId)?.full_name || 'Unknown') : 'Unassigned Pool';
       const performerName = profile?.full_name || profiles.find(p => p.user_id === user?.id)?.full_name || 'System';
       const memberName = salesMembers.find(m => m.user_id === memberId)?.full_name || 'salesperson';
+      const msg = prevOwnerId
+        ? `Lead "${lead?.name}" has been reassigned from ${prevOwnerName} to ${memberName} by ${performerName}.`
+        : `Lead "${lead?.name}" has been assigned from ${prevOwnerName} to ${memberName} by ${performerName}.`;
+
+      await supabase.from('leads').update({ assigned_to: memberId }).eq('unique_id', leadId);
+
       await supabase.from('notifications').insert([
-        { user_id: memberId, title: 'Lead Assigned', message: `Lead "${lead?.name}" has been assigned by ${performerName} to ${memberName}.`, type: 'assignment', lead_id: leadId },
+        { user_id: memberId, title: prevOwnerId ? 'Lead Reassigned' : 'Lead Assigned', message: msg, type: 'assignment', lead_id: leadId },
       ]);
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['salestl-leads'] }); toast.success('Lead assigned!'); },
@@ -444,15 +451,18 @@ const SalesTLDashboard: React.FC = () => {
         comments: `Reassigned within team by Sales TL.`
       });
 
-      const oldName = oldAssigneeId ? (profiles.find(p => p.user_id === oldAssigneeId)?.full_name || 'former salesperson') : 'unassigned';
+      const oldName = oldAssigneeId ? (profiles.find(p => p.user_id === oldAssigneeId)?.full_name || 'Unknown') : 'Unassigned Pool';
       const newName = profiles.find(p => p.user_id === newMemberId)?.full_name || 'new salesperson';
       const performerName = profile?.full_name || profiles.find(p => p.user_id === user?.id)?.full_name || 'System';
+      const msg = oldAssigneeId
+        ? `Lead "${leadName}" has been reassigned from ${oldName} to ${newName} by ${performerName}.`
+        : `Lead "${leadName}" has been assigned from ${oldName} to ${newName} by ${performerName}.`;
 
       const notifs: any[] = [];
       notifs.push({
         user_id: newMemberId,
-        title: 'Lead Reassigned to You',
-        message: `Lead "${leadName}" has been reassigned by ${performerName} to ${newName}.`,
+        title: oldAssigneeId ? 'Lead Reassigned' : 'Lead Assigned',
+        message: msg,
         type: 'reassign',
         lead_id: leadId
       });
@@ -460,8 +470,8 @@ const SalesTLDashboard: React.FC = () => {
       if (oldAssigneeId && oldAssigneeId !== newMemberId) {
         notifs.push({
           user_id: oldAssigneeId,
-          title: 'Lead Reassigned Away',
-          message: `Lead "${leadName}" has been reassigned by ${performerName} to ${newName}.`,
+          title: 'Lead Reassigned',
+          message: msg,
           type: 'reassign',
           lead_id: leadId
         });
@@ -470,8 +480,8 @@ const SalesTLDashboard: React.FC = () => {
       if (user!.id !== newMemberId && user!.id !== oldAssigneeId) {
         notifs.push({
           user_id: user!.id,
-          title: 'Lead Reassigned within Team',
-          message: `Lead "${leadName}" has been reassigned by ${performerName} to ${newName}.`,
+          title: 'Lead Reassigned',
+          message: msg,
           type: 'reassign',
           lead_id: leadId
         });

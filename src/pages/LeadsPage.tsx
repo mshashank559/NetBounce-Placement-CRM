@@ -401,10 +401,15 @@ const LeadsPage: React.FC = () => {
       
       const salesName = profilesMap?.[userId]?.full_name || 'Salesperson';
       const performerName = user ? (profilesMap?.[user.id]?.full_name || 'System') : 'System';
+      const prevOwnerName = oldAssignee ? (profilesMap?.[oldAssignee]?.full_name || 'Unknown') : 'Unassigned Pool';
+      const msg = oldAssignee
+        ? `Lead "${leadName}" has been reassigned from ${prevOwnerName} to ${salesName} by ${performerName}.`
+        : `Lead "${leadName}" has been assigned from ${prevOwnerName} to ${salesName} by ${performerName}.`;
+
       const notifs = Array.from(targets).map(tId => ({
         user_id: tId,
-        title: 'Lead Reassigned',
-        message: `Lead "${leadName}" has been reassigned by ${performerName} to ${salesName} (${type} Queue).`,
+        title: oldAssignee ? 'Lead Reassigned' : 'Lead Assigned',
+        message: msg,
         type: 'reassign',
         lead_id: leadId,
       }));

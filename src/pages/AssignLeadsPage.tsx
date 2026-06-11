@@ -229,8 +229,10 @@ const AssignLeadsPage: React.FC = () => {
       const [userId, type] = selection.split('_');
       const isTL = salesMembers?.find(m => m.user_id === userId)?.role === 'SALES_TL';
       
-      const { data: lead } = await supabase.from('leads').select('name').eq('unique_id', leadId).single();
+      const { data: lead } = await supabase.from('leads').select('name, assigned_to').eq('unique_id', leadId).single();
       const leadName = lead?.name || 'Lead';
+      const prevOwnerId = lead?.assigned_to;
+      const prevOwnerName = prevOwnerId ? (profilesMap?.[prevOwnerId]?.full_name || 'Unknown') : 'Unassigned Pool';
 
       const { error } = await supabase.from('leads').update({ 
         assigned_to: userId,
@@ -247,10 +249,15 @@ const AssignLeadsPage: React.FC = () => {
       }
       
       const performerName = user ? (profilesMap?.[user.id]?.full_name || 'System') : 'System';
+      const salesName = salesMembers?.find(m => m.user_id === userId)?.full_name || 'salesperson';
+      const msg = prevOwnerId
+        ? `Lead "${leadName}" has been reassigned from ${prevOwnerName} to ${salesName} by ${performerName}.`
+        : `Lead "${leadName}" has been assigned from ${prevOwnerName} to ${salesName} by ${performerName}.`;
+
       const notifs = Array.from(targets).map(tId => ({
         user_id: tId,
-        title: 'Lead Assigned',
-        message: `Lead "${leadName}" has been assigned by ${performerName} to ${salesMembers?.find(m => m.user_id === userId)?.full_name || 'salesperson'}.`,
+        title: prevOwnerId ? 'Lead Reassigned' : 'Lead Assigned',
+        message: msg,
         type: 'lead_assigned',
         lead_id: leadId,
       }));
@@ -309,8 +316,8 @@ const AssignLeadsPage: React.FC = () => {
           targets.forEach(tId => {
             notifs.push({
               user_id: tId,
-              title: 'Lead Assigned (Round Robin)',
-              message: `Lead "${lName}" has been assigned by ${performerName} to ${salesName} (Team Queue).`,
+              title: 'Lead Assigned',
+              message: `Lead "${lName}" has been assigned from Unassigned Pool to ${salesName} by ${performerName}.`,
               type: 'lead_assigned',
               lead_id: leadId,
             });
@@ -351,11 +358,17 @@ const AssignLeadsPage: React.FC = () => {
 
       const performerName = user ? (profilesMap?.[user.id]?.full_name || 'System') : 'System';
       const tlName = salesMembers?.find(m => m.user_id === tlId)?.full_name || 'Sales TL';
+      const prevOwnerId = lead.assigned_to;
+      const prevOwnerName = prevOwnerId ? (profilesMap?.[prevOwnerId]?.full_name || 'Unknown') : 'Unassigned Pool';
+      const msg = prevOwnerId
+        ? `Lead "${lead.name}" has been reassigned from ${prevOwnerName} to ${tlName} by ${performerName}.`
+        : `Lead "${lead.name}" has been assigned from ${prevOwnerName} to ${tlName} by ${performerName}.`;
+
       const notifs = [
-        { user_id: tlId, title: 'Lead Reassigned', message: `Lead "${lead.name}" has been reassigned by ${performerName} to ${tlName} (${queueType} Queue).`, type: 'reassign', lead_id: leadId }
+        { user_id: tlId, title: prevOwnerId ? 'Lead Reassigned' : 'Lead Assigned', message: msg, type: 'reassign', lead_id: leadId }
       ];
       if (lead.assigned_to) {
-        notifs.push({ user_id: lead.assigned_to, title: 'Lead Reassigned', message: `Lead "${lead.name}" has been reassigned by ${performerName} to ${tlName} (${queueType} Queue).`, type: 'reassign', lead_id: leadId });
+        notifs.push({ user_id: lead.assigned_to, title: 'Lead Reassigned', message: msg, type: 'reassign', lead_id: leadId });
       }
       await supabase.from('notifications').insert(notifs);
     },
@@ -369,9 +382,10 @@ const AssignLeadsPage: React.FC = () => {
 
   const assignTeamLeadMutation = useMutation({
     mutationFn: async ({ leadId, salesUserId }: { leadId: string; salesUserId: string }) => {
-      const { data: lead } = await supabase.from('leads').select('name, team_lead_id').eq('unique_id', leadId).single();
+      const { data: lead } = await supabase.from('leads').select('name, team_lead_id, assigned_to').eq('unique_id', leadId).single();
       const leadName = lead?.name || 'Lead';
       const originalTL = lead?.team_lead_id || user!.id;
+      const prevOwnerId = lead?.assigned_to;
 
       const { error } = await supabase.from('leads').update({ 
         assigned_to: salesUserId,
@@ -385,11 +399,15 @@ const AssignLeadsPage: React.FC = () => {
       const targets = new Set<string>([...admins, salesUserId, originalTL]);
       const salesName = salesMembers?.find(m => m.user_id === salesUserId)?.full_name || 'Sales TM';
       const performerName = user ? (profilesMap?.[user.id]?.full_name || 'System') : 'System';
+      const prevOwnerName = prevOwnerId ? (profilesMap?.[prevOwnerId]?.full_name || 'Unknown') : 'Unassigned Pool';
+      const msg = prevOwnerId
+        ? `Lead "${leadName}" has been reassigned from ${prevOwnerName} to ${salesName} by ${performerName}.`
+        : `Lead "${leadName}" has been assigned from ${prevOwnerName} to ${salesName} by ${performerName}.`;
 
       const notifs = Array.from(targets).map(tId => ({
         user_id: tId,
-        title: 'Lead Assigned',
-        message: `Lead "${leadName}" has been assigned by ${performerName} to ${salesName} (Personal).`,
+        title: prevOwnerId ? 'Lead Reassigned' : 'Lead Assigned',
+        message: msg,
         type: 'lead_assigned',
         lead_id: leadId,
       }));
@@ -440,6 +458,7 @@ const AssignLeadsPage: React.FC = () => {
         // Send notifications
         const salesName = targetMembers.find(m => m.user_id === salesUserId)?.full_name || 'Sales TM';
         const performerName = user ? (profilesMap?.[user.id]?.full_name || 'System') : 'System';
+        const prevOwnerName = profilesMap?.[currentTL]?.full_name || 'Sales TL';
         const targets = new Set<string>([...admins, salesUserId, currentTL]);
         const notifs: any[] = [];
         
@@ -448,8 +467,8 @@ const AssignLeadsPage: React.FC = () => {
           targets.forEach(tId => {
             notifs.push({
               user_id: tId,
-              title: 'Lead Assigned (Round Robin Team)',
-              message: `Lead "${lName}" has been assigned by ${performerName} to ${salesName} (Personal).`,
+              title: 'Lead Reassigned',
+              message: `Lead "${lName}" has been reassigned from ${prevOwnerName} to ${salesName} by ${performerName}.`,
               type: 'lead_assigned',
               lead_id: leadId,
             });
