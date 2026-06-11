@@ -394,8 +394,10 @@ const SalesTLDashboard: React.FC = () => {
     mutationFn: async ({ leadId, memberId }: { leadId: string; memberId: string }) => {
       await supabase.from('leads').update({ assigned_to: memberId }).eq('unique_id', leadId);
       const lead = leads.find(l => l.unique_id === leadId);
+      const performerName = profile?.full_name || profiles.find(p => p.user_id === user?.id)?.full_name || 'System';
+      const memberName = salesMembers.find(m => m.user_id === memberId)?.full_name || 'salesperson';
       await supabase.from('notifications').insert([
-        { user_id: memberId, title: 'Lead Assigned', message: `"${lead?.name}" has been assigned to you.`, type: 'assignment', lead_id: leadId },
+        { user_id: memberId, title: 'Lead Assigned', message: `Lead "${lead?.name}" has been assigned by ${performerName} to ${memberName}.`, type: 'assignment', lead_id: leadId },
       ]);
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['salestl-leads'] }); toast.success('Lead assigned!'); },
@@ -444,12 +446,13 @@ const SalesTLDashboard: React.FC = () => {
 
       const oldName = oldAssigneeId ? (profiles.find(p => p.user_id === oldAssigneeId)?.full_name || 'former salesperson') : 'unassigned';
       const newName = profiles.find(p => p.user_id === newMemberId)?.full_name || 'new salesperson';
+      const performerName = profile?.full_name || profiles.find(p => p.user_id === user?.id)?.full_name || 'System';
 
       const notifs: any[] = [];
       notifs.push({
         user_id: newMemberId,
         title: 'Lead Reassigned to You',
-        message: `Lead "${leadName}" has been reassigned to you from ${oldName}.`,
+        message: `Lead "${leadName}" has been reassigned by ${performerName} to ${newName}.`,
         type: 'reassign',
         lead_id: leadId
       });
@@ -458,7 +461,7 @@ const SalesTLDashboard: React.FC = () => {
         notifs.push({
           user_id: oldAssigneeId,
           title: 'Lead Reassigned Away',
-          message: `Lead "${leadName}" has been reassigned from you to ${newName}.`,
+          message: `Lead "${leadName}" has been reassigned by ${performerName} to ${newName}.`,
           type: 'reassign',
           lead_id: leadId
         });
@@ -468,7 +471,7 @@ const SalesTLDashboard: React.FC = () => {
         notifs.push({
           user_id: user!.id,
           title: 'Lead Reassigned within Team',
-          message: `You reassigned Lead "${leadName}" from ${oldName} to ${newName}.`,
+          message: `Lead "${leadName}" has been reassigned by ${performerName} to ${newName}.`,
           type: 'reassign',
           lead_id: leadId
         });

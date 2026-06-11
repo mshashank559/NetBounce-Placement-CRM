@@ -400,10 +400,11 @@ const LeadsPage: React.FC = () => {
       const targets = new Set<string>([...adminsAndTls, userId]);
       
       const salesName = profilesMap?.[userId]?.full_name || 'Salesperson';
+      const performerName = user ? (profilesMap?.[user.id]?.full_name || 'System') : 'System';
       const notifs = Array.from(targets).map(tId => ({
         user_id: tId,
         title: 'Lead Reassigned',
-        message: `Lead "${leadName}" has been reassigned to ${salesName} (${type} Queue).`,
+        message: `Lead "${leadName}" has been reassigned by ${performerName} to ${salesName} (${type} Queue).`,
         type: 'reassign',
         lead_id: leadId,
       }));

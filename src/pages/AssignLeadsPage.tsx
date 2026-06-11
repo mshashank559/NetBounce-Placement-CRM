@@ -246,10 +246,11 @@ const AssignLeadsPage: React.FC = () => {
         targets.add(userId);
       }
       
+      const performerName = user ? (profilesMap?.[user.id]?.full_name || 'System') : 'System';
       const notifs = Array.from(targets).map(tId => ({
         user_id: tId,
         title: 'Lead Assigned',
-        message: `Lead "${leadName}" has been assigned to ${salesMembers?.find(m => m.user_id === userId)?.full_name || 'salesperson'}.`,
+        message: `Lead "${leadName}" has been assigned by ${performerName} to ${salesMembers?.find(m => m.user_id === userId)?.full_name || 'salesperson'}.`,
         type: 'lead_assigned',
         lead_id: leadId,
       }));
@@ -299,6 +300,7 @@ const AssignLeadsPage: React.FC = () => {
 
         // Send notifications
         const salesName = salesMembers?.find(m => m.user_id === salesUserId)?.full_name || 'Sales TL';
+        const performerName = user ? (profilesMap?.[user.id]?.full_name || 'System') : 'System';
         const targets = new Set<string>([...admins, salesUserId]);
         const notifs: any[] = [];
         
@@ -308,7 +310,7 @@ const AssignLeadsPage: React.FC = () => {
             notifs.push({
               user_id: tId,
               title: 'Lead Assigned (Round Robin)',
-              message: `Lead "${lName}" has been assigned to ${salesName} (Team Queue).`,
+              message: `Lead "${lName}" has been assigned by ${performerName} to ${salesName} (Team Queue).`,
               type: 'lead_assigned',
               lead_id: leadId,
             });
@@ -347,11 +349,13 @@ const AssignLeadsPage: React.FC = () => {
         comments: `Reassigned to ${queueType} Queue due to aging.`
       });
 
+      const performerName = user ? (profilesMap?.[user.id]?.full_name || 'System') : 'System';
+      const tlName = salesMembers?.find(m => m.user_id === tlId)?.full_name || 'Sales TL';
       const notifs = [
-        { user_id: tlId, title: 'Lead Reassigned', message: `Lead ${lead.name} has been assigned to your ${queueType} queue.`, type: 'reassign', lead_id: leadId }
+        { user_id: tlId, title: 'Lead Reassigned', message: `Lead "${lead.name}" has been reassigned by ${performerName} to ${tlName} (${queueType} Queue).`, type: 'reassign', lead_id: leadId }
       ];
       if (lead.assigned_to) {
-        notifs.push({ user_id: lead.assigned_to, title: 'Lead Reassigned', message: `Lead ${lead.name} was removed due to aging.`, type: 'reassign', lead_id: leadId });
+        notifs.push({ user_id: lead.assigned_to, title: 'Lead Reassigned', message: `Lead "${lead.name}" has been reassigned by ${performerName} to ${tlName} (${queueType} Queue).`, type: 'reassign', lead_id: leadId });
       }
       await supabase.from('notifications').insert(notifs);
     },
@@ -380,11 +384,12 @@ const AssignLeadsPage: React.FC = () => {
       const admins = (await supabase.from('user_roles').select('user_id').eq('role', 'ADMIN')).data?.map(r => r.user_id) || [];
       const targets = new Set<string>([...admins, salesUserId, originalTL]);
       const salesName = salesMembers?.find(m => m.user_id === salesUserId)?.full_name || 'Sales TM';
+      const performerName = user ? (profilesMap?.[user.id]?.full_name || 'System') : 'System';
 
       const notifs = Array.from(targets).map(tId => ({
         user_id: tId,
         title: 'Lead Assigned',
-        message: `Lead "${leadName}" has been assigned to ${salesName} (Personal).`,
+        message: `Lead "${leadName}" has been assigned by ${performerName} to ${salesName} (Personal).`,
         type: 'lead_assigned',
         lead_id: leadId,
       }));
@@ -434,6 +439,7 @@ const AssignLeadsPage: React.FC = () => {
 
         // Send notifications
         const salesName = targetMembers.find(m => m.user_id === salesUserId)?.full_name || 'Sales TM';
+        const performerName = user ? (profilesMap?.[user.id]?.full_name || 'System') : 'System';
         const targets = new Set<string>([...admins, salesUserId, currentTL]);
         const notifs: any[] = [];
         
@@ -443,7 +449,7 @@ const AssignLeadsPage: React.FC = () => {
             notifs.push({
               user_id: tId,
               title: 'Lead Assigned (Round Robin Team)',
-              message: `Lead "${lName}" has been assigned to ${salesName} (Personal).`,
+              message: `Lead "${lName}" has been assigned by ${performerName} to ${salesName} (Personal).`,
               type: 'lead_assigned',
               lead_id: leadId,
             });
