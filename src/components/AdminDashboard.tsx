@@ -156,7 +156,7 @@ const HIGHLIGHT_COLORS = [
 ];
 
 const AdminDashboard: React.FC = () => {
-  const { user, role: currentRole } = useAuth();
+  const { user, role: currentRole, profile } = useAuth();
   const queryClient = useQueryClient();
 
   const isAdmin = currentRole === 'ADMIN';
@@ -650,7 +650,33 @@ const AdminDashboard: React.FC = () => {
   });
 
   const reassignLeadMutation = useMutation({
-    mutationFn: async ({ leadId, userId }: { leadId: string, userId: string }) => { await supabase.from('leads').update({ assigned_to: userId }).eq('unique_id', leadId); },
+    mutationFn: async ({ leadId, userId }: { leadId: string, userId: string }) => {
+      const lead = leads?.find(l => l.unique_id === leadId);
+      const leadName = lead?.name || 'Lead';
+      const oldAssignee = lead?.assigned_to;
+      const prevOwnerName = oldAssignee ? (allUsers.find(u => u.user_id === oldAssignee)?.full_name || 'Unknown') : 'Unassigned Pool';
+      const salesName = allUsers.find(u => u.user_id === userId)?.full_name || 'Salesperson';
+      const performerName = profile?.full_name || 'Admin';
+
+      const { error } = await supabase.from('leads').update({ assigned_to: userId }).eq('unique_id', leadId);
+      if (error) throw error;
+
+      // Notifications
+      const admins = allUsers.filter(u => u.role === 'ADMIN').map(u => u.user_id);
+      const targets = new Set<string>([...admins, userId]);
+      const msg = oldAssignee
+        ? `Lead "${leadName}" has been reassigned from ${prevOwnerName} to ${salesName} by ${performerName}.`
+        : `Lead "${leadName}" has been assigned from ${prevOwnerName} to ${salesName} by ${performerName}.`;
+
+      const notifs = Array.from(targets).map(tId => ({
+        user_id: tId,
+        title: oldAssignee ? 'Lead Reassigned' : 'Lead Assigned',
+        message: msg,
+        type: 'reassign',
+        lead_id: leadId,
+      }));
+      await supabase.from('notifications').insert(notifs);
+    },
     onSuccess: () => { toast.success('Reassigned'); queryClient.invalidateQueries({ queryKey: ['all-leads-admin'] }); },
     onError: (err: any) => toast.error(err.message)
   });

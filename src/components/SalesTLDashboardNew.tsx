@@ -414,7 +414,47 @@ const SalesTLDashboard: React.FC = () => {
   // ── Reassign for SLA ──
   const reassignMutation = useMutation({
     mutationFn: async ({ leadId, memberId }: { leadId: string; memberId: string }) => {
+      const lead = leads.find(l => l.unique_id === leadId);
+      const prevOwnerId = lead?.assigned_to;
+      const prevOwnerName = prevOwnerId ? (profiles.find(p => p.user_id === prevOwnerId)?.full_name || 'Unknown') : 'Unassigned Pool';
+      const performerName = profile?.full_name || profiles.find(p => p.user_id === user?.id)?.full_name || 'System';
+      const memberName = salesMembers.find(m => m.user_id === memberId)?.full_name || 'salesperson';
+      const msg = prevOwnerId
+        ? `Lead "${lead?.name}" has been reassigned from ${prevOwnerName} to ${memberName} by ${performerName}.`
+        : `Lead "${lead?.name}" has been assigned from ${prevOwnerName} to ${memberName} by ${performerName}.`;
+
       await supabase.from('leads').update({ assigned_to: memberId }).eq('unique_id', leadId);
+
+      const notifs: any[] = [];
+      notifs.push({
+        user_id: memberId,
+        title: prevOwnerId ? 'Lead Reassigned' : 'Lead Assigned',
+        message: msg,
+        type: 'reassign',
+        lead_id: leadId
+      });
+
+      if (prevOwnerId && prevOwnerId !== memberId) {
+        notifs.push({
+          user_id: prevOwnerId,
+          title: 'Lead Reassigned',
+          message: msg,
+          type: 'reassign',
+          lead_id: leadId
+        });
+      }
+
+      if (user!.id !== memberId && user!.id !== prevOwnerId) {
+        notifs.push({
+          user_id: user!.id,
+          title: 'Lead Reassigned',
+          message: msg,
+          type: 'reassign',
+          lead_id: leadId
+        });
+      }
+
+      await supabase.from('notifications').insert(notifs);
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['salestl-leads'] }); toast.success('Lead reassigned!'); }
   });

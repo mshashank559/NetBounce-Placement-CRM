@@ -150,7 +150,7 @@ const ReassignDropdownMenu: React.FC<ReassignDropdownMenuProps> = ({ candidates,
 };
 
 const LeadsPage: React.FC = () => {
-  const { user, role } = useAuth();
+  const { user, role, profile } = useAuth();
   const queryClient = useQueryClient();
 
   // ── Filter state ──────────────────────────────────────────────
@@ -400,7 +400,7 @@ const LeadsPage: React.FC = () => {
       const targets = new Set<string>([...adminsAndTls, userId]);
       
       const salesName = profilesMap?.[userId]?.full_name || 'Salesperson';
-      const performerName = user ? (profilesMap?.[user.id]?.full_name || 'System') : 'System';
+      const performerName = profile?.full_name || 'System';
       const prevOwnerName = oldAssignee ? (profilesMap?.[oldAssignee]?.full_name || 'Unknown') : 'Unassigned Pool';
       const msg = oldAssignee
         ? `Lead "${leadName}" has been reassigned from ${prevOwnerName} to ${salesName} by ${performerName}.`
@@ -456,7 +456,7 @@ const LeadsPage: React.FC = () => {
         ? profilesMap[oldAssigneeId].full_name
         : 'Unassigned';
       
-      const currentUserName = user && profilesMap?.[user.id]?.full_name ? profilesMap[user.id].full_name : 'Admin/BD TL';
+      const currentUserName = profile?.full_name || 'Admin/BD TL';
 
       await supabase.from('lead_history_logs').insert({
         lead_id: leadId,

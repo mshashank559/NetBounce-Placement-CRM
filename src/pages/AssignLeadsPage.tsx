@@ -13,7 +13,7 @@ import { Shuffle, UserPlus, AlertCircle, User, RefreshCw, Search, Eye } from 'lu
 import LeadDetailDialog from '@/components/LeadDetailDialog';
 
 const AssignLeadsPage: React.FC = () => {
-  const { role, user } = useAuth();
+  const { role, user, profile } = useAuth();
   const queryClient = useQueryClient();
   const [selectedSales, setSelectedSales] = useState<Record<string, string>>({});
   const [selectedTeamMember, setSelectedTeamMember] = useState<Record<string, string>>({});
@@ -248,7 +248,7 @@ const AssignLeadsPage: React.FC = () => {
         targets.add(userId);
       }
       
-      const performerName = user ? (profilesMap?.[user.id]?.full_name || 'System') : 'System';
+      const performerName = profile?.full_name || 'System';
       const salesName = salesMembers?.find(m => m.user_id === userId)?.full_name || 'salesperson';
       const msg = prevOwnerId
         ? `Lead "${leadName}" has been reassigned from ${prevOwnerName} to ${salesName} by ${performerName}.`
@@ -307,7 +307,7 @@ const AssignLeadsPage: React.FC = () => {
 
         // Send notifications
         const salesName = salesMembers?.find(m => m.user_id === salesUserId)?.full_name || 'Sales TL';
-        const performerName = user ? (profilesMap?.[user.id]?.full_name || 'System') : 'System';
+        const performerName = profile?.full_name || 'System';
         const targets = new Set<string>([...admins, salesUserId]);
         const notifs: any[] = [];
         
@@ -356,7 +356,7 @@ const AssignLeadsPage: React.FC = () => {
         comments: `Reassigned to ${queueType} Queue due to aging.`
       });
 
-      const performerName = user ? (profilesMap?.[user.id]?.full_name || 'System') : 'System';
+      const performerName = profile?.full_name || 'System';
       const tlName = salesMembers?.find(m => m.user_id === tlId)?.full_name || 'Sales TL';
       const prevOwnerId = lead.assigned_to;
       const prevOwnerName = prevOwnerId ? (profilesMap?.[prevOwnerId]?.full_name || 'Unknown') : 'Unassigned Pool';
@@ -398,7 +398,7 @@ const AssignLeadsPage: React.FC = () => {
       const admins = (await supabase.from('user_roles').select('user_id').eq('role', 'ADMIN')).data?.map(r => r.user_id) || [];
       const targets = new Set<string>([...admins, salesUserId, originalTL]);
       const salesName = salesMembers?.find(m => m.user_id === salesUserId)?.full_name || 'Sales TM';
-      const performerName = user ? (profilesMap?.[user.id]?.full_name || 'System') : 'System';
+      const performerName = profile?.full_name || 'System';
       const prevOwnerName = prevOwnerId ? (profilesMap?.[prevOwnerId]?.full_name || 'Unknown') : 'Unassigned Pool';
       const msg = prevOwnerId
         ? `Lead "${leadName}" has been reassigned from ${prevOwnerName} to ${salesName} by ${performerName}.`
@@ -457,7 +457,7 @@ const AssignLeadsPage: React.FC = () => {
 
         // Send notifications
         const salesName = targetMembers.find(m => m.user_id === salesUserId)?.full_name || 'Sales TM';
-        const performerName = user ? (profilesMap?.[user.id]?.full_name || 'System') : 'System';
+        const performerName = profile?.full_name || 'System';
         const prevOwnerName = profilesMap?.[currentTL]?.full_name || 'Sales TL';
         const targets = new Set<string>([...admins, salesUserId, currentTL]);
         const notifs: any[] = [];
