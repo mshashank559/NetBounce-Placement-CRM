@@ -147,8 +147,7 @@ const AssignmentAnalysisPage: React.FC = () => {
         'Active Leads': a.activeLeads,
         'Total Leads': a.totalLeads
       }))
-      .sort((a, b) => b['Active Leads'] - a['Active Leads'])
-      .slice(0, 10); // Show top 10 agents by active lead load
+      .sort((a, b) => b['Active Leads'] - a['Active Leads']);
   }, [analysisData.agents]);
 
   const pieChartData = useMemo(() => {
@@ -388,13 +387,13 @@ const AssignmentAnalysisPage: React.FC = () => {
                 <BarChart3 className="h-4 w-4 text-primary" /> Active Lead Queue Load
               </CardTitle>
             </CardHeader>
-            <CardContent className="h-60 pt-2">
+            <CardContent className="pt-2" style={{ height: `${Math.max(240, barChartData.length * 36)}px` }}>
               {barChartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={barChartData} layout="vertical" margin={{ left: -10, right: 10, top: 0, bottom: 5 }}>
+                  <BarChart data={barChartData} layout="vertical" margin={{ left: -5, right: 10, top: 0, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
                     <XAxis type="number" tick={{ fontSize: 10 }} />
-                    <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 9 }} />
+                    <YAxis dataKey="name" type="category" width={115} tick={{ fontSize: 9 }} />
                     <Tooltip contentStyle={{ background: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', fontSize: '11px' }} />
                     <Bar dataKey="Active Leads" fill="hsl(222, 100%, 50%)" radius={[0, 4, 4, 0]} />
                   </BarChart>
@@ -436,7 +435,7 @@ const AssignmentAnalysisPage: React.FC = () => {
                     </ResponsiveContainer>
                   </div>
                   <div className="w-1/2 overflow-y-auto max-h-[180px] pr-1 space-y-1.5 text-[11px] custom-scrollbar">
-                    {pieChartData.slice(0, 6).map((item, idx) => (
+                    {pieChartData.map((item, idx) => (
                       <div key={item.name} className="flex items-center justify-between gap-1.5 py-0.5 border-b border-border/20">
                         <div className="flex items-center gap-1 truncate">
                           <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
@@ -445,11 +444,6 @@ const AssignmentAnalysisPage: React.FC = () => {
                         <span className="text-muted-foreground font-semibold shrink-0">{item.value}</span>
                       </div>
                     ))}
-                    {pieChartData.length > 6 && (
-                      <div className="text-[10px] text-muted-foreground italic text-center pt-1">
-                        + {pieChartData.length - 6} more agents
-                      </div>
-                    )}
                   </div>
                 </div>
               ) : (
