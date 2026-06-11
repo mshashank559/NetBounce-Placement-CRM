@@ -129,20 +129,18 @@ const AssignLeadsPage: React.FC = () => {
         }
       };
 
-      const now = new Date();
+      const nowMs = Date.now();
       return allLeads.map(lead => {
         const threshold = getStatusThreshold(lead.lead_status);
         if (threshold === null) return null;
         
-        const updatedDate = new Date(lead.updated_at);
-        const start = new Date(updatedDate.getFullYear(), updatedDate.getMonth(), updatedDate.getDate());
-        const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const diffTime = end.getTime() - start.getTime();
-        const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        const updatedMs = new Date(lead.updated_at).getTime();
+        const diffMs = nowMs - updatedMs;
+        const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
         
         return { ...lead, aging_days: days, threshold };
       })
-      .filter((lead): lead is any => lead !== null && !lead.dnr_followup_done && lead.aging_days === lead.threshold)
+      .filter((lead): lead is any => lead !== null && !lead.dnr_followup_done && lead.aging_days >= lead.threshold)
       .sort((a, b) => b.aging_days - a.aging_days);
     },
   });
