@@ -730,7 +730,7 @@ const AdminDashboard: React.FC = () => {
             </SelectContent>
           </Select>
           <Select value={teamFilter} onValueChange={setTeamFilter}><SelectTrigger className="w-32 h-9 bg-accent/30 border-border/50 text-xs"><SelectValue placeholder="Team" /></SelectTrigger><SelectContent><SelectItem value="all">All Teams</SelectItem><SelectItem value="Lead Gen">Lead Gen</SelectItem><SelectItem value="Sales">Sales</SelectItem></SelectContent></Select>
-          <div className="relative w-48 h-9"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" /><Input placeholder="Search name, id, email, phone..." className="pl-9 h-full bg-accent/30 border-border/50 focus-visible:ring-primary/30 text-xs" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div>
+          <div className="relative w-48 h-9"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" /><Input type="search" autoComplete="off" placeholder="Search name, id, email, phone..." className="pl-9 h-full bg-accent/30 border-border/50 focus-visible:ring-primary/30 text-xs" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div>
         </div>
       </div>
 
@@ -745,7 +745,55 @@ const AdminDashboard: React.FC = () => {
             </div>
             {isAdmin && (
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                <Card className="glass-card xl:col-span-1"><CardHeader><CardTitle className="text-xl font-display">Create User</CardTitle></CardHeader><CardContent className="space-y-3"><Input placeholder="Full Name" value={userForm.full_name} onChange={e => setUserForm(f => ({...f, full_name: e.target.value}))} className="h-9 bg-accent/20 text-xs" /><Input placeholder="Email" value={userForm.email} onChange={e => setUserForm(f => ({...f, email: e.target.value}))} className="h-9 bg-accent/20 text-xs" /><Input placeholder="Password" type="password" value={userForm.password} onChange={e => setUserForm(f => ({...f, password: e.target.value}))} className="h-9 bg-accent/20 text-xs" /><div className="grid grid-cols-2 gap-3"><Select value={userForm.role} onValueChange={v => setUserForm(f => ({...f, role: v}))}><SelectTrigger className="h-9 bg-accent/20 text-xs"><SelectValue placeholder="Role" /></SelectTrigger><SelectContent>{ROLES.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select><Input placeholder="Dept" value={userForm.department} onChange={e => setUserForm(f => ({...f, department: e.target.value}))} className="h-9 bg-accent/20 text-xs" /></div><Button className="w-full nb-gradient h-9 text-xs" onClick={() => createUserMutation.mutate()}>Create Member</Button></CardContent></Card>
+                <Card className="glass-card xl:col-span-1">
+                  <CardHeader>
+                    <CardTitle className="text-xl font-display">Create User</CardTitle>
+                  </CardHeader>
+                  <form onSubmit={(e) => { e.preventDefault(); createUserMutation.mutate(); }}>
+                    <CardContent className="space-y-3">
+                      <Input 
+                        placeholder="Full Name" 
+                        value={userForm.full_name} 
+                        onChange={e => setUserForm(f => ({...f, full_name: e.target.value}))} 
+                        className="h-9 bg-accent/20 text-xs" 
+                        autoComplete="new-name"
+                      />
+                      <Input 
+                        placeholder="Email" 
+                        value={userForm.email} 
+                        onChange={e => setUserForm(f => ({...f, email: e.target.value}))} 
+                        className="h-9 bg-accent/20 text-xs" 
+                        autoComplete="new-email"
+                      />
+                      <Input 
+                        placeholder="Password" 
+                        type="password" 
+                        value={userForm.password} 
+                        onChange={e => setUserForm(f => ({...f, password: e.target.value}))} 
+                        className="h-9 bg-accent/20 text-xs" 
+                        autoComplete="new-password"
+                      />
+                      <div className="grid grid-cols-2 gap-3">
+                        <Select value={userForm.role} onValueChange={v => setUserForm(f => ({...f, role: v}))}>
+                          <SelectTrigger className="h-9 bg-accent/20 text-xs">
+                            <SelectValue placeholder="Role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ROLES.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Input 
+                          placeholder="Dept" 
+                          value={userForm.department} 
+                          onChange={e => setUserForm(f => ({...f, department: e.target.value}))} 
+                          className="h-9 bg-accent/20 text-xs" 
+                          autoComplete="new-dept"
+                        />
+                      </div>
+                      <Button type="submit" className="w-full nb-gradient h-9 text-xs">Create Member</Button>
+                    </CardContent>
+                  </form>
+                </Card>
                 <Card className="glass-card xl:col-span-2 overflow-hidden"><CardHeader className="pb-2"><CardTitle className="text-xl font-display">Active Directory</CardTitle></CardHeader><CardContent className="p-0"><div className="max-h-[300px] overflow-y-auto"><Table><TableHeader className="bg-accent/50 sticky top-0"><TableRow><TableHead className="text-xs">User</TableHead><TableHead className="text-xs">Role</TableHead><TableHead className="text-xs text-right">Action</TableHead></TableRow></TableHeader><TableBody>{allUsers.map(u => (<TableRow key={u.user_id}><TableCell className="text-xs font-medium">{u.full_name}</TableCell><TableCell><Badge variant="outline" className="text-[10px]">{u.role}</Badge></TableCell><TableCell className="text-right"><Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { if(confirm('Delete user?')) supabase.from('profiles').delete().eq('user_id', u.user_id).then(() => queryClient.invalidateQueries({queryKey:['all-profiles-admin']})) }}><Trash2 className="h-3.5 w-3.5" /></Button></TableCell></TableRow>))}</TableBody></Table></div></CardContent></Card>
               </div>
             )}
@@ -974,7 +1022,7 @@ const AdminDashboard: React.FC = () => {
                     </div>
                     <div className="relative h-9 w-48">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                      <Input placeholder="Search name, id, email, phone..." className="pl-9 h-full bg-accent/30 border-border/50 text-xs" value={globalSearch} onChange={e => setGlobalSearch(e.target.value)} />
+                      <Input type="search" autoComplete="off" placeholder="Search name, id, email, phone..." className="pl-9 h-full bg-accent/30 border-border/50 text-xs" value={globalSearch} onChange={e => setGlobalSearch(e.target.value)} />
                     </div>
                   </div>
                 </div>
