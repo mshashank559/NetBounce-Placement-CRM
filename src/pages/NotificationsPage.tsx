@@ -120,6 +120,7 @@ const NotificationsPage: React.FC = () => {
     if (filterType === 'Revenue') return n.type === 'revenue';
     if (filterType === 'Follow-ups') return n.type === 'followup';
     if (filterType === 'Document Updates') return n.type === 'accountant_update';
+    if (filterType === 'SLA Alerts') return !!(n.title && n.title.includes('SLA Alert'));
     return n.type === filterType;
   });
 
@@ -166,7 +167,13 @@ const NotificationsPage: React.FC = () => {
               title="To date"
             />
           </div>
-          <Select value={filterType} onValueChange={setFilterType}>
+          <Select
+            value={filterType}
+            onValueChange={(val) => {
+              setFilterType(val);
+              setSelectedIds(new Set());
+            }}
+          >
             <SelectTrigger className="w-40 h-9">
               <Filter className="h-4 w-4 mr-2" />
               <SelectValue placeholder="Filter" />
@@ -179,6 +186,7 @@ const NotificationsPage: React.FC = () => {
               <SelectItem value="Follow-ups">Follow-ups</SelectItem>
               <SelectItem value="Revenue">Revenue</SelectItem>
               <SelectItem value="concern">Concerns</SelectItem>
+              <SelectItem value="SLA Alerts">SLA Alerts</SelectItem>
               <SelectItem value="Document Updates">📄 Document Updates</SelectItem>
               <SelectItem value="payment_due">💰 Payment Due Today</SelectItem>
               <SelectItem value="payment_overdue_escalation">🚨 Payment Overdue Escalation</SelectItem>
