@@ -128,6 +128,67 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
     return null;
   }, [closure, lead?.comment]);
 
+  const parsedData = React.useMemo(() => {
+    const data = {
+      percentage: closure?.percentage != null ? `${closure.percentage}%` : null,
+      slot1_due_date: closure?.slot1_due_date ? new Date(closure.slot1_due_date).toLocaleDateString() : null,
+      next_slot_due_date: closure?.next_slot_due_date ? new Date(closure.next_slot_due_date).toLocaleDateString() : null,
+      additional_slots: Array.isArray(closure?.additional_slots) ? (closure.additional_slots as any[]) : null,
+    };
+
+    if (lead?.comment && lead.comment.includes('[Closure Payment]')) {
+      // Parse percentage
+      if (!data.percentage) {
+        const match = lead.comment.match(/Percentage:\s*([0-9.]+)%/);
+        if (match && match[1]) {
+          data.percentage = `${match[1]}%`;
+        }
+      }
+      // Parse slot1 due date
+      if (!data.slot1_due_date) {
+        const match = lead.comment.match(/Slot1 Due:\s*([^,]+)/);
+        if (match && match[1] && match[1].trim() !== 'N/A') {
+          const dtStr = match[1].trim();
+          const parsedDate = new Date(dtStr);
+          if (!isNaN(parsedDate.getTime())) {
+            data.slot1_due_date = parsedDate.toLocaleDateString();
+          } else {
+            data.slot1_due_date = dtStr;
+          }
+        }
+      }
+      // Parse next slot due date
+      if (!data.next_slot_due_date) {
+        const match = lead.comment.match(/Next Slot Due:\s*([^,]+)/);
+        if (match && match[1] && match[1].trim() !== 'N/A') {
+          const dtStr = match[1].trim();
+          const parsedDate = new Date(dtStr);
+          if (!isNaN(parsedDate.getTime())) {
+            data.next_slot_due_date = parsedDate.toLocaleDateString();
+          } else {
+            data.next_slot_due_date = dtStr;
+          }
+        }
+      }
+      // Parse additional slots
+      if (!data.additional_slots || data.additional_slots.length === 0) {
+        const match = lead.comment.match(/Additional Slots:\s*(\[.*\])/);
+        if (match && match[1]) {
+          try {
+            const parsed = JSON.parse(match[1]);
+            if (Array.isArray(parsed)) {
+              data.additional_slots = parsed;
+            }
+          } catch (e) {
+            console.error("Failed to parse additional slots from comment", e);
+          }
+        }
+      }
+    }
+
+    return data;
+  }, [closure, lead?.comment]);
+
   const canSeeGeneratedBy = role === 'SALES_TM' || role === 'SALES_TL' || role === 'LEAD_TL' || role === 'PROCESS_ANALYST' || role === 'ADMIN';
 
   const Field = ({ label, value }: { label: string; value: any }) => (
@@ -252,15 +313,15 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                   <Field label="Interview Plan" value={closure.interview_plan ? 'Yes' : 'No'} />
                   <Field label="Upfront Amount" value={`$${closure.upfront_amount}`} />
                   <Field label="Payment Mode" value={closure.payment_mode} />
-                  {(parsedOnOfferAmount || closure.percentage != null) && (
+                  {(parsedOnOfferAmount || parsedData.percentage != null) && (
                     <div className="col-span-2 grid grid-cols-2 gap-3">
                       {parsedOnOfferAmount ? (
                         <Field label="On-Offer Amount" value={parsedOnOfferAmount} />
                       ) : (
                         <div />
                       )}
-                      {closure.percentage != null ? (
-                        <Field label="Percentage" value={`${closure.percentage}%`} />
+                      {parsedData.percentage != null ? (
+                        <Field label="Percentage" value={parsedData.percentage} />
                       ) : (
                         <div />
                       )}
@@ -269,8 +330,8 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                   {closure.slot1_amount !== null && closure.slot1_amount !== undefined && (
                     <div className="col-span-2 grid grid-cols-2 gap-3">
                       <Field label="Slot 1 Amount" value={`$${closure.slot1_amount} (${closure.slot1 ? 'Paid' : 'Unpaid'})`} />
-                      {closure.slot1_due_date ? (
-                        <Field label="Slot 1 Due Date" value={new Date(closure.slot1_due_date).toLocaleDateString()} />
+                      {parsedData.slot1_due_date ? (
+                        <Field label="Slot 1 Due Date" value={parsedData.slot1_due_date} />
                       ) : (
                         <div />
                       )}
@@ -279,18 +340,20 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                   {closure.slot2_amount !== null && closure.slot2_amount !== undefined && (
                     <div className="col-span-2 grid grid-cols-2 gap-3">
                       <Field label="Next Slot Amount" value={`$${closure.slot2_amount} (${closure.slot2 ? 'Paid' : 'Unpaid'})`} />
-                      {closure.next_slot_due_date ? (
-                        <Field label="Next Slot Due Date" value={new Date(closure.next_slot_due_date).toLocaleDateString()} />
+                      {parsedData.next_slot_due_date ? (
+                        <Field label="Next Slot Due Date" value={parsedData.next_slot_due_date} />
                       ) : (
                         <div />
                       )}
                     </div>
                   )}
-                  {Array.isArray(closure.additional_slots) && (closure.additional_slots as any[]).map((slot: any, idx: number) => (
+                  {Array.isArray(parsedData.additional_slots) && (parsedData.additional_slots as any[]).map((slot: any, idx: number) => (
                     <div key={idx} className="col-span-2 grid grid-cols-2 gap-3">
                       <Field label={`Slot ${slot.slot_number || (idx + 3)} Amount`} value={`$${slot.amount} (${slot.paid ? 'Paid' : 'Unpaid'})`} />
                       {slot.due_date ? (
-                        <Field label={`Slot ${slot.slot_number || (idx + 3)} Due Date`} value={new Date(slot.due_date).toLocaleDateString()} />
+                        <Field label={`Slot ${slot.slot_number || (idx + 3)} Due Date`} value={
+                          isNaN(new Date(slot.due_date).getTime()) ? slot.due_date : new Date(slot.due_date).toLocaleDateString()
+                        } />
                       ) : (
                         <div />
                       )}
