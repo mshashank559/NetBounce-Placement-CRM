@@ -1233,7 +1233,7 @@ function PerformaDialog({ open, onClose, lead, user, onSuccess }: any) {
         console.warn('Supabase insert failed (possibly due to RLS), but continuing redirect:', error);
       }
       
-      const edocUrl = `https://netbounceplacement-docsign-di16pl51v-shashank-mishras-projects.vercel.app/login`;
+      const edocUrl = `https://netbounceplacement-docsign.vercel.app/login`;
       window.open(edocUrl, '_blank');
     },
     onSuccess: () => {
