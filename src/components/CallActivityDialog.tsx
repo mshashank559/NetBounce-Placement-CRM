@@ -46,6 +46,16 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
   const [notes, setNotes] = useState('');
   const [wayOfContact, setWayOfContact] = useState('Call');
   const [newStatus, setNewStatus] = useState(initialStatus || currentStatus);
+  const [emailSent, setEmailSent] = useState(false);
+
+  const handleStatusChange = (status: string) => {
+    setNewStatus(status);
+    if (status === 'Connected') {
+      toast("Reminder: Please ensure you send the introductory email to the candidate containing the company introduction and our structured pricing plans.", {
+        duration: 10000,
+      });
+    }
+  };
 
   // Send Document State
   const [sendDocument, setSendDocument] = useState(false);
@@ -126,6 +136,11 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
   const mutation = useMutation({
     mutationFn: async () => {
       if (!notes.trim()) throw new Error('Follow-up notes are required');
+
+      // Validation for Connected status
+      if (newStatus === 'Connected' && !emailSent) {
+        throw new Error('Please check the " Email Sent" checkbox before saving.');
+      }
 
       // Validation for Closed status
       if (newStatus === 'Closed') {
@@ -476,7 +491,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
               <Label className="text-xs text-muted-foreground mb-1 block">
                 Update Status <span className="text-muted-foreground/60">(current: {currentStatus})</span>
               </Label>
-              <Select value={newStatus} onValueChange={setNewStatus}>
+              <Select value={newStatus} onValueChange={handleStatusChange}>
                 <SelectTrigger className="mt-1">
                   <SelectValue />
                 </SelectTrigger>
@@ -496,6 +511,18 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
             <p className="text-xs text-muted-foreground bg-accent/30 rounded-lg p-2">
               Lead is in terminal status ({currentStatus}) — notes will still be logged.
             </p>
+          )}
+
+          {/* Conditional Checkbox for Connected Status */}
+          {newStatus === 'Connected' && (
+            <div className="flex items-center gap-2 py-1 mt-2">
+              <Checkbox
+                checked={emailSent}
+                onCheckedChange={(v) => setEmailSent(!!v)}
+                id="email-sent-checkbox"
+              />
+              <Label htmlFor="email-sent-checkbox" className="cursor-pointer text-xs font-medium text-foreground"> Email Sent</Label>
+            </div>
           )}
 
           {/* Send Document block (available on any status for SALES_TL, SALES_TM, ADMIN) */}
