@@ -252,25 +252,49 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                   <Field label="Interview Plan" value={closure.interview_plan ? 'Yes' : 'No'} />
                   <Field label="Upfront Amount" value={`$${closure.upfront_amount}`} />
                   <Field label="Payment Mode" value={closure.payment_mode} />
-                  {parsedOnOfferAmount && <Field label="On-Offer Amount" value={parsedOnOfferAmount} />}
-                  {closure.percentage != null && <Field label="Percentage" value={`${closure.percentage}%`} />}
+                  {(parsedOnOfferAmount || closure.percentage != null) && (
+                    <div className="col-span-2 grid grid-cols-2 gap-3">
+                      {parsedOnOfferAmount ? (
+                        <Field label="On-Offer Amount" value={parsedOnOfferAmount} />
+                      ) : (
+                        <div />
+                      )}
+                      {closure.percentage != null ? (
+                        <Field label="Percentage" value={`${closure.percentage}%`} />
+                      ) : (
+                        <div />
+                      )}
+                    </div>
+                  )}
                   {closure.slot1_amount !== null && closure.slot1_amount !== undefined && (
-                    <>
+                    <div className="col-span-2 grid grid-cols-2 gap-3">
                       <Field label="Slot 1 Amount" value={`$${closure.slot1_amount} (${closure.slot1 ? 'Paid' : 'Unpaid'})`} />
-                      {closure.slot1_due_date && <Field label="Slot 1 Due Date" value={new Date(closure.slot1_due_date).toLocaleDateString()} />}
-                    </>
+                      {closure.slot1_due_date ? (
+                        <Field label="Slot 1 Due Date" value={new Date(closure.slot1_due_date).toLocaleDateString()} />
+                      ) : (
+                        <div />
+                      )}
+                    </div>
                   )}
                   {closure.slot2_amount !== null && closure.slot2_amount !== undefined && (
-                    <>
+                    <div className="col-span-2 grid grid-cols-2 gap-3">
                       <Field label="Next Slot Amount" value={`$${closure.slot2_amount} (${closure.slot2 ? 'Paid' : 'Unpaid'})`} />
-                      {closure.next_slot_due_date && <Field label="Next Slot Due Date" value={new Date(closure.next_slot_due_date).toLocaleDateString()} />}
-                    </>
+                      {closure.next_slot_due_date ? (
+                        <Field label="Next Slot Due Date" value={new Date(closure.next_slot_due_date).toLocaleDateString()} />
+                      ) : (
+                        <div />
+                      )}
+                    </div>
                   )}
                   {Array.isArray(closure.additional_slots) && (closure.additional_slots as any[]).map((slot: any, idx: number) => (
-                    <React.Fragment key={idx}>
+                    <div key={idx} className="col-span-2 grid grid-cols-2 gap-3">
                       <Field label={`Slot ${slot.slot_number || (idx + 3)} Amount`} value={`$${slot.amount} (${slot.paid ? 'Paid' : 'Unpaid'})`} />
-                      {slot.due_date && <Field label={`Slot ${slot.slot_number || (idx + 3)} Due Date`} value={new Date(slot.due_date).toLocaleDateString()} />}
-                    </React.Fragment>
+                      {slot.due_date ? (
+                        <Field label={`Slot ${slot.slot_number || (idx + 3)} Due Date`} value={new Date(slot.due_date).toLocaleDateString()} />
+                      ) : (
+                        <div />
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
