@@ -76,6 +76,8 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
   const [nextSlotDueDate, setNextSlotDueDate] = useState('');
   const [customPlanNote, setCustomPlanNote] = useState('');
   const [paymentMode, setPaymentMode] = useState<'Cash' | 'Card' | 'UPI' | 'Bank Transfer' | 'Stripe' | 'Other' | ''>('');
+  const [finalPaymentConditions, setFinalPaymentConditions] = useState('');
+  const [currentAgreedPaymentConditions, setCurrentAgreedPaymentConditions] = useState('');
 
   interface AdditionalSlot {
     amount: string;
@@ -120,6 +122,8 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
       setSlot2Amount(closure.slot2_amount ? String(closure.slot2_amount) : '');
       setNextSlotDueDate(closure.next_slot_due_date || '');
       setPaymentMode(closure.payment_mode || '');
+      setFinalPaymentConditions(closure.final_payment_conditions || '');
+      setCurrentAgreedPaymentConditions(closure.current_agreed_payment_conditions || '');
 
       const parsedAdditionalSlots = Array.isArray(closure.additional_slots)
         ? (closure.additional_slots as any[]).map(s => ({
@@ -228,7 +232,9 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
               amount: parseFloat(s.amount) || 0,
               due_date: s.due_date || null,
               paid: !!s.paid
-            }))
+            })),
+            final_payment_conditions: finalPaymentConditions,
+            current_agreed_payment_conditions: currentAgreedPaymentConditions
           };
 
           // Try inserting/updating with the new columns; fallback if columns don't exist yet
@@ -747,6 +753,28 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
                     <SelectItem value="Other">Other</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div>
+                <Label>Final Payment Conditions</Label>
+                <textarea
+                  value={finalPaymentConditions}
+                  onChange={e => setFinalPaymentConditions(e.target.value)}
+                  placeholder="Enter final payment conditions..."
+                  rows={3}
+                  className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                />
+              </div>
+
+              <div>
+                <Label>Current agreed payment conditions</Label>
+                <textarea
+                  value={currentAgreedPaymentConditions}
+                  onChange={e => setCurrentAgreedPaymentConditions(e.target.value)}
+                  placeholder="Enter current agreed payment conditions..."
+                  rows={3}
+                  className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                />
               </div>
             </div>
           )}

@@ -36,6 +36,8 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
     slot2_amount: '',
     next_slot_due_date: '',
     payment_mode: '' as 'Cash' | 'Card' | 'UPI' | 'Bank Transfer' | 'Stripe' | 'Other' | '',
+    final_payment_conditions: '',
+    current_agreed_payment_conditions: '',
   });
 
   interface AdditionalSlot {
@@ -84,6 +86,8 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
         slot2_amount: closure.slot2_amount ? String(closure.slot2_amount) : '',
         next_slot_due_date: closure.next_slot_due_date || '',
         payment_mode: closure.payment_mode || '',
+        final_payment_conditions: closure.final_payment_conditions || '',
+        current_agreed_payment_conditions: closure.current_agreed_payment_conditions || '',
       });
 
       const parsedAdditionalSlots = Array.isArray(closure.additional_slots)
@@ -140,7 +144,9 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
           amount: parseFloat(s.amount) || 0,
           due_date: s.due_date || null,
           paid: !!s.paid
-        }))
+        })),
+        final_payment_conditions: form.final_payment_conditions,
+        current_agreed_payment_conditions: form.current_agreed_payment_conditions
       };
 
       // Try inserting/updating with the new columns; fallback if columns don't exist yet
@@ -450,6 +456,29 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
               </SelectContent>
             </Select>
           </div>
+
+          <div>
+            <Label>Final Payment Conditions</Label>
+            <textarea
+              value={form.final_payment_conditions}
+              onChange={e => set('final_payment_conditions', e.target.value)}
+              placeholder="Enter final payment conditions..."
+              rows={3}
+              className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+            />
+          </div>
+
+          <div>
+            <Label>Current agreed payment conditions</Label>
+            <textarea
+              value={form.current_agreed_payment_conditions}
+              onChange={e => set('current_agreed_payment_conditions', e.target.value)}
+              placeholder="Enter current agreed payment conditions..."
+              rows={3}
+              className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+            />
+          </div>
+
           <Button type="submit" className="w-full nb-gradient" disabled={mutation.isPending}>
             {mutation.isPending ? 'Processing...' : (lead?.lead_status === 'Closed' ? 'Save Closure Details' : 'Close Lead')}
           </Button>

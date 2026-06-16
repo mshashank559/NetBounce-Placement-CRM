@@ -359,6 +359,23 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                       )}
                     </div>
                   ))}
+                  
+                  {closure.final_payment_conditions && (
+                    <div className="col-span-2 bg-background/50 p-3 rounded-md border border-green-500/10 shadow-sm select-text">
+                      <span className="text-xs text-muted-foreground block mb-1">Final Payment Conditions</span>
+                      <p className="text-sm font-semibold text-foreground whitespace-pre-wrap select-text">
+                        {closure.final_payment_conditions}
+                      </p>
+                    </div>
+                  )}
+                  {closure.current_agreed_payment_conditions && (
+                    <div className="col-span-2 bg-background/50 p-3 rounded-md border border-green-500/10 shadow-sm select-text">
+                      <span className="text-xs text-muted-foreground block mb-1">Current agreed payment conditions</span>
+                      <p className="text-sm font-semibold text-foreground whitespace-pre-wrap select-text">
+                        {closure.current_agreed_payment_conditions}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

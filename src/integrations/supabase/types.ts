@@ -171,6 +171,8 @@ export type Database = {
           slot1_due_date: string | null
           next_slot_due_date: string | null
           additional_slots: Json | null
+          final_payment_conditions: string | null
+          current_agreed_payment_conditions: string | null
         }
         Insert: {
           created_at?: string
@@ -190,6 +192,8 @@ export type Database = {
           slot1_due_date?: string | null
           next_slot_due_date?: string | null
           additional_slots?: Json | null
+          final_payment_conditions?: string | null
+          current_agreed_payment_conditions?: string | null
         }
         Update: {
           created_at?: string
@@ -209,6 +213,8 @@ export type Database = {
           slot1_due_date?: string | null
           next_slot_due_date?: string | null
           additional_slots?: Json | null
+          final_payment_conditions?: string | null
+          current_agreed_payment_conditions?: string | null
         }
         Relationships: [
           {
