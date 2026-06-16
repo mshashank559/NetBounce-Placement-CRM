@@ -211,72 +211,6 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
             comments: notes.trim() || null
           });
 
-          // Build closure payload with new fields including additional_slots
-          const closurePayload: any = {
-            lead_id: lead.unique_id,
-            plan: plan as any,
-            interview_plan: interviewPlan,
-            interviews_guaranteed: interviewsGuaranteed ? parseInt(interviewsGuaranteed) || null : null,
-            upfront_amount: parseFloat(upfrontAmount) || 0,
-            amount: parseFloat(amount) || 0,
-            percentage: parseFloat(percentage) || 0,
-            slot1: slot1,
-            slot1_amount: slot1Amount ? parseFloat(slot1Amount) || 0 : null,
-            slot1_due_date: slot1DueDate || null,
-            slot2: slot2,
-            slot2_amount: slot2Amount ? parseFloat(slot2Amount) || 0 : null,
-            next_slot_due_date: nextSlotDueDate || null,
-            payment_mode: paymentMode as any,
-            additional_slots: additionalSlots.map((s, idx) => ({
-              slot_number: idx + 3,
-              amount: parseFloat(s.amount) || 0,
-              due_date: s.due_date || null,
-              paid: !!s.paid
-            })),
-            final_payment_conditions: finalPaymentConditions,
-            current_agreed_payment_conditions: currentAgreedPaymentConditions
-          };
-
-          // Try inserting/updating with the new columns; fallback if columns don't exist yet
-          let error;
-          if (closure?.id) {
-            const { error: err } = await supabase.from('lead_closures').update(closurePayload).eq('id', closure.id);
-            error = err;
-          } else {
-            const { error: err } = await supabase.from('lead_closures').insert(closurePayload);
-            error = err;
-          }
-
-          if (error) {
-            if (error.code === '42703' || error.message?.includes('column')) {
-              const fallbackPayload: any = {
-                lead_id: lead.unique_id,
-                plan: plan as any,
-                interview_plan: interviewPlan,
-                upfront_amount: parseFloat(upfrontAmount) || 0,
-                slot1: slot1,
-                slot1_amount: slot1Amount ? parseFloat(slot1Amount) || 0 : null,
-                slot2: slot2,
-                slot2_amount: slot2Amount ? parseFloat(slot2Amount) || 0 : null,
-                payment_mode: paymentMode as any,
-              };
-              let fallbackErr;
-              if (closure?.id) {
-                const { error: err } = await supabase.from('lead_closures').update(fallbackPayload).eq('id', closure.id);
-                fallbackErr = err;
-              } else {
-                const { error: err } = await supabase.from('lead_closures').insert(fallbackPayload);
-                fallbackErr = err;
-              }
-              if (fallbackErr) throw fallbackErr;
-
-              const paymentDetails = `[Closure Payment] Amount: $${amount}, Percentage: ${percentage}%, Slot1 Due: ${slot1DueDate || 'N/A'}, Next Slot Due: ${nextSlotDueDate || 'N/A'}, Additional Slots: ${JSON.stringify(additionalSlots)}`;
-              await supabase.from('leads').update({ comment: paymentDetails } as any).eq('unique_id', lead.unique_id);
-            } else {
-              throw error;
-            }
-          }
-
           // 1. Identify the target Sales TL for the lead
           let salesTLId = lead.team_lead_id;
           if (!salesTLId && lead.assigned_to) {
@@ -356,6 +290,75 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
         }
       }
 
+      // 3.5 Save lead closure details if new status is Closed (even if status was already Closed)
+      if (newStatus === 'Closed') {
+        // Build closure payload with new fields including additional_slots
+        const closurePayload: any = {
+          lead_id: lead.unique_id,
+          plan: plan as any,
+          interview_plan: interviewPlan,
+          interviews_guaranteed: interviewsGuaranteed ? parseInt(interviewsGuaranteed) || null : null,
+          upfront_amount: parseFloat(upfrontAmount) || 0,
+          amount: parseFloat(amount) || 0,
+          percentage: parseFloat(percentage) || 0,
+          slot1: slot1,
+          slot1_amount: slot1Amount ? parseFloat(slot1Amount) || 0 : null,
+          slot1_due_date: slot1DueDate || null,
+          slot2: slot2,
+          slot2_amount: slot2Amount ? parseFloat(slot2Amount) || 0 : null,
+          next_slot_due_date: nextSlotDueDate || null,
+          payment_mode: paymentMode as any,
+          additional_slots: additionalSlots.map((s, idx) => ({
+            slot_number: idx + 3,
+            amount: parseFloat(s.amount) || 0,
+            due_date: s.due_date || null,
+            paid: !!s.paid
+          })),
+          final_payment_conditions: finalPaymentConditions,
+          current_agreed_payment_conditions: currentAgreedPaymentConditions
+        };
+
+        // Try inserting/updating with the new columns; fallback if columns don't exist yet
+        let error;
+        if (closure?.id) {
+          const { error: err } = await supabase.from('lead_closures').update(closurePayload).eq('id', closure.id);
+          error = err;
+        } else {
+          const { error: err } = await supabase.from('lead_closures').insert(closurePayload);
+          error = err;
+        }
+
+        if (error) {
+          if (error.code === '42703' || error.message?.includes('column')) {
+            const fallbackPayload: any = {
+              lead_id: lead.unique_id,
+              plan: plan as any,
+              interview_plan: interviewPlan,
+              upfront_amount: parseFloat(upfrontAmount) || 0,
+              slot1: slot1,
+              slot1_amount: slot1Amount ? parseFloat(slot1Amount) || 0 : null,
+              slot2: slot2,
+              slot2_amount: slot2Amount ? parseFloat(slot2Amount) || 0 : null,
+              payment_mode: paymentMode as any,
+            };
+            let fallbackErr;
+            if (closure?.id) {
+              const { error: err } = await supabase.from('lead_closures').update(fallbackPayload).eq('id', closure.id);
+              fallbackErr = err;
+            } else {
+              const { error: err } = await supabase.from('lead_closures').insert(fallbackPayload);
+              fallbackErr = err;
+            }
+            if (fallbackErr) throw fallbackErr;
+
+            const paymentDetails = `[Closure Payment] Amount: $${amount}, Percentage: ${percentage}%, Slot1 Due: ${slot1DueDate || 'N/A'}, Next Slot Due: ${nextSlotDueDate || 'N/A'}, Additional Slots: ${JSON.stringify(additionalSlots)}`;
+            await supabase.from('leads').update({ comment: paymentDetails } as any).eq('unique_id', lead.unique_id);
+          } else {
+            throw error;
+          }
+        }
+      }
+
       // 4. Send document if toggled
       if (sendDocument && docComment.trim()) {
         const docRef = 'DOC-' + Math.random().toString(36).substr(2, 9).toUpperCase();
@@ -404,6 +407,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
       queryClient.invalidateQueries({ queryKey: ['all-leads-accountant'] });
       queryClient.invalidateQueries({ queryKey: ['account-closures'] });
       queryClient.invalidateQueries({ queryKey: ['all-closures'] });
+      queryClient.invalidateQueries({ queryKey: ['closure', lead.unique_id] });
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
 
       // Compute next follow-up date based on status delay
