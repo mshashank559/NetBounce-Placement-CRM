@@ -141,10 +141,6 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
     mutationFn: async () => {
       if (!notes.trim()) throw new Error('Follow-up notes are required');
 
-      // Validation for Connected status
-      if (newStatus === 'Connected' && !emailSent) {
-        throw new Error('Please check the " Email Sent" checkbox before saving.');
-      }
 
       // Validation for Closed status
       if (newStatus === 'Closed') {
@@ -191,7 +187,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
         lead_id: lead.unique_id,
         user_id: user!.id,
         notes: notes.trim(),
-        way_of_contact: wayOfContact,
+        way_of_contact: emailSent ? 'Email' : wayOfContact,
       });
 
       // 3. Update lead status if changed
