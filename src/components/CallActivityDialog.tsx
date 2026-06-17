@@ -78,6 +78,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
   const [paymentMode, setPaymentMode] = useState<'Cash' | 'Card' | 'UPI' | 'Bank Transfer' | 'Stripe' | 'Other' | ''>('');
   const [finalPaymentConditions, setFinalPaymentConditions] = useState('');
   const [currentAgreedPaymentConditions, setCurrentAgreedPaymentConditions] = useState('');
+  const [candidateEmail, setCandidateEmail] = useState(lead?.email || '');
 
   interface AdditionalSlot {
     amount: string;
@@ -124,6 +125,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
       setPaymentMode(closure.payment_mode || '');
       setFinalPaymentConditions(closure.final_payment_conditions || '');
       setCurrentAgreedPaymentConditions(closure.current_agreed_payment_conditions || '');
+      setCandidateEmail(closure.candidate_email || lead?.email || '');
 
       const parsedAdditionalSlots = Array.isArray(closure.additional_slots)
         ? (closure.additional_slots as any[]).map(s => ({
@@ -144,6 +146,9 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
 
       // Validation for Closed status
       if (newStatus === 'Closed') {
+        if (!candidateEmail.trim()) throw new Error('Candidate Email ID is required');
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(candidateEmail.trim())) throw new Error('Candidate Email ID must be a valid email address');
         if (!plan || !paymentMode) throw new Error('Plan and Payment Mode are required');
         if (plan === 'Custom' && !customPlanNote.trim()) throw new Error('Please describe your Custom Plan');
         if (!upfrontAmount || parseFloat(upfrontAmount) <= 0) throw new Error('Upfront Amount is required');
@@ -195,7 +200,10 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
         if (newStatus === 'Closed') {
           // Update lead status to Closed
           await supabase.from('leads')
-            .update({ lead_status: 'Closed' as any })
+            .update({ 
+              lead_status: 'Closed' as any,
+              email: candidateEmail.trim()
+            })
             .eq('unique_id', lead.unique_id);
 
           await supabase.from('lead_history_logs').insert({
@@ -311,7 +319,8 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
             paid: !!s.paid
           })),
           final_payment_conditions: finalPaymentConditions,
-          current_agreed_payment_conditions: currentAgreedPaymentConditions
+          current_agreed_payment_conditions: currentAgreedPaymentConditions,
+          candidate_email: candidateEmail.trim()
         };
 
         // Try inserting/updating with the new columns; fallback if columns don't exist yet
@@ -322,6 +331,12 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
         } else {
           const { error: err } = await supabase.from('lead_closures').insert(closurePayload);
           error = err;
+        }
+
+        if (!error) {
+          await supabase.from('leads')
+            .update({ email: candidateEmail.trim() } as any)
+            .eq('unique_id', lead.unique_id);
         }
 
         if (error) {
@@ -348,7 +363,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
             if (fallbackErr) throw fallbackErr;
 
             const paymentDetails = `[Closure Payment] Amount: $${amount}, Percentage: ${percentage}%, Slot1 Due: ${slot1DueDate || 'N/A'}, Next Slot Due: ${nextSlotDueDate || 'N/A'}, Additional Slots: ${JSON.stringify(additionalSlots)}`;
-            await supabase.from('leads').update({ comment: paymentDetails } as any).eq('unique_id', lead.unique_id);
+            await supabase.from('leads').update({ comment: paymentDetails, email: candidateEmail.trim() } as any).eq('unique_id', lead.unique_id);
           } else {
             throw error;
           }
@@ -576,6 +591,19 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
             <div className="border-t border-border/50 pt-4 mt-4 space-y-4">
               <h3 className="text-sm font-semibold text-foreground font-display">Closure & Payment Details</h3>
               
+              <div>
+                <Label htmlFor="candidate-email">Candidate Email ID *</Label>
+                <Input
+                  id="candidate-email"
+                  type="email"
+                  value={candidateEmail}
+                  onChange={e => setCandidateEmail(e.target.value)}
+                  placeholder="candidate@example.com"
+                  className="mt-1"
+                  required
+                />
+              </div>
+
               <div>
                 <Label>Plan *</Label>
                 <Select value={plan} onValueChange={v => setPlan(v as any)}>

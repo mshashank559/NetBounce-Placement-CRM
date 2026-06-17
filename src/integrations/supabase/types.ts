@@ -173,6 +173,7 @@ export type Database = {
           additional_slots: Json | null
           final_payment_conditions: string | null
           current_agreed_payment_conditions: string | null
+          candidate_email: string | null
         }
         Insert: {
           created_at?: string
@@ -194,6 +195,7 @@ export type Database = {
           additional_slots?: Json | null
           final_payment_conditions?: string | null
           current_agreed_payment_conditions?: string | null
+          candidate_email?: string | null
         }
         Update: {
           created_at?: string
@@ -215,6 +217,7 @@ export type Database = {
           additional_slots?: Json | null
           final_payment_conditions?: string | null
           current_agreed_payment_conditions?: string | null
+          candidate_email?: string | null
         }
         Relationships: [
           {

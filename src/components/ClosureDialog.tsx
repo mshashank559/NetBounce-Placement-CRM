@@ -38,6 +38,7 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
     payment_mode: '' as 'Cash' | 'Card' | 'UPI' | 'Bank Transfer' | 'Stripe' | 'Other' | '',
     final_payment_conditions: '',
     current_agreed_payment_conditions: '',
+    candidate_email: lead?.email || '',
   });
 
   interface AdditionalSlot {
@@ -88,6 +89,7 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
         payment_mode: closure.payment_mode || '',
         final_payment_conditions: closure.final_payment_conditions || '',
         current_agreed_payment_conditions: closure.current_agreed_payment_conditions || '',
+        candidate_email: closure.candidate_email || lead?.email || '',
       });
 
       const parsedAdditionalSlots = Array.isArray(closure.additional_slots)
@@ -97,13 +99,18 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
           }))
         : [];
       setAdditionalSlots(parsedAdditionalSlots);
+    } else if (lead?.email) {
+      setForm(f => ({ ...f, candidate_email: f.candidate_email || lead.email }));
     }
-  }, [isClosureLoaded, closure]);
+  }, [isClosureLoaded, closure, lead?.email]);
 
   const set = (key: string, val: any) => setForm(f => ({ ...f, [key]: val }));
 
   const mutation = useMutation({
     mutationFn: async () => {
+      if (!form.candidate_email.trim()) throw new Error('Candidate Email ID is required');
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(form.candidate_email.trim())) throw new Error('Candidate Email ID must be a valid email address');
       if (!form.plan || !form.payment_mode) throw new Error('Plan and Payment Mode are required');
       if (!form.movement.trim()) throw new Error('Comment is required');
       if (form.plan === 'Custom' && !form.custom_plan_note.trim()) throw new Error('Please describe your Custom Plan');
@@ -111,8 +118,8 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
       if (!form.amount || parseFloat(form.amount) <= 0) throw new Error('On-Offer Amount is required');
       if (form.percentage === '' || parseFloat(form.percentage) < 0) throw new Error('Percentage is required');
 
-      // Update lead status to Closed
-      await supabase.from('leads').update({ lead_status: 'Closed' as any }).eq('unique_id', lead.unique_id);
+      // Update lead status to Closed and sync email
+      await supabase.from('leads').update({ lead_status: 'Closed' as any, email: form.candidate_email.trim() }).eq('unique_id', lead.unique_id);
 
       await supabase.from('lead_history_logs').insert({
         lead_id: lead.unique_id,
@@ -146,7 +153,8 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
           paid: !!s.paid
         })),
         final_payment_conditions: form.final_payment_conditions,
-        current_agreed_payment_conditions: form.current_agreed_payment_conditions
+        current_agreed_payment_conditions: form.current_agreed_payment_conditions,
+        candidate_email: form.candidate_email.trim()
       };
 
       // Try inserting/updating with the new columns; fallback if columns don't exist yet
@@ -157,6 +165,12 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
       } else {
         const { error: err } = await supabase.from('lead_closures').insert(closurePayload);
         error = err;
+      }
+
+      if (!error) {
+        await supabase.from('leads')
+          .update({ email: form.candidate_email.trim() } as any)
+          .eq('unique_id', lead.unique_id);
       }
 
       if (error) {
@@ -183,9 +197,8 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
           }
           if (fallbackErr) throw fallbackErr;
 
-          // Store extended payment info in lead comment for durability
           const paymentDetails = `[Closure Payment] Amount: $${form.amount}, Percentage: ${form.percentage}%, Slot1 Due: ${form.slot1_due_date || 'N/A'}, Next Slot Due: ${form.next_slot_due_date || 'N/A'}, Additional Slots: ${JSON.stringify(additionalSlots)}`;
-          await supabase.from('leads').update({ comment: paymentDetails } as any).eq('unique_id', lead.unique_id);
+          await supabase.from('leads').update({ comment: paymentDetails, email: form.candidate_email.trim() } as any).eq('unique_id', lead.unique_id);
         } else {
           throw error;
         }
@@ -265,6 +278,18 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
         </DialogHeader>
         
         <form onSubmit={e => { e.preventDefault(); mutation.mutate(); }} className="space-y-4 mt-4">
+          <div>
+            <Label htmlFor="candidate-email">Candidate Email ID *</Label>
+            <Input
+              id="candidate-email"
+              type="email"
+              value={form.candidate_email}
+              onChange={e => set('candidate_email', e.target.value)}
+              placeholder="candidate@example.com"
+              required
+            />
+          </div>
+
           <div>
             <Label>Plan *</Label>
             <Select value={form.plan} onValueChange={v => set('plan', v)}>

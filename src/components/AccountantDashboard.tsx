@@ -642,7 +642,7 @@ export default function AccountantDashboard() {
                               title="Click to view document history"
                             >
                               <span className="font-bold text-foreground group-hover/cand:text-primary group-hover/cand:underline transition-colors">{lead.name}</span>
-                              <span className="text-xs text-muted-foreground">{lead.email}</span>
+                              <span className="text-xs text-muted-foreground">{closure?.candidate_email || lead.email}</span>
                               <div className="mt-2 flex gap-1 items-center">
                                 <span className="text-[10px] text-muted-foreground">ID: {lead.display_id}</span>
                               </div>
@@ -652,8 +652,14 @@ export default function AccountantDashboard() {
                             <div className="text-xs space-y-1">
                               <div className="flex items-center justify-between">
                                 <span className="text-muted-foreground">Plan:</span>
-                                <span className="font-medium text-primary uppercase">{lead.lead_closures?.[0]?.plan}</span>
+                                <span className="font-medium text-primary uppercase">{closure?.plan}</span>
                               </div>
+                              {closure?.interviews_guaranteed !== null && closure?.interviews_guaranteed !== undefined && (
+                                <div className="flex items-center justify-between">
+                                  <span className="text-muted-foreground">Interviews:</span>
+                                  <span className="font-semibold text-foreground">{closure.interviews_guaranteed}</span>
+                                </div>
+                              )}
                               {onOfferAmt && (
                                 <div className="flex items-center justify-between">
                                   <span className="text-muted-foreground">On-Offer:</span>

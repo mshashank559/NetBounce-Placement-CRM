@@ -311,6 +311,9 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <Field label="Plan" value={closure.plan} />
                   <Field label="Interview Plan" value={closure.interview_plan ? 'Yes' : 'No'} />
+                  {closure.interviews_guaranteed !== null && closure.interviews_guaranteed !== undefined && (
+                    <Field label="Number of Interviews" value={String(closure.interviews_guaranteed)} />
+                  )}
                   <Field label="Upfront Amount" value={`$${closure.upfront_amount}`} />
                   <Field label="Payment Mode" value={closure.payment_mode} />
                   {(parsedOnOfferAmount || parsedData.percentage != null) && (
@@ -359,6 +362,12 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                       )}
                     </div>
                   ))}
+                  <div className="col-span-2 bg-background/50 p-3 rounded-md border border-green-500/10 shadow-sm select-text">
+                    <span className="text-xs text-muted-foreground block mb-1">Candidate Email ID</span>
+                    <p className="text-sm font-semibold text-foreground select-text">
+                      {closure.candidate_email || lead.email || 'None specified'}
+                    </p>
+                  </div>
                   <div className="col-span-2 bg-background/50 p-3 rounded-md border border-green-500/10 shadow-sm select-text">
                     <span className="text-xs text-muted-foreground block mb-1">Final Payment Conditions</span>
                     <p className="text-sm font-semibold text-foreground whitespace-pre-wrap select-text">
