@@ -102,6 +102,7 @@ export default function AccountantDashboard() {
   const [leadsTypeFilter, setLeadsTypeFilter] = useState('all');
   const [leadsStatusFilter, setLeadsStatusFilter] = useState('all');
   const [leadsPage, setLeadsPage] = useState(1);
+  const [isGlobalView, setIsGlobalView] = useState(false);
 
   // Manual Status / SLA state
   const [statusUpdateLead, setStatusUpdateLead] = useState<any>(null);
@@ -137,17 +138,21 @@ export default function AccountantDashboard() {
     }
   });
 
-  // Fetch all leads for Leads View (Only Closed)
+  // Fetch leads for Leads View (Only Closed, or Global when isGlobalView is true)
   const { data: allLeads, isLoading: isAllLeadsLoading, refetch: refetchAllLeads } = useQuery({
-    queryKey: ['all-leads-accountant'],
+    queryKey: ['all-leads-accountant', isGlobalView],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('leads')
-        .select('*')
-        .eq('lead_status', 'Closed')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data || [];
+      if (isGlobalView) {
+        return fetchAllLeads();
+      } else {
+        const { data, error } = await supabase
+          .from('leads')
+          .select('*')
+          .eq('lead_status', 'Closed')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        return data || [];
+      }
     }
   });
 
@@ -246,7 +251,7 @@ export default function AccountantDashboard() {
   // Reset page when search or filters change
   React.useEffect(() => {
     setLeadsPage(1);
-  }, [leadsSearch, leadsTypeFilter, leadsStatusFilter]);
+  }, [leadsSearch, leadsTypeFilter, leadsStatusFilter, isGlobalView]);
 
   // KPI Calculations
   const activeEnrollments = closures?.length || 0;
@@ -768,6 +773,34 @@ export default function AccountantDashboard() {
                   </SelectContent>
                 </Select>
 
+                {isGlobalView ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setIsGlobalView(false);
+                      setLeadsPage(1);
+                    }}
+                    className="h-9 border-red-500/30 bg-red-500/5 text-red-500 hover:bg-red-500/10 hover:text-red-600 gap-1.5 text-xs font-semibold"
+                  >
+                    Delete View
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setIsGlobalView(true);
+                      setLeadsPage(1);
+                    }}
+                    className="h-9 border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary gap-1.5 text-xs font-semibold"
+                  >
+                    Global View
+                  </Button>
+                )}
+
 
                 <div className="flex items-center gap-1.5 bg-background px-2.5 rounded-md border border-accent/20 h-9 shrink-0">
                   <span className="text-[10px] text-muted-foreground font-medium pr-1 select-none">Date:</span>
@@ -838,6 +871,9 @@ export default function AccountantDashboard() {
                               variant="outline" 
                               className={`text-[10px] ${
                                 lead.lead_status === 'Closed' ? 'border-green-500/30 text-green-500 bg-green-500/5' :
+                                lead.lead_status === 'New' ? 'border-blue-500/30 text-blue-500 bg-blue-500/5' :
+                                lead.lead_status?.startsWith('DNR') ? 'border-orange-500/30 text-orange-500 bg-orange-500/5' :
+                                lead.lead_status === 'Non Interested' ? 'border-red-500/30 text-red-500 bg-red-500/5' :
                                 'border-amber-500/30 text-amber-500 bg-amber-500/5'
                               }`}
                             >
@@ -886,7 +922,7 @@ export default function AccountantDashboard() {
             </div>
 
             {/* Pagination Controls */}
-            {filteredLeads.length > 50 && (
+            {filteredLeads.length > 0 && (
               <div className="p-4 border-t border-border/50 bg-background/50 flex justify-between items-center gap-4 text-xs flex-wrap">
                 <span className="text-muted-foreground font-medium">
                   Showing {((leadsPage - 1) * 50) + 1} - {Math.min(leadsPage * 50, filteredLeads.length)} of {filteredLeads.length} leads
