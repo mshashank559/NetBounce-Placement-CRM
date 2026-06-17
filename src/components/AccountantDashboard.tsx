@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useLocation } from 'react-router-dom';
 import LeadDetailDialog from './LeadDetailDialog';
 import AgreementDialog from './AgreementDialog';
+import { fetchAllLeads } from '@/lib/leads';
 import { 
   AreaChart, Area, PieChart, Pie, Cell, 
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend 
