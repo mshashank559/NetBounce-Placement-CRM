@@ -892,16 +892,18 @@ export default function AccountantDashboard() {
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
-                              <Button 
-                                variant="outline" 
-                                size="sm" 
-                                className="h-8 w-8 p-0 rounded-full hover:bg-indigo-500/10 hover:text-indigo-500 border-accent/20"
-                                onClick={() => { setSelectedLead(lead); setIsPerformaOpen(true); }}
-                                title="Send Document"
-                              >
-                                <Send className="h-4 w-4" />
-                              </Button>
-                              {lead.lead_status === 'Closed' && (
+                              {!isGlobalView && (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="h-8 w-8 p-0 rounded-full hover:bg-indigo-500/10 hover:text-indigo-500 border-accent/20"
+                                  onClick={() => { setSelectedLead(lead); setIsPerformaOpen(true); }}
+                                  title="Send Document"
+                                >
+                                  <Send className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {!isGlobalView && lead.lead_status === 'Closed' && (
                                 <Button 
                                   variant="outline" 
                                   size="sm" 
