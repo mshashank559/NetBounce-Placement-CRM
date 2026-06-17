@@ -22,7 +22,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useLocation } from 'react-router-dom';
 import LeadDetailDialog from './LeadDetailDialog';
 import AgreementDialog from './AgreementDialog';
-import { fetchAllLeads } from '@/lib/leads';
 import { 
   AreaChart, Area, PieChart, Pie, Cell, 
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend 
@@ -102,7 +101,6 @@ export default function AccountantDashboard() {
   const [leadsSearch, setLeadsSearch] = useState('');
   const [leadsTypeFilter, setLeadsTypeFilter] = useState('all');
   const [leadsStatusFilter, setLeadsStatusFilter] = useState('all');
-  const [leadStatusFilter, setLeadStatusFilter] = useState('all');
   const [leadsPage, setLeadsPage] = useState(1);
 
   // Manual Status / SLA state
@@ -139,11 +137,17 @@ export default function AccountantDashboard() {
     }
   });
 
-  // Fetch all leads for Leads View (Global Leads)
+  // Fetch all leads for Leads View (Only Closed)
   const { data: allLeads, isLoading: isAllLeadsLoading, refetch: refetchAllLeads } = useQuery({
     queryKey: ['all-leads-accountant'],
     queryFn: async () => {
-      return fetchAllLeads();
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('lead_status', 'Closed')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
     }
   });
 
@@ -217,8 +221,6 @@ export default function AccountantDashboard() {
           if (status !== leadsStatusFilter) return false;
         }
 
-        if (leadStatusFilter !== 'all' && (lead.lead_status || 'New') !== leadStatusFilter) return false;
-
         // Date range filter
         const leadDateStr = new Date(lead.created_at).toISOString().split('T')[0];
         if (startDateFilter && leadDateStr < startDateFilter) return false;
@@ -231,7 +233,7 @@ export default function AccountantDashboard() {
         const timeB = getLastActivity(b, performasByLead[b.unique_id] || []);
         return timeB - timeA;
       });
-  }, [allLeads, leadsSearch, leadsTypeFilter, leadsStatusFilter, leadStatusFilter, performasByLead]);
+  }, [allLeads, leadsSearch, leadsTypeFilter, leadsStatusFilter, performasByLead]);
 
   // Paginated leads for Leads View
   const paginatedLeads = React.useMemo(() => {
@@ -244,7 +246,7 @@ export default function AccountantDashboard() {
   // Reset page when search or filters change
   React.useEffect(() => {
     setLeadsPage(1);
-  }, [leadsSearch, leadsTypeFilter, leadsStatusFilter, leadStatusFilter]);
+  }, [leadsSearch, leadsTypeFilter, leadsStatusFilter]);
 
   // KPI Calculations
   const activeEnrollments = closures?.length || 0;
@@ -766,24 +768,6 @@ export default function AccountantDashboard() {
                   </SelectContent>
                 </Select>
 
-                <Select value={leadStatusFilter} onValueChange={setLeadStatusFilter}>
-                  <SelectTrigger className="w-[130px] h-9 bg-background/50 border-accent/20 text-xs">
-                    <SelectValue placeholder="Lead Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="New">New</SelectItem>
-                    <SelectItem value="DNR1">DNR1</SelectItem>
-                    <SelectItem value="DNR2">DNR2</SelectItem>
-                    <SelectItem value="DNR3">DNR3</SelectItem>
-                    <SelectItem value="Connected">Connected</SelectItem>
-                    <SelectItem value="Qualified">Qualified</SelectItem>
-                    <SelectItem value="Hot Prospect">Hot Prospect</SelectItem>
-                    <SelectItem value="Closed">Closed</SelectItem>
-                    <SelectItem value="Non Interested">Non Interested</SelectItem>
-                  </SelectContent>
-                </Select>
-
 
                 <div className="flex items-center gap-1.5 bg-background px-2.5 rounded-md border border-accent/20 h-9 shrink-0">
                   <span className="text-[10px] text-muted-foreground font-medium pr-1 select-none">Date:</span>
@@ -854,9 +838,6 @@ export default function AccountantDashboard() {
                               variant="outline" 
                               className={`text-[10px] ${
                                 lead.lead_status === 'Closed' ? 'border-green-500/30 text-green-500 bg-green-500/5' :
-                                lead.lead_status === 'New' ? 'border-blue-500/30 text-blue-500 bg-blue-500/5' :
-                                lead.lead_status?.startsWith('DNR') ? 'border-orange-500/30 text-orange-500 bg-orange-500/5' :
-                                lead.lead_status === 'Non Interested' ? 'border-red-500/30 text-red-500 bg-red-500/5' :
                                 'border-amber-500/30 text-amber-500 bg-amber-500/5'
                               }`}
                             >
