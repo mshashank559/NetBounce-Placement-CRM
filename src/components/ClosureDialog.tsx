@@ -186,6 +186,14 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
             slot2: form.slot2,
             slot2_amount: form.slot2_amount ? parseFloat(form.slot2_amount) || 0 : null,
             payment_mode: form.payment_mode as any,
+            amount: parseFloat(form.amount) || 0,
+            percentage: parseFloat(form.percentage) || 0,
+            slot1_due_date: form.slot1_due_date || null,
+            next_slot_due_date: form.next_slot_due_date || null,
+            final_payment_conditions: form.final_payment_conditions,
+            current_agreed_payment_conditions: form.current_agreed_payment_conditions,
+            candidate_email: form.candidate_email.trim(),
+            interviews_guaranteed: form.interviews_guaranteed ? parseInt(form.interviews_guaranteed) || null : null,
           };
           let fallbackErr;
           if (closure?.id) {

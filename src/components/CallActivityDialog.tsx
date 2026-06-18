@@ -351,6 +351,14 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
               slot2: slot2,
               slot2_amount: slot2Amount ? parseFloat(slot2Amount) || 0 : null,
               payment_mode: paymentMode as any,
+              amount: parseFloat(amount) || 0,
+              percentage: parseFloat(percentage) || 0,
+              slot1_due_date: slot1DueDate || null,
+              next_slot_due_date: nextSlotDueDate || null,
+              final_payment_conditions: finalPaymentConditions,
+              current_agreed_payment_conditions: currentAgreedPaymentConditions,
+              candidate_email: candidateEmail.trim(),
+              interviews_guaranteed: interviewsGuaranteed ? parseInt(interviewsGuaranteed) || null : null,
             };
             let fallbackErr;
             if (closure?.id) {
