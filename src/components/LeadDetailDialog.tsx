@@ -284,6 +284,9 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
               <Field label="Timezone" value={lead.timezone} />
               <Field label="Category" value={lead.lead_category} />
               <Field label="Type" value={lead.lead_type} />
+              {lead.lead_type === 'Reference' && (
+                <Field label="Referee Name" value={lead.referee_name} />
+              )}
               <Field label="Source" value={lead.lead_source} />
               <Field label="Visa Status" value={lead.visa_status} />
               <Field label="Concern" value={lead.concern ? 'Yes' : 'No'} />

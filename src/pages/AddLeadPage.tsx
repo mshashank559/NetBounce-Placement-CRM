@@ -66,6 +66,29 @@ const AddLeadPage: React.FC = () => {
 
   const set = (key: string, val: any) => setForm(f => ({ ...f, [key]: val }));
 
+  // Fetch unique referee names from existing leads to suggest in the datalist
+  const { data: existingReferees = [] } = useQuery({
+    queryKey: ['existing-referees'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('leads')
+        .select('referee_name')
+        .not('referee_name', 'is', null);
+      if (error) throw error;
+
+      const uniqueNames = Array.from(
+        new Set(
+          data
+            ?.map((item: any) => item.referee_name?.trim())
+            .filter((name: string) => name && name.toLowerCase() !== 'na' && name.toLowerCase() !== 'n/a')
+        )
+      ).sort() as string[];
+
+      return uniqueNames;
+    },
+    enabled: form.lead_type === 'Reference',
+  });
+
   const mutation = useMutation({
     mutationFn: async () => {
       // ── Phone number length check ──────────────────────────────
@@ -327,8 +350,18 @@ const AddLeadPage: React.FC = () => {
               </div>
               {form.lead_type === 'Reference' && (
                 <div>
-                  <Label>Candidate Name (Referee)</Label>
-                  <Input value={form.referee_name} onChange={e => set('referee_name', e.target.value)} placeholder="Referee name" />
+                  <Label>Referee Name</Label>
+                  <Input 
+                    list="referee-options"
+                    value={form.referee_name} 
+                    onChange={e => set('referee_name', e.target.value)} 
+                    placeholder="Enter or select referee name" 
+                  />
+                  <datalist id="referee-options">
+                    {existingReferees?.map((name: string) => (
+                      <option key={name} value={name} />
+                    ))}
+                  </datalist>
                 </div>
               )}
               <div>
