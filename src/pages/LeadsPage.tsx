@@ -160,6 +160,7 @@ const LeadsPage: React.FC = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [memberFilter, setMemberFilter] = useState('all');
+  const [bdMemberFilter, setBdMemberFilter] = useState('all');
 
   // ── Dialog state ─────────────────────────────────────────────
   const [selectedLead, setSelectedLead] = useState<any>(null);
@@ -192,11 +193,11 @@ const LeadsPage: React.FC = () => {
   // Reset page to 1 whenever any filter changes
   useEffect(() => {
     setPage(1);
-  }, [search, statusFilter, monthFilter, dateFrom, dateTo, memberFilter]);
+  }, [search, statusFilter, monthFilter, dateFrom, dateTo, memberFilter, bdMemberFilter]);
 
   // ── Fetch leads (role-scoped, server-side filtered, paginated) ─
   const { data: leadsData, isLoading } = useQuery({
-    queryKey: ['leads', user?.id, role, page, search, statusFilter, monthFilter, dateFrom, dateTo, memberFilter],
+    queryKey: ['leads', user?.id, role, page, search, statusFilter, monthFilter, dateFrom, dateTo, memberFilter, bdMemberFilter],
     queryFn: async () => {
       let query = supabase.from('leads').select('*', { count: 'exact' });
 
@@ -241,6 +242,11 @@ const LeadsPage: React.FC = () => {
       // 5. Team member filter
       if (memberFilter !== 'all') {
         query = query.or(`assigned_to.eq.${memberFilter},lead_generated_by.eq.${memberFilter}`);
+      }
+
+      // 6. BD member filter
+      if (bdMemberFilter !== 'all') {
+        query = query.eq('lead_generated_by', bdMemberFilter);
       }
 
       const from = (page - 1) * PAGE_SIZE;
@@ -345,6 +351,34 @@ const LeadsPage: React.FC = () => {
         uniqueMap[p.user_id] = p;
       });
       return Object.values(uniqueMap);
+    },
+    enabled: !!user && (role === 'ADMIN' || role === 'SALES_TL' || role === 'LEAD_TL'),
+  });
+
+  // ── BD members list (for TL/Admin BD member filter) ───────────
+  const { data: bdMembers } = useQuery({
+    queryKey: ['bd-members-list', user?.id, role],
+    queryFn: async () => {
+      const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('role', ['LEAD_GEN', 'LEAD_TL']);
+      if (!roles) return [];
+      
+      const userIds = roles.map(r => r.user_id);
+      
+      let query = supabase.from('profiles').select('user_id, full_name').in('user_id', userIds) as any;
+      if (role === 'LEAD_TL') {
+        query = query.or(`user_id.eq.${user!.id},reports_to.eq.${user!.id}`);
+      }
+      const { data: profiles, error } = await query;
+      if (error) throw error;
+      
+      const uniqueMap: Record<string, any> = {};
+      profiles?.forEach(p => {
+        uniqueMap[p.user_id] = p;
+      });
+      
+      const combined = Object.values(uniqueMap) as any[];
+      combined.sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
+      return combined;
     },
     enabled: !!user && (role === 'ADMIN' || role === 'SALES_TL' || role === 'LEAD_TL'),
   });
@@ -958,6 +992,21 @@ const LeadsPage: React.FC = () => {
               <SelectContent>
                 <SelectItem value="all">All Members</SelectItem>
                 {teamMembers.map(m => (
+                  <SelectItem key={m.user_id} value={m.user_id}>{m.full_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {/* BD member filter (TL + Admin only) */}
+          {showMemberFilter && bdMembers && bdMembers.length > 0 && (
+            <Select value={bdMemberFilter} onValueChange={setBdMemberFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="All BD members" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All BD members</SelectItem>
+                {bdMembers.map(m => (
                   <SelectItem key={m.user_id} value={m.user_id}>{m.full_name}</SelectItem>
                 ))}
               </SelectContent>
