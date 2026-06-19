@@ -116,16 +116,22 @@ const CallTrackerPage: React.FC = () => {
     const todayStr = new Date().toDateString();
     
     let todayCalls = 0;
+    let totalCalls = 0;
+
     filteredFollowups.forEach((item: any) => {
-      const itemDate = new Date(item.created_at).toDateString();
-      if (itemDate === todayStr) {
-        todayCalls++;
+      const isCall = !item.way_of_contact || item.way_of_contact.trim().toUpperCase() === 'CALL';
+      if (isCall) {
+        totalCalls++;
+        const itemDate = new Date(item.created_at).toDateString();
+        if (itemDate === todayStr) {
+          todayCalls++;
+        }
       }
     });
 
     return {
       todayCalls,
-      totalCalls: filteredFollowups.length,
+      totalCalls,
     };
   }, [filteredFollowups]);
 
