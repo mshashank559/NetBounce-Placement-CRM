@@ -35,3 +35,45 @@ export async function fetchAllLeads() {
   
   return allLeads;
 }
+
+/**
+ * Normalizes a lead source string to standard casing and corrects common typos.
+ */
+export function normalizeSource(source: string | null | undefined): string {
+  if (!source) return 'Not Specified';
+  const clean = source.trim().toLowerCase();
+  
+  // LinkedIn typos & variants
+  if (
+    clean.includes('linkedin') ||
+    clean.includes('linkdin') ||
+    clean.includes('linkeln') ||
+    clean.includes('linkin') ||
+    clean.includes('linked')
+  ) {
+    return 'LinkedIn';
+  }
+
+  // Gmail variants
+  if (clean.includes('gmail') || clean.includes('google')) {
+    return 'Gmail';
+  }
+
+  // WhatsApp variants
+  if (clean.includes('whatsapp') || clean.includes('whats app') || clean.includes('whats-app')) {
+    return 'WhatsApp';
+  }
+
+  // OPT Nation variants
+  if (clean.includes('opt') || clean.includes('optnation') || clean.includes('opt nation')) {
+    return 'OPT Nation';
+  }
+
+  // Default formatting: Capitalize first letter of each word
+  return source
+    .trim()
+    .split(/\s+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+

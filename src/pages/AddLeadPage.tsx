@@ -14,6 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useNavigate } from 'react-router-dom';
 import { User } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { normalizeSource } from '@/lib/leads';
 
 const AddLeadPage: React.FC = () => {
   const { user, role, profile } = useAuth();
@@ -136,7 +137,7 @@ const AddLeadPage: React.FC = () => {
         lead_category: form.lead_category,
         lead_type: form.lead_type,
         referee_name: form.lead_type === 'Reference' ? form.referee_name : null,
-        lead_source: form.lead_source,
+        lead_source: normalizeSource(form.lead_source),
         resume_url: form.resume_url || null,
         comment: form.comment || null,
         concern: form.concern,

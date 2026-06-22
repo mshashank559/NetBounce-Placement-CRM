@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
+import { normalizeSource } from '@/lib/leads';
 
 interface EditLeadDialogProps {
   open: boolean;
@@ -91,8 +92,10 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
         changes.push(`Status: "${norm(lead.lead_status)}" → "${updatedData.lead_status}"`);
       if (norm(lead.lead_category) !== updatedData.lead_category)
         changes.push(`Category: "${norm(lead.lead_category)}" → "${updatedData.lead_category}"`);
-      if (norm(lead.lead_source) !== updatedData.lead_source)
-        changes.push(`Source: "${norm(lead.lead_source)}" → "${updatedData.lead_source}"`);
+      const oldSourceNormalized = normalizeSource(lead.lead_source);
+      const newSourceNormalized = normalizeSource(updatedData.lead_source);
+      if (oldSourceNormalized !== newSourceNormalized)
+        changes.push(`Source: "${oldSourceNormalized}" → "${newSourceNormalized}"`);
       if (norm(lead.linkedin_url) !== updatedData.linkedin_url)
         changes.push(`LinkedIn: "${norm(lead.linkedin_url)}" → "${updatedData.linkedin_url}"`);
       if (norm(lead.university) !== updatedData.university)
@@ -113,7 +116,7 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
           technology: updatedData.technology || null,
           lead_status: updatedData.lead_status as any,
           lead_category: (updatedData.lead_category || null) as any,
-          lead_source: updatedData.lead_source || null,
+          lead_source: updatedData.lead_source ? normalizeSource(updatedData.lead_source) : null,
           linkedin_url: updatedData.linkedin_url || null,
           university: updatedData.university || null,
           visa_status: updatedData.visa_status || null,

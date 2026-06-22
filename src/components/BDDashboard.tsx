@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { fetchAllLeads } from '@/lib/leads';
+import { fetchAllLeads, normalizeSource } from '@/lib/leads';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -226,7 +226,7 @@ const BDDashboard: React.FC = () => {
       const date = l.date || l.created_at.split('T')[0];
       dailyMap[date] = (dailyMap[date] || 0) + 1;
       
-      const src = l.lead_source || 'Unknown';
+      const src = normalizeSource(l.lead_source);
       sourceMap[src] = (sourceMap[src] || 0) + 1;
 
       if (l.lead_category === 'Hot') hot++;

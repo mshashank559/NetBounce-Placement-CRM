@@ -2,7 +2,7 @@ import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { fetchAllLeads } from '@/lib/leads';
+import { fetchAllLeads, normalizeSource } from '@/lib/leads';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { motion } from 'framer-motion';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LabelList } from 'recharts';
@@ -76,43 +76,6 @@ const AnalyticsPage: React.FC = () => {
     value: statusCounts[name] || 0,
   })).filter(d => d.value > 0);
 
-  const normalizeSource = (source: string | null | undefined): string => {
-    if (!source) return 'Other';
-    const clean = source.trim().toLowerCase();
-    
-    // LinkedIn typos & variants
-    if (
-      clean.includes('linkedin') ||
-      clean.includes('linkdin') ||
-      clean.includes('linkeln') ||
-      clean.includes('linkin') ||
-      clean.includes('linked')
-    ) {
-      return 'LinkedIn';
-    }
-
-    // Gmail variants
-    if (clean.includes('gmail') || clean.includes('google')) {
-      return 'Gmail';
-    }
-
-    // WhatsApp variants
-    if (clean.includes('whatsapp') || clean.includes('whats app') || clean.includes('whats-app')) {
-      return 'WhatsApp';
-    }
-
-    // OPT Nation variants
-    if (clean.includes('opt') || clean.includes('optnation') || clean.includes('opt nation')) {
-      return 'OPT Nation';
-    }
-
-    // Default formatting: Capitalize first letter of each word
-    return source
-      .trim()
-      .split(/\s+/)
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(' ');
-  };
 
   const sourceCounts = leads?.reduce((acc, l) => {
     const s = normalizeSource(l.lead_source);

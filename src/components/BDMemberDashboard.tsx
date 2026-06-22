@@ -15,6 +15,7 @@ import { motion } from 'framer-motion';
 import { Users, Plus, CheckCircle, UserPlus, AlertTriangle, CheckCircle2, Clock, Eye } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import LeadDetailDialog from './LeadDetailDialog';
+import { normalizeSource } from '@/lib/leads';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend
@@ -205,7 +206,7 @@ const BDMemberDashboard: React.FC = () => {
     statsLeads.forEach(l => {
       const date = l.created_at.split('T')[0];
       dailyMap[date] = (dailyMap[date] || 0) + 1;
-      const src = l.lead_source || 'Unknown';
+      const src = normalizeSource(l.lead_source);
       sourceMap[src] = (sourceMap[src] || 0) + 1;
       if (l.lead_category === 'Hot') hot++;
       if (l.lead_category === 'Cold') cold++;
@@ -214,7 +215,9 @@ const BDMemberDashboard: React.FC = () => {
     const dailyTrend = Object.keys(dailyMap).sort().slice(-14).map(date => ({
       date: date.slice(5), count: dailyMap[date]
     }));
-    const sourceBreakdown = Object.keys(sourceMap).map(src => ({ name: src, value: sourceMap[src] }));
+    const sourceBreakdown = Object.keys(sourceMap)
+      .map(src => ({ name: src, value: sourceMap[src] }))
+      .sort((a, b) => b.value - a.value);
     const categoryData = [{ name: 'Hot', value: hot }, { name: 'Cold', value: cold }];
 
     return { dailyTrend, sourceBreakdown, categoryData };
@@ -450,26 +453,64 @@ const BDMemberDashboard: React.FC = () => {
 
           {/* Source + Category */}
           <Card className="glass-card">
-            <CardHeader><CardTitle className="text-sm font-medium">Lead Source & Category</CardTitle></CardHeader>
-            <CardContent className="h-[220px] flex flex-col gap-2">
-              <ResponsiveContainer width="100%" height="50%">
-                <PieChart>
-                  <Pie data={chartData.sourceBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={40}>
-                    {chartData.sourceBreakdown.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: '9px' }} />
-                </PieChart>
-              </ResponsiveContainer>
-              <ResponsiveContainer width="100%" height="50%">
-                <PieChart>
-                  <Pie data={chartData.categoryData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={20} outerRadius={40}>
-                    <Cell fill="#ef4444" /><Cell fill="#3b82f6" />
-                  </Pie>
-                  <Tooltip />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: '9px' }} />
-                </PieChart>
-              </ResponsiveContainer>
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Lead Source & Category</CardTitle></CardHeader>
+            <CardContent className="h-[220px] flex flex-row gap-4 p-4 pt-1">
+              {/* Left Column: Lead Source */}
+              <div className="flex-1 flex flex-col justify-between h-full border-r border-border/40 pr-3">
+                <span className="text-[11px] font-semibold text-muted-foreground self-center mb-1">Sources</span>
+                <div className="flex flex-row items-center h-[160px] gap-2">
+                  <div className="w-[80px] h-full flex items-center justify-center">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={chartData.sourceBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={35}>
+                          {chartData.sourceBreakdown.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex-1 h-full overflow-y-auto pr-1 space-y-1 text-[10px] custom-scrollbar">
+                    {chartData.sourceBreakdown.map((item, i) => (
+                      <div key={item.name} className="flex items-center justify-between gap-1.5 py-0.5 border-b border-border/20">
+                        <div className="flex items-center gap-1 truncate">
+                          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                          <span className="font-medium truncate" title={item.name}>{item.name}</span>
+                        </div>
+                        <span className="text-muted-foreground font-semibold shrink-0">{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Lead Category */}
+              <div className="flex-1 flex flex-col justify-between h-full pl-1">
+                <span className="text-[11px] font-semibold text-muted-foreground self-center mb-1">Categories</span>
+                <div className="flex flex-row items-center h-[160px] gap-2">
+                  <div className="w-[80px] h-full flex items-center justify-center">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={chartData.categoryData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={15} outerRadius={35}>
+                          <Cell fill="#ef4444" />
+                          <Cell fill="#3b82f6" />
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex-1 h-full flex flex-col justify-center space-y-1.5 text-[10px]">
+                    {chartData.categoryData.map((item) => (
+                      <div key={item.name} className="flex items-center justify-between gap-1.5 py-0.5 border-b border-border/20">
+                        <div className="flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: item.name === 'Hot' ? '#ef4444' : '#3b82f6' }} />
+                          <span className="font-medium">{item.name}</span>
+                        </div>
+                        <span className="text-muted-foreground font-semibold">{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
