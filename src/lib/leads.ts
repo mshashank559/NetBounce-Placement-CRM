@@ -45,14 +45,17 @@ export function normalizeSource(source: string | null | undefined): string {
   
   // LinkedIn typos & variants
   if (
-    clean.includes('linkedin') ||
-    clean.includes('linkdin') ||
-    clean.includes('linkeln') ||
-    clean.includes('linkin') ||
-    clean.includes('linked')
+    clean.includes('link') ||
+    clean.includes('linl') ||
+    clean.includes('lnk') ||
+    clean.startsWith('lik') ||
+    clean.startsWith('lki') ||
+    clean.startsWith('lin') ||
+    clean.includes('linkedin')
   ) {
     return 'LinkedIn';
   }
+
 
   // Gmail variants
   if (clean.includes('gmail') || clean.includes('google')) {
