@@ -428,6 +428,11 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['all-leads-admin'] });
+      queryClient.invalidateQueries({ queryKey: ['all-leads-pa'] });
+      queryClient.invalidateQueries({ queryKey: ['sm-leads-paginated'] });
+      queryClient.invalidateQueries({ queryKey: ['sm-leads-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['sales-tl-leads'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-calls'] });
       queryClient.invalidateQueries({ queryKey: ['call-logs'] });
       queryClient.invalidateQueries({ queryKey: ['sm-leads'] });

@@ -267,10 +267,16 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
     onSuccess: () => {
       toast.success('Lead closed successfully!');
       queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['all-leads-admin'] });
+      queryClient.invalidateQueries({ queryKey: ['all-leads-pa'] });
+      queryClient.invalidateQueries({ queryKey: ['sm-leads-paginated'] });
+      queryClient.invalidateQueries({ queryKey: ['sm-leads-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['sales-tl-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['salestl-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['all-leads-accountant'] });
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
       queryClient.invalidateQueries({ queryKey: ['closure', lead.unique_id] });
       queryClient.invalidateQueries({ queryKey: ['all-closures'] });
-      queryClient.invalidateQueries({ queryKey: ['salestl-leads'] });
       onClose();
     },
     onError: (err: Error) => toast.error(err.message),

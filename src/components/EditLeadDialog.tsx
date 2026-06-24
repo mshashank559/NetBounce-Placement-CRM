@@ -283,6 +283,20 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
     onSuccess: () => {
       toast.success('Lead updated successfully');
       queryKeys.forEach(qk => queryClient.invalidateQueries({ queryKey: qk }));
+      
+      const globalQueryKeys = [
+        ['leads'],
+        ['all-leads-admin'],
+        ['all-leads-pa'],
+        ['sm-leads-paginated'],
+        ['sm-leads-stats'],
+        ['sales-tl-leads'],
+        ['salestl-leads'],
+        ['all-leads-accountant'],
+        ['leads-with-comments']
+      ];
+      globalQueryKeys.forEach(qk => queryClient.invalidateQueries({ queryKey: qk }));
+      
       onClose();
     },
 

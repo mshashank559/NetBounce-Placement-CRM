@@ -218,6 +218,9 @@ const SalesMemberDashboard: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['sm-leads-paginated'] });
       queryClient.invalidateQueries({ queryKey: ['sm-leads-stats'] });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['all-leads-admin'] });
+      queryClient.invalidateQueries({ queryKey: ['all-leads-pa'] });
+      queryClient.invalidateQueries({ queryKey: ['sales-tl-leads'] });
       queryClient.invalidateQueries({ queryKey: ['all-performas'] });
       queryClient.invalidateQueries({ queryKey: ['all-leads-accountant'] });
       queryClient.invalidateQueries({ queryKey: ['account-closures'] });
