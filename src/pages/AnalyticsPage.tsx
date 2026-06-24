@@ -6,6 +6,7 @@ import { fetchAllLeads, normalizeSource } from '@/lib/leads';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { motion } from 'framer-motion';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LabelList } from 'recharts';
+import { Clock, AlertTriangle, CheckCircle, ShieldAlert } from 'lucide-react';
 
 const COLORS = ['hsl(222, 100%, 50%)', 'hsl(222, 100%, 65%)', 'hsl(222, 80%, 40%)', 'hsl(222, 60%, 75%)', 'hsl(200, 80%, 50%)'];
 
@@ -15,6 +16,9 @@ const AnalyticsPage: React.FC = () => {
   const { data: leads } = useQuery({
     queryKey: ['analytics-leads', user?.id, role],
     queryFn: async () => {
+      // Auto-trigger stagnant leads update before fetching
+      await supabase.rpc('update_stagnant_leads');
+
       if (role === 'SALES_TL') {
         const { data: teamProfiles } = await supabase
           .from('profiles')
@@ -62,6 +66,37 @@ const AnalyticsPage: React.FC = () => {
     return <div className="text-center text-muted-foreground p-8">Access denied</div>;
   }
 
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const dueTodayCount = leads?.filter(l => 
+    l.next_followup_date === todayStr && 
+    l.lead_status !== 'Closed' && 
+    l.lead_status !== 'Non Interested'
+  ).length || 0;
+
+  const overdueCount = leads?.filter(l => 
+    l.next_followup_date && 
+    l.next_followup_date < todayStr && 
+    l.lead_status !== 'Closed' && 
+    l.lead_status !== 'Non Interested' &&
+    l.lead_status !== 'Stagnant'
+  ).length || 0;
+
+  const stagnantCount = leads?.filter(l => 
+    l.lead_status === 'Stagnant'
+  ).length || 0;
+
+  const nonStagnantActiveLeads = leads?.filter(l => 
+    l.lead_status !== 'Closed' && 
+    l.lead_status !== 'Non Interested' && 
+    l.lead_status !== 'Stagnant'
+  ) || [];
+
+  const activeWithFollowup = nonStagnantActiveLeads.filter(l => l.next_followup_date && l.next_followup_date >= todayStr).length;
+  const complianceRate = nonStagnantActiveLeads.length > 0 
+    ? Math.round((activeWithFollowup / nonStagnantActiveLeads.length) * 100) 
+    : 100;
+
   const statusCounts = leads?.reduce((acc, l) => {
     const s = l.lead_status || 'New';
     acc[s] = (acc[s] || 0) + 1;
@@ -90,6 +125,61 @@ const AnalyticsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-display font-bold">Analytics</h1>
+
+      {/* KPI Cards Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }}>
+          <Card className="glass-card">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-semibold text-muted-foreground uppercase">Follow-up Compliance</CardTitle>
+              <CheckCircle className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold font-display">{complianceRate}%</div>
+              <p className="text-[10px] text-muted-foreground mt-1">Active leads scheduled on-time</p>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+          <Card className="glass-card">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-semibold text-muted-foreground uppercase">Due Today</CardTitle>
+              <Clock className="h-4 w-4 text-amber-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold font-display">{dueTodayCount}</div>
+              <p className="text-[10px] text-muted-foreground mt-1">Follow-ups scheduled for today</p>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+          <Card className="glass-card">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-semibold text-muted-foreground uppercase">Overdue Follow-ups</CardTitle>
+              <AlertTriangle className="h-4 w-4 text-red-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold font-display">{overdueCount}</div>
+              <p className="text-[10px] text-muted-foreground mt-1">Missed follow-up dates</p>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+          <Card className="glass-card">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-semibold text-muted-foreground uppercase">Stagnant Leads</CardTitle>
+              <ShieldAlert className="h-4 w-4 text-red-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold font-display">{stagnantCount}</div>
+              <p className="text-[10px] text-muted-foreground mt-1">Auto-flagged from missed targets</p>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>

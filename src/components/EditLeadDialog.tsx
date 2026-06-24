@@ -53,6 +53,7 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
     linkedin_url: '',
     university: '',
     visa_status: '',
+    next_followup_date: '',
   });
 
   // Reset form whenever dialog opens with a new lead
@@ -69,6 +70,7 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
         linkedin_url: norm(lead.linkedin_url),
         university: norm(lead.university),
         visa_status: norm(lead.visa_status),
+        next_followup_date: norm(lead.next_followup_date),
       });
     }
   }, [lead, open]);
@@ -102,6 +104,8 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
         changes.push(`University: "${norm(lead.university)}" → "${updatedData.university}"`);
       if (norm(lead.visa_status) !== updatedData.visa_status)
         changes.push(`Visa Status: "${norm(lead.visa_status)}" → "${updatedData.visa_status}"`);
+      if (norm(lead.next_followup_date) !== updatedData.next_followup_date)
+        changes.push(`Next Follow-Up Date: "${norm(lead.next_followup_date)}" → "${updatedData.next_followup_date}"`);
 
       // Nothing actually changed — skip DB write
       if (changes.length === 0) return;
@@ -120,6 +124,7 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
           linkedin_url: updatedData.linkedin_url || null,
           university: updatedData.university || null,
           visa_status: updatedData.visa_status || null,
+          next_followup_date: updatedData.next_followup_date || null,
           updated_at: new Date().toISOString(),
         })
         .eq('unique_id', lead.unique_id);
@@ -371,6 +376,7 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
                   <SelectItem value="Hot Prospect">Hot Prospect</SelectItem>
                   <SelectItem value="Closed">Closed</SelectItem>
                   <SelectItem value="Non Interested">Non Interested</SelectItem>
+                  <SelectItem value="Stagnant">Stagnant</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -431,6 +437,19 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
                 value={formData.university}
                 onChange={e => setFormData({ ...formData, university: e.target.value })}
                 placeholder="Enter University/College name"
+              />
+            </div>
+          </div>
+
+          {/* Row 6 */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-next-followup">Next Follow-Up Date</Label>
+              <Input
+                id="edit-next-followup"
+                type="date"
+                value={formData.next_followup_date}
+                onChange={e => setFormData({ ...formData, next_followup_date: e.target.value })}
               />
             </div>
           </div>

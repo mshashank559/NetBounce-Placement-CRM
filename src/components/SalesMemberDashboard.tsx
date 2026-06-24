@@ -54,6 +54,7 @@ const statusColors: Record<string, string> = {
   'Hot Prospect': 'bg-amber-500/10 text-amber-600',
   'Closed': 'bg-green-500/10 text-green-600',
   'Non Interested': 'bg-destructive/10 text-destructive',
+  'Stagnant': 'bg-red-500/10 text-red-600 border border-red-500/20 font-semibold',
 };
 
 const COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'];
@@ -65,6 +66,7 @@ const statusBadgeClass = (s: string) => {
   if (s === 'Non Interested') return 'bg-destructive/10 text-destructive';
   if (s === 'Hot Prospect') return 'bg-amber-500/10 text-amber-600';
   if (s === 'Connected') return 'bg-blue-500/10 text-blue-600';
+  if (s === 'Stagnant') return 'bg-red-500/10 text-red-600 border border-red-500/20 font-semibold';
   return 'bg-secondary text-secondary-foreground';
 };
 
@@ -290,6 +292,9 @@ const SalesMemberDashboard: React.FC = () => {
   const { data: leadsResponse, isLoading } = useQuery({
     queryKey: ['sm-leads-paginated', user?.id, viewMode, page, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, globalSalesTLFilter, globalSalesMemberFilter, selectedGenerator, teamUserIds],
     queryFn: async () => {
+      // Auto-trigger stagnant leads scan
+      await supabase.rpc('update_stagnant_leads');
+
       let query = supabase.from('leads').select('*', { count: 'exact' });
       if (viewMode === 'personal') {
         query = query.eq('assigned_to', user!.id);
@@ -362,9 +367,12 @@ const SalesMemberDashboard: React.FC = () => {
   const { data: statsLeads = [] } = useQuery({
     queryKey: ['sm-leads-stats', user?.id, viewMode, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, globalSalesTLFilter, globalSalesMemberFilter, selectedGenerator, teamUserIds],
     queryFn: async () => {
+      // Auto-trigger stagnant leads scan
+      await supabase.rpc('update_stagnant_leads');
+
       let query = supabase
         .from('leads')
-        .select('created_at, updated_at, assigned_to, team_lead_id, lead_status, lead_source, lead_category, name, email, phone, display_id, unique_id');
+        .select('created_at, updated_at, assigned_to, team_lead_id, lead_status, lead_source, lead_category, name, email, phone, display_id, unique_id, next_followup_date');
 
       if (viewMode === 'personal') {
         query = query.eq('assigned_to', user!.id);
@@ -489,6 +497,25 @@ const SalesMemberDashboard: React.FC = () => {
   });
   const monthlyCalls = monthCallLogs.reduce((s, c) => s + (c.call_count || 0), 0);
 
+  // Calculate follow-up counts
+  const dueTodayLeads = statsLeads.filter(l => 
+    l.next_followup_date === today && 
+    l.lead_status !== 'Closed' && 
+    l.lead_status !== 'Non Interested'
+  );
+  
+  const overdueLeads = statsLeads.filter(l => 
+    l.next_followup_date && 
+    l.next_followup_date < today && 
+    l.lead_status !== 'Closed' && 
+    l.lead_status !== 'Non Interested' &&
+    l.lead_status !== 'Stagnant'
+  );
+
+  const stagnantLeadsCount = statsLeads.filter(l => 
+    l.lead_status === 'Stagnant'
+  ).length;
+
   const getStatusThreshold = (st: string) => {
     switch (st) {
       case 'New': return 5;
@@ -563,7 +590,7 @@ const SalesMemberDashboard: React.FC = () => {
             <SelectTrigger className="w-36"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
-              {['New','DNR1','DNR2','DNR3','Connected','Qualified','Hot Prospect','Closed','Non Interested'].map(s =>
+              {['New','DNR1','DNR2','DNR3','Connected','Qualified','Hot Prospect','Closed','Non Interested','Stagnant'].map(s =>
                 <SelectItem key={s} value={s}>{s}</SelectItem>
               )}
             </SelectContent>
@@ -579,23 +606,67 @@ const SalesMemberDashboard: React.FC = () => {
 
       {/* SECTION 1: KPI Cards */}
       {viewMode !== 'global' && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
           {[
             { label: 'Active Leads', value: activeLeads, icon: TrendingUp, color: 'text-primary' },
             { label: 'Closures', value: closures, icon: CheckCircle, color: 'text-green-500' },
             { label: "Today's Calls", value: todayCalls, icon: Phone, color: 'text-blue-500' },
             { label: 'Monthly Calls', value: monthlyCalls, icon: Calendar, color: 'text-amber-500' },
+            { label: 'Due Today', value: dueTodayLeads.length, icon: Clock, color: 'text-amber-500' },
+            { label: 'Overdue', value: overdueLeads.length, icon: AlertTriangle, color: 'text-red-500' },
+            { label: 'Stagnant Leads', value: stagnantLeadsCount, icon: AlertTriangle, color: 'text-red-600' },
           ].map(({ label, value, icon: Icon, color }, i) => (
-            <motion.div key={label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
+            <motion.div key={label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
               <Card className="glass-card hover:nb-glow transition-shadow">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-                  <Icon className={`h-4 w-4 ${color}`} />
+                  <CardTitle className="text-[11px] font-medium text-muted-foreground">{label}</CardTitle>
+                  <Icon className={`h-3.5 w-3.5 ${color}`} />
                 </CardHeader>
-                <CardContent><div className="text-3xl font-display font-bold">{value}</div></CardContent>
+                <CardContent><div className="text-xl font-display font-bold">{value}</div></CardContent>
               </Card>
             </motion.div>
           ))}
+        </div>
+      )}
+
+      {/* Follow-Up Action Required Alert */}
+      {viewMode !== 'global' && (dueTodayLeads.length > 0 || overdueLeads.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {dueTodayLeads.length > 0 && (
+            <Card className="border-amber-500/50 bg-amber-500/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold text-amber-600 flex items-center gap-2">
+                  <Calendar className="h-4 w-4" /> Follow-Up Due Today ({dueTodayLeads.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
+                {dueTodayLeads.map(l => (
+                  <Button key={l.unique_id} size="sm" variant="outline" className="border-amber-500/30 text-xs h-7"
+                    onClick={() => setCallLead(l)}>
+                    <Phone className="h-3 w-3 mr-1" /> {l.name}
+                  </Button>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+          
+          {overdueLeads.length > 0 && (
+            <Card className="border-red-500/50 bg-red-500/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold text-red-600 flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" /> Overdue Follow-Up ({overdueLeads.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
+                {overdueLeads.map(l => (
+                  <Button key={l.unique_id} size="sm" variant="outline" className="border-red-500/30 text-xs h-7 text-red-600 hover:text-red-700 hover:bg-red-500/5"
+                    onClick={() => setCallLead(l)}>
+                    <Phone className="h-3 w-3 mr-1" /> {l.name}
+                  </Button>
+                ))}
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 
@@ -717,7 +788,7 @@ const SalesMemberDashboard: React.FC = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
-                  {['#','ID','Date','Name','Email','Phone','Uni','Tech','LinkedIn','Time','TZ','Category','Source','Status', ...(viewMode === 'global' ? ['Generated By', 'Assigned To'] : ['Generated By']), 'Last Activity','DNR Follow-up','Actions'].map(h => (
+                  {['#','ID','Date','Name','Email','Phone','Uni','Tech','LinkedIn','Time','TZ','Category','Source','Status','Next Follow-up', ...(viewMode === 'global' ? ['Generated By', 'Assigned To'] : ['Generated By']), 'Last Activity','DNR Follow-up','Actions'].map(h => (
                     <th key={h} className="text-left p-2 text-muted-foreground font-medium whitespace-nowrap text-xs">{h}</th>
                   ))}
                 </tr>
@@ -776,12 +847,20 @@ const SalesMemberDashboard: React.FC = () => {
                           <span className={`text-xs px-2 py-1 rounded-full ${statusColors[lead.lead_status || 'New'] || ''} inline-flex items-center gap-1.5`}>
                             {lead.lead_status || 'New'}
                           </span>
-                          {isStale && (
+                          {lead.lead_status === 'Stagnant' && (
                             <Badge variant="destructive" className="bg-red-500/10 text-red-500 border-red-500/20 text-[9px] px-1 py-0 font-bold uppercase shrink-0">
                               Stagnant
                             </Badge>
                           )}
                         </div>
+                      </td>
+                      <td className="p-2 text-xs font-medium whitespace-nowrap">
+                        {lead.next_followup_date ? (
+                          <span className={lead.next_followup_date < today ? 'text-red-500 font-semibold flex items-center gap-1' : lead.next_followup_date === today ? 'text-amber-500 font-semibold flex items-center gap-1' : 'text-muted-foreground'}>
+                            <Calendar className="h-3 w-3 shrink-0" />
+                            {formatDate(lead.next_followup_date)}
+                          </span>
+                        ) : '—'}
                       </td>
                       <td className="p-2 text-xs">
                         {lead.lead_generated_by ? (profiles.find(p => p.user_id === lead.lead_generated_by)?.full_name || 'System') : 'System'}

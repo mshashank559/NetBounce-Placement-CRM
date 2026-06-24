@@ -264,6 +264,7 @@ export type Database = {
           university: string | null
           updated_at: string
           visa_status: string | null
+          next_followup_date: string | null
         }
         Insert: {
           agreement_sent_at?: string | null
@@ -299,6 +300,7 @@ export type Database = {
           university?: string | null
           updated_at?: string
           visa_status?: string | null
+          next_followup_date?: string | null
         }
         Update: {
           agreement_sent_at?: string | null
@@ -334,6 +336,7 @@ export type Database = {
           university?: string | null
           updated_at?: string
           visa_status?: string | null
+          next_followup_date?: string | null
         }
         Relationships: []
       }
@@ -580,6 +583,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      update_stagnant_leads: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       agreement_status: "Not Started" | "Review Doc Sent" | "Final Agreement Sent" | "Agreement Signed"
@@ -602,6 +609,7 @@ export type Database = {
         | "Hot Prospect"
         | "Closed"
         | "Non Interested"
+        | "Stagnant"
       lead_type: "New" | "Reference"
       payment_mode:
         | "Cash"
@@ -765,6 +773,7 @@ export const Constants = {
         "Hot Prospect",
         "Closed",
         "Non Interested",
+        "Stagnant",
       ],
       lead_type: ["New", "Reference"],
       payment_mode: ["Cash", "Card", "UPI", "Bank Transfer", "Other", "Stripe"],

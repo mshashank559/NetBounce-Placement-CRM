@@ -8,7 +8,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { Phone, Send, FileText, Plus, Trash2 } from 'lucide-react';
+import { Phone, Send, FileText, Plus, Trash2, Calendar } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -30,6 +30,7 @@ const STATUS_FLOW: Record<string, string[]> = {
   'Connected':    ALL_STATUSES,
   'Qualified':    ALL_STATUSES,
   'Hot Prospect': ALL_STATUSES,
+  'Stagnant':     ALL_STATUSES,
   'Closed':       [],
   'Non Interested': [],
 };
@@ -47,6 +48,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
   const [wayOfContact, setWayOfContact] = useState('Call');
   const [newStatus, setNewStatus] = useState(initialStatus || currentStatus);
   const [emailSent, setEmailSent] = useState(false);
+  const [nextFollowUpDate, setNextFollowUpDate] = useState(lead.next_followup_date || '');
 
   const handleStatusChange = (status: string) => {
     setNewStatus(status);
@@ -143,6 +145,11 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
     mutationFn: async () => {
       if (!notes.trim()) throw new Error('Follow-up notes are required');
 
+      const isTerminalStatus = newStatus === 'Closed' || newStatus === 'Non Interested';
+      if (!isTerminalStatus && !nextFollowUpDate) {
+        throw new Error('Next Follow-Up Date is required');
+      }
+
 
       // Validation for Closed status
       if (newStatus === 'Closed') {
@@ -195,17 +202,26 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
         way_of_contact: emailSent ? 'Email' : wayOfContact,
       });
 
-      // 3. Update lead status if changed
+      // 3. Update lead status and next follow-up date
+      const leadUpdatePayload: any = {
+        next_followup_date: (newStatus === 'Closed' || newStatus === 'Non Interested') ? null : (nextFollowUpDate || null)
+      };
+
+      if (newStatus && newStatus !== currentStatus) {
+        leadUpdatePayload.lead_status = newStatus as any;
+      }
+      if (newStatus === 'Closed') {
+        leadUpdatePayload.email = candidateEmail.trim();
+      }
+
+      const { error: updateLeadErr } = await supabase.from('leads')
+        .update(leadUpdatePayload)
+        .eq('unique_id', lead.unique_id);
+      
+      if (updateLeadErr) throw updateLeadErr;
+
       if (newStatus && newStatus !== currentStatus) {
         if (newStatus === 'Closed') {
-          // Update lead status to Closed
-          await supabase.from('leads')
-            .update({ 
-              lead_status: 'Closed' as any,
-              email: candidateEmail.trim()
-            })
-            .eq('unique_id', lead.unique_id);
-
           await supabase.from('lead_history_logs').insert({
             lead_id: lead.unique_id,
             changed_by: user!.id,
@@ -267,11 +283,6 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
             await supabase.from('notifications').insert(revenueNotifs);
           }
         } else {
-          // Standard status update
-          await supabase.from('leads')
-            .update({ lead_status: newStatus as any })
-            .eq('unique_id', lead.unique_id);
-
           await supabase.from('lead_history_logs').insert({
             lead_id: lead.unique_id,
             changed_by: user!.id,
@@ -514,6 +525,23 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
               required
             />
           </div>
+
+          {newStatus !== 'Closed' && newStatus !== 'Non Interested' && (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                <Calendar className="h-3 w-3 text-primary" />
+                Next Follow-Up Date *
+              </Label>
+              <Input
+                type="date"
+                value={nextFollowUpDate}
+                onChange={e => setNextFollowUpDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+                className="mt-1"
+                required
+              />
+            </div>
+          )}
 
           {nextStatuses.length > 0 && (
             <div>
