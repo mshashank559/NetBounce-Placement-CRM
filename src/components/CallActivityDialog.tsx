@@ -145,8 +145,8 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
     mutationFn: async () => {
       if (!notes.trim()) throw new Error('Follow-up notes are required');
 
-      const isTerminalStatus = newStatus === 'Closed' || newStatus === 'Non Interested';
-      if (!isTerminalStatus && !nextFollowUpDate) {
+      const isDateOptional = ['Closed', 'Non Interested', 'DNR1', 'DNR2', 'DNR3'].includes(newStatus || '');
+      if (!isDateOptional && !nextFollowUpDate) {
         throw new Error('Next Follow-Up Date is required');
       }
 
@@ -530,7 +530,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground flex items-center gap-1">
                 <Calendar className="h-3 w-3 text-primary" />
-                Next Follow-Up Date *
+                Next Follow-Up Date {!['DNR1', 'DNR2', 'DNR3'].includes(newStatus || '') && '*'}
               </Label>
               <Input
                 type="date"
@@ -538,7 +538,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
                 onChange={e => setNextFollowUpDate(e.target.value)}
                 min={new Date().toISOString().split('T')[0]}
                 className="mt-1"
-                required
+                required={!['DNR1', 'DNR2', 'DNR3'].includes(newStatus || '')}
               />
             </div>
           )}
