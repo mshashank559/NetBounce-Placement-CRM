@@ -212,7 +212,12 @@ const LeadsPage: React.FC = () => {
       } else if (role === 'SALES_TM') {
         query = query.eq('assigned_to', user!.id);
       } else if (role === 'SALES_TL') {
-        query = query.or(`team_lead_id.eq.${user!.id},assigned_to.eq.${user!.id}`);
+        const { data: teamProfiles } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
+        const teamUserIds = teamProfiles?.map(p => p.user_id) || [user!.id];
+        query = query.or(`assigned_to.in.(${teamUserIds.join(',')}),team_lead_id.eq.${user!.id}`);
       }
 
       // 1. Search filter
