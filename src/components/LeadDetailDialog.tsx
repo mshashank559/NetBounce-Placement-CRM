@@ -8,6 +8,24 @@ import { Button } from '@/components/ui/button';
 import { History, CalendarDays, FileText, Info, MessageSquare, CheckCircle2, Phone, AlertCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
+const formatToIST = (dateInput: string | Date | null | undefined): string => {
+  if (!dateInput) return '';
+  if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+    const [year, month, day] = dateInput.split('-').map(Number);
+    return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' });
+  }
+  const dateObj = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  if (isNaN(dateObj.getTime())) return '';
+  return dateObj.toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' });
+};
+
+const formatDateTimeToIST = (dateInput: string | Date | null | undefined): string => {
+  if (!dateInput) return '';
+  const dateObj = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  if (isNaN(dateObj.getTime())) return '';
+  return dateObj.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
+};
+
 interface LeadDetailDialogProps {
   lead: any;
   open: boolean;
@@ -131,8 +149,8 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
   const parsedData = React.useMemo(() => {
     const data = {
       percentage: closure?.percentage != null ? `${closure.percentage}%` : null,
-      slot1_due_date: closure?.slot1_due_date ? new Date(closure.slot1_due_date).toLocaleDateString() : null,
-      next_slot_due_date: closure?.next_slot_due_date ? new Date(closure.next_slot_due_date).toLocaleDateString() : null,
+      slot1_due_date: closure?.slot1_due_date ? formatToIST(closure.slot1_due_date) : null,
+      next_slot_due_date: closure?.next_slot_due_date ? formatToIST(closure.next_slot_due_date) : null,
       additional_slots: Array.isArray(closure?.additional_slots) ? (closure.additional_slots as any[]) : null,
     };
 
@@ -151,7 +169,7 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
           const dtStr = match[1].trim();
           const parsedDate = new Date(dtStr);
           if (!isNaN(parsedDate.getTime())) {
-            data.slot1_due_date = parsedDate.toLocaleDateString();
+            data.slot1_due_date = formatToIST(parsedDate);
           } else {
             data.slot1_due_date = dtStr;
           }
@@ -164,7 +182,7 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
           const dtStr = match[1].trim();
           const parsedDate = new Date(dtStr);
           if (!isNaN(parsedDate.getTime())) {
-            data.next_slot_due_date = parsedDate.toLocaleDateString();
+            data.next_slot_due_date = formatToIST(parsedDate);
           } else {
             data.next_slot_due_date = dtStr;
           }
@@ -358,7 +376,7 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                       <Field label={`Slot ${slot.slot_number || (idx + 3)} Amount`} value={`$${slot.amount} (${slot.paid ? 'Paid' : 'Unpaid'})`} />
                       {slot.due_date ? (
                         <Field label={`Slot ${slot.slot_number || (idx + 3)} Due Date`} value={
-                          isNaN(new Date(slot.due_date).getTime()) ? slot.due_date : new Date(slot.due_date).toLocaleDateString()
+                          isNaN(new Date(slot.due_date).getTime()) ? slot.due_date : formatToIST(slot.due_date)
                         } />
                       ) : (
                         <div />
@@ -405,7 +423,7 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                             <span className="text-xs font-semibold text-foreground/80">{author}</span>
                             <span className="text-xs text-muted-foreground">changed status</span>
                           </div>
-                          <span className="text-[11px] text-muted-foreground">{new Date(log.created_at).toLocaleString()}</span>
+                          <span className="text-[11px] text-muted-foreground">{formatDateTimeToIST(log.created_at)}</span>
                         </div>
 
                         <div className="flex items-center gap-2 text-xs font-semibold mt-1">
@@ -452,7 +470,7 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                             <span className="text-xs font-semibold text-foreground/80">{lead.name}</span>
                             <Badge variant="secondary" className="text-[10px] ml-1 px-1 py-0">{log.way_of_contact || 'Call'}</Badge>
                           </div>
-                          <span className="text-[11px] text-muted-foreground">{new Date(log.created_at).toLocaleString()}</span>
+                          <span className="text-[11px] text-muted-foreground">{formatDateTimeToIST(log.created_at)}</span>
                         </div>
 
                         {log.notes && (
@@ -499,7 +517,7 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                       <div className="space-y-1.5 flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-sm font-semibold text-foreground">{doc.type}</span>
-                          <span className="text-xs text-muted-foreground">{new Date(doc.created_at).toLocaleString()}</span>
+                          <span className="text-xs text-muted-foreground">{formatDateTimeToIST(doc.created_at)}</span>
                         </div>
                         <p className="text-sm text-muted-foreground font-mono truncate">{doc.document_url || 'N/A'}</p>
                         <div className="bg-accent/10 p-2.5 rounded text-xs text-foreground leading-relaxed border-l-2 border-purple-500/50 mt-1">

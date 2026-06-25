@@ -24,12 +24,26 @@ const ALL_STATUSES = ['New', 'DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', '
 
 const formatDate = (dateString?: string) => {
   if (!dateString) return '—';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+    const [year, month, day] = dateString.split('-').map(Number);
+    return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+  }
   const d = new Date(dateString);
   if (isNaN(d.getTime())) return '—';
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear();
-  return `${day}/${month}/${year}`;
+  try {
+    const formatter = new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+    return formatter.format(d);
+  } catch (e) {
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  }
 };
 
 const STATUS_FLOW: Record<string, string[]> = {

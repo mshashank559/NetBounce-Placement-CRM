@@ -28,6 +28,31 @@ import {
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend 
 } from 'recharts';
 
+const formatToIST = (dateInput: string | Date | null | undefined): string => {
+  if (!dateInput) return '';
+  if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+    const [year, month, day] = dateInput.split('-').map(Number);
+    return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' });
+  }
+  const dateObj = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  if (isNaN(dateObj.getTime())) return '';
+  return dateObj.toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' });
+};
+
+const formatDateTimeToIST = (dateInput: string | Date | null | undefined): string => {
+  if (!dateInput) return '';
+  const dateObj = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  if (isNaN(dateObj.getTime())) return '';
+  return dateObj.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
+};
+
+const getISTDateString = (dateInput: string | Date | null | undefined): string => {
+  if (!dateInput) return '';
+  const d = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  if (isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(d);
+};
+
 // ── Lead Type age calculation helper ──────────────────────────────────
 const getLeadType = (createdAtStr: string) => {
   const days = (Date.now() - new Date(createdAtStr).getTime()) / (1000 * 60 * 60 * 24);
@@ -193,7 +218,7 @@ export default function AccountantDashboard() {
 
   // Filter closures by date range for Enrolled Candidate Ledger
   const filteredClosures = closures?.filter(c => {
-    const closureDateStr = new Date(c.lead_closures?.[0]?.created_at || c.created_at).toISOString().split('T')[0];
+    const closureDateStr = getISTDateString(c.lead_closures?.[0]?.created_at || c.created_at);
     if (startDateFilter && closureDateStr < startDateFilter) return false;
     if (endDateFilter && closureDateStr > endDateFilter) return false;
     return true;
@@ -228,7 +253,7 @@ export default function AccountantDashboard() {
         }
 
         // Date range filter
-        const leadDateStr = new Date(lead.created_at).toISOString().split('T')[0];
+        const leadDateStr = getISTDateString(lead.created_at);
         if (startDateFilter && leadDateStr < startDateFilter) return false;
         if (endDateFilter && leadDateStr > endDateFilter) return false;
 
@@ -400,7 +425,7 @@ export default function AccountantDashboard() {
               </span>
             </div>
             <div className="text-[9px] text-muted-foreground text-right">
-              {new Date(latest.created_at).toLocaleDateString()}
+              {formatToIST(latest.created_at)}
             </div>
           </>
         )}
@@ -697,7 +722,7 @@ export default function AccountantDashboard() {
                                 {lead.payment_ledgers?.[0]?.next_payment_date && (
                                   <span className="flex items-center gap-1">
                                     <Clock className="h-3 w-3" />
-                                    Due: {new Date(lead.payment_ledgers[0].next_payment_date).toLocaleDateString()}
+                                    Due: {formatToIST(lead.payment_ledgers[0].next_payment_date)}
                                   </span>
                                 )}
                               </div>
@@ -1354,7 +1379,7 @@ function DocumentHistoryDialog({ open, onClose, lead, performas, profilesMap }: 
                   return (
                     <TableRow key={perf.id} className="hover:bg-accent/5">
                       <TableCell className="font-mono text-xs font-semibold">{perf.document_url || perf.id.slice(0, 8)}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{new Date(perf.created_at).toLocaleString()}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{formatDateTimeToIST(perf.created_at)}</TableCell>
                       <TableCell className="text-xs">{senderName}</TableCell>
                       <TableCell>
                         <div className="flex flex-col text-[11px]">
