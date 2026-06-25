@@ -92,10 +92,12 @@ const AddLeadPage: React.FC = () => {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      // ── Phone number length check ──────────────────────────────
-      const digits = form.phone.replace(/\D/g, '');
-      if (digits.length !== 10) {
-        throw new Error('Kindly put 10 digit number');
+      // ── Strict Mobile Number Validation ───────────────────────────
+      if (/\s/.test(form.phone)) {
+        throw new Error("Please remove spaces from the mobile number.");
+      }
+      if (/[^\d]/.test(form.phone) || form.phone.length !== 10) {
+        throw new Error("Please enter a valid 10-digit mobile number.");
       }
 
       // ── Duplicate check ──────────────────────────────────────

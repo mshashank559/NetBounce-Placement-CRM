@@ -311,6 +311,18 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
     if (!formData.name.trim()) { toast.error('Name is required'); return; }
     if (!formData.email.trim()) { toast.error('Email is required'); return; }
     if (!formData.phone.trim()) { toast.error('Phone number is required'); return; }
+    
+    // Space Detection (check first)
+    if (/\s/.test(formData.phone)) {
+      toast.error("Please remove spaces from the mobile number.");
+      return;
+    }
+    // Length & Digits Check
+    if (/[^\d]/.test(formData.phone) || formData.phone.length !== 10) {
+      toast.error("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+
     updateLeadMutation.mutate(formData);
   };
 
