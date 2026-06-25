@@ -129,6 +129,8 @@ export default function AccountantDashboard() {
   const [leadsStatusFilter, setLeadsStatusFilter] = useState('all');
   const [leadsPage, setLeadsPage] = useState(1);
   const [isGlobalView, setIsGlobalView] = useState(false);
+  const [selectedSalesFilter, setSelectedSalesFilter] = useState('all');
+  const [selectedBdFilter, setSelectedBdFilter] = useState('all');
 
   // Manual Status / SLA state
   const [statusUpdateLead, setStatusUpdateLead] = useState<any>(null);
@@ -195,16 +197,44 @@ export default function AccountantDashboard() {
     }
   });
 
-  // Fetch profiles map
+  // Fetch profiles map (includes role + reports_to for ownership display and filters)
   const { data: profilesMap } = useQuery({
     queryKey: ['profiles-map-accountant'],
     queryFn: async () => {
-      const { data } = await supabase.from('profiles').select('user_id, full_name, email');
-      const map: Record<string, { full_name: string; email: string }> = {};
-      data?.forEach(p => { map[p.user_id] = { full_name: p.full_name, email: p.email }; });
+      const { data: profiles } = await supabase.from('profiles').select('user_id, full_name, email, reports_to');
+      const { data: roles } = await supabase.from('user_roles').select('user_id, role');
+      const rolesMap: Record<string, string> = {};
+      roles?.forEach(r => { rolesMap[r.user_id] = r.role; });
+      const map: Record<string, { full_name: string; email: string; role: string; reports_to: string | null }> = {};
+      profiles?.forEach(p => {
+        map[p.user_id] = {
+          full_name: p.full_name,
+          email: p.email,
+          role: rolesMap[p.user_id] || '',
+          reports_to: (p as any).reports_to || null,
+        };
+      });
       return map;
     }
   });
+
+  // Memoized Sales user list (SALES_TM + SALES_TL) for filter dropdown
+  const salesUserList = React.useMemo(() => {
+    if (!profilesMap) return [];
+    return Object.entries(profilesMap)
+      .filter(([, p]) => p.role === 'SALES_TM' || p.role === 'SALES_TL')
+      .map(([id, p]) => ({ id, name: p.full_name, role: p.role }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [profilesMap]);
+
+  // Memoized BD user list (LEAD_GEN + LEAD_TL) for filter dropdown
+  const bdUserList = React.useMemo(() => {
+    if (!profilesMap) return [];
+    return Object.entries(profilesMap)
+      .filter(([, p]) => p.role === 'LEAD_GEN' || p.role === 'LEAD_TL')
+      .map(([id, p]) => ({ id, name: p.full_name, role: p.role }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [profilesMap]);
 
   // Map performas by lead ID
   const performasByLead = React.useMemo(() => {
@@ -229,6 +259,7 @@ export default function AccountantDashboard() {
     if (!allLeads) return [];
     return allLeads
       .filter(lead => {
+        // Search filter
         if (leadsSearch.trim()) {
           const s = leadsSearch.toLowerCase();
           const nameMatch = lead.name?.toLowerCase().includes(s);
@@ -238,11 +269,13 @@ export default function AccountantDashboard() {
           if (!nameMatch && !emailMatch && !phoneMatch && !idMatch) return false;
         }
 
+        // Type filter
         if (leadsTypeFilter !== 'all') {
           const type = getLeadType(lead.created_at);
           if (type !== leadsTypeFilter) return false;
         }
 
+        // Document status filter
         if (leadsStatusFilter !== 'all') {
           const perf = performasByLead[lead.unique_id]?.[0];
           let status = 'Not Sent';
@@ -252,10 +285,28 @@ export default function AccountantDashboard() {
           if (status !== leadsStatusFilter) return false;
         }
 
-        // Date range filter
+        // Date range filter (fixed: included in dep array)
         const leadDateStr = getISTDateString(lead.created_at);
         if (startDateFilter && leadDateStr < startDateFilter) return false;
         if (endDateFilter && leadDateStr > endDateFilter) return false;
+
+        // Sales filter: match assigned_to or team_lead_id
+        if (selectedSalesFilter !== 'all') {
+          const matchesSales =
+            lead.assigned_to === selectedSalesFilter ||
+            lead.team_lead_id === selectedSalesFilter;
+          if (!matchesSales) return false;
+        }
+
+        // BD filter: match lead_generated_by directly, or if generator reports to selected BD TL
+        if (selectedBdFilter !== 'all') {
+          const generatorId = lead.lead_generated_by;
+          const generatorProfile = generatorId && profilesMap ? profilesMap[generatorId] : null;
+          const matchesBd =
+            generatorId === selectedBdFilter ||
+            (generatorProfile?.reports_to === selectedBdFilter);
+          if (!matchesBd) return false;
+        }
 
         return true;
       })
@@ -264,7 +315,7 @@ export default function AccountantDashboard() {
         const timeB = getLastActivity(b, performasByLead[b.unique_id] || []);
         return timeB - timeA;
       });
-  }, [allLeads, leadsSearch, leadsTypeFilter, leadsStatusFilter, performasByLead]);
+  }, [allLeads, leadsSearch, leadsTypeFilter, leadsStatusFilter, performasByLead, startDateFilter, endDateFilter, selectedSalesFilter, selectedBdFilter, profilesMap]);
 
   // Paginated leads for Leads View
   const paginatedLeads = React.useMemo(() => {
@@ -277,7 +328,7 @@ export default function AccountantDashboard() {
   // Reset page when search or filters change
   React.useEffect(() => {
     setLeadsPage(1);
-  }, [leadsSearch, leadsTypeFilter, leadsStatusFilter, isGlobalView]);
+  }, [leadsSearch, leadsTypeFilter, leadsStatusFilter, isGlobalView, startDateFilter, endDateFilter, selectedSalesFilter, selectedBdFilter]);
 
   // KPI Calculations
   const activeEnrollments = closures?.length || 0;
@@ -799,6 +850,36 @@ export default function AccountantDashboard() {
                   </SelectContent>
                 </Select>
 
+                {/* Sales Filter: Sales TMs + Sales TLs */}
+                <Select value={selectedSalesFilter} onValueChange={setSelectedSalesFilter}>
+                  <SelectTrigger className="w-[140px] h-9 bg-background/50 border-accent/20 text-xs">
+                    <SelectValue placeholder="Sales Person" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Sales</SelectItem>
+                    {salesUserList.map(u => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.name}{u.role === 'SALES_TL' ? ' (TL)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* BD Filter: BD Members + BD TLs */}
+                <Select value={selectedBdFilter} onValueChange={setSelectedBdFilter}>
+                  <SelectTrigger className="w-[130px] h-9 bg-background/50 border-accent/20 text-xs">
+                    <SelectValue placeholder="BD Person" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All BD</SelectItem>
+                    {bdUserList.map(u => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.name}{u.role === 'LEAD_TL' ? ' (TL)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
                 {isGlobalView ? (
                   <Button
                     type="button"
@@ -867,14 +948,15 @@ export default function AccountantDashboard() {
                     <TableHead className="w-[120px]">Phone</TableHead>
                     <TableHead className="w-[120px]">Technology</TableHead>
                     <TableHead className="w-[100px]">Status</TableHead>
+                    <TableHead className="w-[220px]">Ownership</TableHead>
                     <TableHead className="w-[100px] text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isAllLeadsLoading ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-20"><LoadingSpinner /></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center py-20"><LoadingSpinner /></TableCell></TableRow>
                   ) : paginatedLeads.length === 0 ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-20 text-muted-foreground">No leads found matching your criteria.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center py-20 text-muted-foreground">No leads found matching your criteria.</TableCell></TableRow>
                   ) : (
                     paginatedLeads.map((lead) => {
                       return (
@@ -905,6 +987,37 @@ export default function AccountantDashboard() {
                             >
                               {lead.lead_status || 'New'}
                             </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex flex-col gap-0.5">
+                              {/* BD – Lead Generated By */}
+                              {lead.lead_generated_by && profilesMap?.[lead.lead_generated_by] && (
+                                <span className="text-[10px]">
+                                  <span className="text-muted-foreground/60">BD: </span>
+                                  {profilesMap[lead.lead_generated_by].full_name}
+                                </span>
+                              )}
+                              {/* Sales – Assigned Salesperson */}
+                              {lead.assigned_to && profilesMap?.[lead.assigned_to] ? (
+                                <span className="text-[10px]">
+                                  <span className="text-muted-foreground/60">Sales: </span>
+                                  {profilesMap[lead.assigned_to].full_name}
+                                  {profilesMap[lead.assigned_to].role === 'SALES_TL' ? ' (TL)' : ''}
+                                </span>
+                              ) : lead.team_lead_id && profilesMap?.[lead.team_lead_id] ? (
+                                <span className="text-[10px]">
+                                  <span className="text-muted-foreground/60">Sales: </span>
+                                  {profilesMap[lead.team_lead_id].full_name} (Sales TL)
+                                </span>
+                              ) : null}
+                              {/* Sales TL – if different from assignee */}
+                              {lead.team_lead_id && profilesMap?.[lead.team_lead_id] && lead.assigned_to && lead.assigned_to !== lead.team_lead_id && (
+                                <span className="text-[10px]">
+                                  <span className="text-muted-foreground/60">TL: </span>
+                                  {profilesMap[lead.team_lead_id].full_name}
+                                </span>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                             <div className="flex justify-end gap-1.5">
