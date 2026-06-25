@@ -948,15 +948,16 @@ export default function AccountantDashboard() {
                     <TableHead className="w-[120px]">Phone</TableHead>
                     <TableHead className="w-[120px]">Technology</TableHead>
                     <TableHead className="w-[100px]">Status</TableHead>
+                    <TableHead className="w-[100px]">Date</TableHead>
                     <TableHead className="w-[220px]">Ownership</TableHead>
                     <TableHead className="w-[100px] text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isAllLeadsLoading ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-20"><LoadingSpinner /></TableCell></TableRow>
+                    <TableRow><TableCell colSpan={8} className="text-center py-20"><LoadingSpinner /></TableCell></TableRow>
                   ) : paginatedLeads.length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-20 text-muted-foreground">No leads found matching your criteria.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={8} className="text-center py-20 text-muted-foreground">No leads found matching your criteria.</TableCell></TableRow>
                   ) : (
                     paginatedLeads.map((lead) => {
                       return (
@@ -987,6 +988,9 @@ export default function AccountantDashboard() {
                             >
                               {lead.lead_status || 'New'}
                             </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {lead.created_at ? formatToIST(lead.created_at) : '—'}
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground" onClick={(e) => e.stopPropagation()}>
                             <div className="flex flex-col gap-0.5">
