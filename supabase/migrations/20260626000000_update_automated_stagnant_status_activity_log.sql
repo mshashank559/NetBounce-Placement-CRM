@@ -52,3 +52,14 @@ $$;
 GRANT EXECUTE ON FUNCTION public.update_stagnant_leads() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.update_stagnant_leads() TO anon;
 GRANT EXECUTE ON FUNCTION public.update_stagnant_leads() TO service_role;
+
+-- Clean up all historical automatic stagnant log entries to use System and the new template format
+UPDATE public.lead_history_logs l
+SET 
+  changed_by = '00000000-0000-0000-0000-000000000000',
+  comments = 'System Notification: Since no follow-up was recorded for ' || leads.name || ' on the scheduled follow-up date (' || COALESCE(to_char(leads.next_followup_date, 'FMDD Month YYYY'), 'N/A') || '), this lead has been automatically marked as Stagnant. Kindly complete the follow-up to remove the Stagnant status.'
+FROM public.leads leads
+WHERE l.lead_id = leads.unique_id
+  AND l.new_value = 'Stagnant'
+  AND l.comments = 'Automatically marked Stagnant due to missed follow-up.';
+
