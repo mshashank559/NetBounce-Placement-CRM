@@ -17,6 +17,16 @@ export default function LeadHistorySidebar({ open, onClose, leadId }: Props) {
   
   const canView = ['ADMIN', 'PROCESS_ANALYST', 'LEAD_TL', 'SALES_TL'].includes(role || '');
 
+  // Fetch profiles to map user_id -> full_name
+  const { data: profiles = [] } = useQuery({
+    queryKey: ['profiles-map-history'],
+    queryFn: async () => {
+      const { data } = await supabase.from('profiles').select('user_id, full_name');
+      return data || [];
+    },
+    enabled: open && canView,
+  });
+
   const { data: historyLogs, isLoading } = useQuery({
     queryKey: ['lead_history', leadId],
     queryFn: async () => {
@@ -24,10 +34,7 @@ export default function LeadHistorySidebar({ open, onClose, leadId }: Props) {
       
       const { data, error } = await supabase
         .from('lead_history_logs')
-        .select(`
-          *,
-          profiles:changed_by (full_name)
-        `)
+        .select('*')
         .eq('lead_id', leadId)
         .order('created_at', { ascending: false });
         
@@ -69,7 +76,7 @@ export default function LeadHistorySidebar({ open, onClose, leadId }: Props) {
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-2 text-sm font-medium">
                         <User className="h-3 w-3 text-muted-foreground" />
-                        {log.profiles?.full_name || 'System'}
+                        {profiles.find((p: any) => p.user_id === log.changed_by)?.full_name || 'System'}
                       </div>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Clock className="h-3 w-3" />
