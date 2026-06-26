@@ -1,3 +1,7 @@
+-- Drop the foreign key constraint on changed_by so that we can use the system UUID
+ALTER TABLE public.lead_history_logs
+DROP CONSTRAINT IF EXISTS lead_history_logs_changed_by_fkey;
+
 -- Create or replace public.update_stagnant_leads function to log stagnant changes as "System"
 CREATE OR REPLACE FUNCTION public.update_stagnant_leads()
 RETURNS void
