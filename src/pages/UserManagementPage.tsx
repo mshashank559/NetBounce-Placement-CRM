@@ -102,16 +102,15 @@ const UserManagementPage: React.FC = () => {
     }
     setIsSaving(true);
     try {
-      // Route through the Edge Function (update-user) so that:
-      // – password changes automatically kill all active sessions for the user
-      // – an audit log entry is written to admin_audit_logs
-      // The Edge Function also handles email/full_name updates identically to the old RPC.
-      const body: Record<string, string> = { userId: editUser.user_id };
-      if (editForm.full_name.trim()) body.full_name = editForm.full_name.trim();
-      if (editForm.email.trim())     body.email     = editForm.email.trim();
-      if (editForm.password.trim())  body.password  = editForm.password.trim();
-
-      const { error } = await supabase.functions.invoke('update-user', { body });
+      // Call the update_user_by_admin RPC — this handles email/name/password updates
+      // AND, when a password is supplied, deletes all active sessions + writes audit log.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).rpc('update_user_by_admin', {
+        target_user_id: editUser.user_id,
+        new_full_name:  editForm.full_name.trim()  || null,
+        new_email:      editForm.email.trim()       || null,
+        new_password:   editForm.password.trim()    || null,
+      });
       if (error) throw new Error(error.message);
 
       const isPasswordChange = !!editForm.password.trim();
