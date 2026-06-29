@@ -79,8 +79,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Tracks the login_activity row id for the current session so we can update logout_at
   const loginRowId = useRef<string | null>(null);
 
-  // ISO timestamp of when the current session started — used to detect forced logouts
-  const signInTime = useRef<string | null>(null);
+  // ISO timestamp of when the current session started — used to detect forced logouts.
+  // We initialize it from localStorage to persist it across page refreshes.
+  const signInTime = useRef<string | null>(localStorage.getItem('nb_session_start_time'));
+
+  const setSignInTime = (time: string | null) => {
+    signInTime.current = time;
+    if (time) {
+      localStorage.setItem('nb_session_start_time', time);
+    } else {
+      localStorage.removeItem('nb_session_start_time');
+    }
+  };
 
   // Interval ID for the password_reset_at polling loop
   const pollInterval = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -114,6 +124,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               FORCED_LOGOUT_KEY,
               'Your password has been changed by an administrator. For security reasons, you have been signed out of all devices. Please log in again using your new password.'
             );
+            setSignInTime(null);
             await supabase.auth.signOut();
           }
         }
@@ -177,8 +188,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
-        // Record the moment this session became active
-        signInTime.current = new Date().toISOString();
+        // Record the moment this session became active if not already set
+        if (!signInTime.current) {
+          setSignInTime(new Date().toISOString());
+        }
         setUser(session.user);
         // logLogin first in the background; never await it so it doesn't block loading state
         logLogin(session.user.id);
@@ -188,7 +201,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else if (event === 'SIGNED_OUT') {
         // Stop polling and clear session refs
         stopForcedLogoutPolling();
-        signInTime.current = null;
+        setSignInTime(null);
         // logLogout in the background
         logLogout();
         setUser(null);
@@ -210,7 +223,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           // Restore session start time and begin polling for existing sessions
-          signInTime.current = new Date().toISOString();
+          if (!signInTime.current) {
+            setSignInTime(new Date().toISOString());
+          }
           setUser(session.user);
           // Run logLogin in background, fetchProfileAndRole in foreground
           logLogin(session.user.id);
