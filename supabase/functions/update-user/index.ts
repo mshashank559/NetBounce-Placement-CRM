@@ -2,6 +2,8 @@
 // supabase/functions/update-user/index.ts
 // Edge Function — runs server-side with service_role access
 // Allows Admin to update another user's email, password, and full_name
+// When password is changed: invalidates ALL active sessions for that user
+// and writes an entry to admin_audit_logs.
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -69,6 +71,8 @@ serve(async (req: Request) => {
       });
     }
 
+    const isPasswordChange = !!(password?.trim());
+
     // 3. Update auth (email and/or password) via admin API
     const authUpdates: Record<string, string> = {};
     if (email?.trim()) authUpdates.email = email.trim();
@@ -99,6 +103,55 @@ serve(async (req: Request) => {
           status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+    }
+
+    // ── PASSWORD CHANGE: Force-logout all sessions ─────────────────────────
+    if (isPasswordChange) {
+      // 5a. Stamp password_reset_at on the target user's profile.
+      //     AuthContext polls this field every 30s; if it's newer than the
+      //     client's session-start time the user is immediately signed out.
+      const resetAt = new Date().toISOString();
+      await supabaseAdmin
+        .from('profiles')
+        .update({ password_reset_at: resetAt })
+        .eq('user_id', userId);
+
+      // 5b. Delete all auth.sessions and refresh_tokens for the target user.
+      //     This prevents any existing refresh token from minting new JWTs.
+      //     We do this directly via service-role SQL since the JS SDK's
+      //     auth.admin.signOut() requires an access token, not a user ID.
+      await supabaseAdmin.rpc('admin_delete_user_sessions', {
+        target_user_id: userId,
+      });
+
+      // 5c. Fetch target user's name + role for the audit log
+      const [targetProfileRes, targetRoleRes, adminProfileRes] = await Promise.all([
+        supabaseAdmin
+          .from('profiles')
+          .select('full_name')
+          .eq('user_id', userId)
+          .maybeSingle(),
+        supabaseAdmin
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', userId)
+          .maybeSingle(),
+        supabaseAdmin
+          .from('profiles')
+          .select('full_name')
+          .eq('user_id', caller.id)
+          .maybeSingle(),
+      ]);
+
+      // 5d. Insert into admin_audit_logs
+      await supabaseAdmin.from('admin_audit_logs').insert({
+        target_user_id:   userId,
+        target_user_name: targetProfileRes.data?.full_name ?? null,
+        target_user_role: targetRoleRes.data?.role ?? null,
+        admin_id:         caller.id,
+        admin_name:       adminProfileRes.data?.full_name ?? null,
+        action:           'Password Reset – All Sessions Terminated',
+      });
     }
 
     return new Response(JSON.stringify({ success: true }), {

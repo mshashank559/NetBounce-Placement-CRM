@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { FORCED_LOGOUT_KEY } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,7 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import logoIcon from '@/assets/logo.png';
 import logoDarkIcon from '@/assets/logo-dark.png';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, ShieldAlert } from 'lucide-react';
 
 type AppRole = 'ADMIN' | 'PROCESS_ANALYST' | 'LEAD_TL' | 'LEAD_GEN' | 'SALES_TL' | 'SALES_TM' | 'ACCOUNTANT';
 
@@ -272,6 +273,8 @@ const AuthPage: React.FC = () => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // Security message shown when an admin has force-logged-out this user
+  const [securityMessage, setSecurityMessage] = useState<string | null>(null);
   const [form, setForm] = useState({
     email: '',
     password: '',
@@ -280,6 +283,15 @@ const AuthPage: React.FC = () => {
     department: '',
     reportsTo: '',
   });
+
+  // Read and clear the forced-logout message from sessionStorage on mount
+  useEffect(() => {
+    const msg = sessionStorage.getItem(FORCED_LOGOUT_KEY);
+    if (msg) {
+      setSecurityMessage(msg);
+      sessionStorage.removeItem(FORCED_LOGOUT_KEY);
+    }
+  }, []);
 
   const { data: teamLeads } = useQuery({
     queryKey: ['available-team-leads', form.role],
@@ -405,6 +417,23 @@ const AuthPage: React.FC = () => {
           </div>
 
           {/* Form with clean sliding/opacity animations */}
+          {/* Security banner — shown only when admin has reset the password */}
+          {securityMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-5 rounded-lg p-4 flex gap-3"
+              style={{
+                background: 'rgba(220, 38, 38, 0.12)',
+                border: '1px solid rgba(220, 38, 38, 0.35)',
+              }}
+            >
+              <ShieldAlert className="h-5 w-5 mt-0.5 shrink-0" style={{ color: '#f87171' }} />
+              <p className="text-sm leading-relaxed" style={{ color: '#fca5a5' }}>
+                {securityMessage}
+              </p>
+            </motion.div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <AnimatePresence mode="wait">
               {isSignUp ? (

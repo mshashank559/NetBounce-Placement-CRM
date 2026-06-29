@@ -2,6 +2,9 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 import { supabase } from '@/integrations/supabase/client';
 import type { User } from '@supabase/supabase-js';
 
+// Key used to pass the forced-logout message to AuthPage via sessionStorage
+export const FORCED_LOGOUT_KEY = 'nb_forced_logout_msg';
+
 type AppRole = 'ADMIN' | 'PROCESS_ANALYST' | 'LEAD_TL' | 'LEAD_GEN' | 'SALES_TL' | 'SALES_TM' | 'ACCOUNTANT';
 
 interface Profile {
@@ -76,6 +79,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Tracks the login_activity row id for the current session so we can update logout_at
   const loginRowId = useRef<string | null>(null);
 
+  // ISO timestamp of when the current session started — used to detect forced logouts
+  const signInTime = useRef<string | null>(null);
+
+  // Interval ID for the password_reset_at polling loop
+  const pollInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // ── Poll profiles.password_reset_at every 30 s ───────────────────────────
+  // When an admin resets a user's password the Edge Function stamps
+  // password_reset_at on the profile. If that timestamp is newer than
+  // the client's session-start time we force an immediate sign-out.
+  const startForcedLogoutPolling = (userId: string) => {
+    if (pollInterval.current) clearInterval(pollInterval.current);
+
+    const check = async () => {
+      try {
+        // Cast to any: password_reset_at is a new column added via migration.
+        // The Supabase-generated types will be stale until `supabase gen types`
+        // is re-run after the migration is applied.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (supabase as any)
+          .from('profiles')
+          .select('password_reset_at')
+          .eq('user_id', userId)
+          .maybeSingle() as { data: { password_reset_at: string | null } | null };
+
+        if (data?.password_reset_at && signInTime.current) {
+          const resetAt  = new Date(data.password_reset_at).getTime();
+          const loginAt  = new Date(signInTime.current).getTime();
+          if (resetAt > loginAt) {
+            // Admin has reset this user's password after they logged in → force logout
+            if (pollInterval.current) clearInterval(pollInterval.current);
+            sessionStorage.setItem(
+              FORCED_LOGOUT_KEY,
+              'Your password has been changed by an administrator. For security reasons, you have been signed out of all devices. Please log in again using your new password.'
+            );
+            await supabase.auth.signOut();
+          }
+        }
+      } catch {
+        // Non-critical — never disrupt the user session on poll failure
+      }
+    };
+
+    // Run once immediately, then on a 30-second cadence
+    check();
+    pollInterval.current = setInterval(check, 30_000);
+  };
+
+  const stopForcedLogoutPolling = () => {
+    if (pollInterval.current) {
+      clearInterval(pollInterval.current);
+      pollInterval.current = null;
+    }
+  };
+
   // ── Log a login event (with denormalized user info for Admin panel) ───
   const logLogin = async (userId: string) => {
     try {
@@ -119,11 +177,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
+        // Record the moment this session became active
+        signInTime.current = new Date().toISOString();
         setUser(session.user);
         // logLogin first in the background; never await it so it doesn't block loading state
         logLogin(session.user.id);
         setTimeout(() => fetchProfileAndRole(session.user), 0);
+        // Start polling for admin-forced password resets
+        startForcedLogoutPolling(session.user.id);
       } else if (event === 'SIGNED_OUT') {
+        // Stop polling and clear session refs
+        stopForcedLogoutPolling();
+        signInTime.current = null;
         // logLogout in the background
         logLogout();
         setUser(null);
@@ -144,10 +209,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
+          // Restore session start time and begin polling for existing sessions
+          signInTime.current = new Date().toISOString();
           setUser(session.user);
           // Run logLogin in background, fetchProfileAndRole in foreground
           logLogin(session.user.id);
           await fetchProfileAndRole(session.user);
+          startForcedLogoutPolling(session.user.id);
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
@@ -158,7 +226,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     initAuth();
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      stopForcedLogoutPolling();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
