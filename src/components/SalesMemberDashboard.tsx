@@ -89,7 +89,10 @@ const SalesMemberDashboard: React.FC = () => {
   const queryClient = useQueryClient();
 
   const [viewMode, setViewMode] = useState<'personal' | 'global'>('personal');
-  const [monthFilter, setMonthFilter] = useState(() => String(new Date().getMonth() + 1));
+  const [monthFilter, setMonthFilter] = useState(() => {
+    const saved = localStorage.getItem('netbounce_crm_month_filter_month_num');
+    return saved || String(new Date().getMonth() + 1);
+  });
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [nameSearch, setNameSearch] = useState('');
@@ -596,7 +599,7 @@ const SalesMemberDashboard: React.FC = () => {
             </TabsList>
           </Tabs>
           <Input placeholder="Search name, id, email, phone..." value={nameSearch} onChange={e => setNameSearch(e.target.value)} className="w-56" />
-          <Select value={monthFilter} onValueChange={setMonthFilter}>
+          <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); localStorage.setItem('netbounce_crm_month_filter_month_num', v); }}>
             <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All</SelectItem>

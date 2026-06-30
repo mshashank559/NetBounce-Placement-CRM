@@ -56,7 +56,10 @@ const BDMemberDashboard: React.FC = () => {
   // ── Filters ────────────────────────────────────────────────
   const [viewMode, setViewMode] = useState<'personal' | 'global'>('personal');
   const [detailsLead, setDetailsLead] = useState<any>(null);
-  const [monthFilter, setMonthFilter] = useState(() => String(new Date().getMonth() + 1));
+  const [monthFilter, setMonthFilter] = useState(() => {
+    const saved = localStorage.getItem('netbounce_crm_month_filter_month_num');
+    return saved || String(new Date().getMonth() + 1);
+  });
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [nameSearch, setNameSearch] = useState('');
@@ -403,7 +406,7 @@ const BDMemberDashboard: React.FC = () => {
             onChange={e => setLocalSearch(e.target.value)}
             className="w-56"
           />
-          <Select value={monthFilter} onValueChange={setMonthFilter}>
+          <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); localStorage.setItem('netbounce_crm_month_filter_month_num', v); }}>
             <SelectTrigger className="w-28"><SelectValue placeholder="Month" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All</SelectItem>

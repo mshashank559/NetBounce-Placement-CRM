@@ -177,7 +177,10 @@ const AdminDashboard: React.FC = () => {
 
   // Global Filters
   const [activeTab, setActiveTab] = useState('control');
-  const [monthFilter, setMonthFilter] = useState(() => format(new Date(), 'yyyy-MM'));
+  const [monthFilter, setMonthFilter] = useState(() => {
+    const saved = localStorage.getItem('netbounce_crm_month_filter_yyyy_mm');
+    return saved || format(new Date(), 'yyyy-MM');
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [teamFilter, setTeamFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -731,7 +734,7 @@ const AdminDashboard: React.FC = () => {
         <div className="flex flex-wrap items-center gap-3">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="bg-accent/30 p-1 rounded-lg border border-border/50"><TabsList className="bg-transparent border-none"><TabsTrigger value="control" className="data-[state=active]:bg-background text-xs">Control</TabsTrigger><TabsTrigger value="analytics" className="data-[state=active]:bg-background text-xs">Analytics</TabsTrigger><TabsTrigger value="monitoring" className="data-[state=active]:bg-background text-xs">Monitoring</TabsTrigger><TabsTrigger value="global" className="data-[state=active]:bg-background text-xs">Global View</TabsTrigger></TabsList></Tabs>
           <div className="h-8 w-[1px] bg-border/50 mx-1" />
-          <Select value={monthFilter} onValueChange={setMonthFilter}>
+          <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); localStorage.setItem('netbounce_crm_month_filter_yyyy_mm', v); }}>
             <SelectTrigger className="w-36 h-9 bg-accent/30 border-border/50 text-xs">
               <SelectValue placeholder="Month" />
             </SelectTrigger>

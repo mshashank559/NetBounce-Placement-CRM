@@ -114,7 +114,10 @@ const StatCard: React.FC<{
 
 const ProcessAnalystDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('analytics');
-  const [monthFilter, setMonthFilter] = useState(() => format(new Date(), 'yyyy-MM'));
+  const [monthFilter, setMonthFilter] = useState(() => {
+    const saved = localStorage.getItem('netbounce_crm_month_filter_yyyy_mm');
+    return saved || format(new Date(), 'yyyy-MM');
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [teamFilter, setTeamFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -325,7 +328,7 @@ const ProcessAnalystDashboard: React.FC = () => {
         <div className="flex flex-wrap items-center gap-3">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="bg-accent/30 p-1 rounded-lg border border-border/50"><TabsList className="bg-transparent border-none"><TabsTrigger value="analytics" className="data-[state=active]:bg-background text-xs">Analytics</TabsTrigger><TabsTrigger value="leads" className="data-[state=active]:bg-background text-xs">Leads View</TabsTrigger><TabsTrigger value="monitoring" className="data-[state=active]:bg-background text-xs">Monitoring</TabsTrigger></TabsList></Tabs>
           <div className="h-8 w-[1px] bg-border/50 mx-1" />
-          <Select value={monthFilter} onValueChange={setMonthFilter}><SelectTrigger className="w-36 h-9 bg-accent/30 border-border/50 text-xs"><SelectValue placeholder="Month" /></SelectTrigger><SelectContent><SelectItem value="all">All Time</SelectItem>{["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m, i) => { const val = `${new Date().getFullYear()}-${String(i + 1).padStart(2, '0')}`; return <SelectItem key={val} value={val}>{m}</SelectItem>; })}</SelectContent></Select>
+          <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); localStorage.setItem('netbounce_crm_month_filter_yyyy_mm', v); }}><SelectTrigger className="w-36 h-9 bg-accent/30 border-border/50 text-xs"><SelectValue placeholder="Month" /></SelectTrigger><SelectContent><SelectItem value="all">All Time</SelectItem>{["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m, i) => { const val = `${new Date().getFullYear()}-${String(i + 1).padStart(2, '0')}`; return <SelectItem key={val} value={val}>{m}</SelectItem>; })}</SelectContent></Select>
           <Select value={teamFilter} onValueChange={setTeamFilter}><SelectTrigger className="w-32 h-9 bg-accent/30 border-border/50 text-xs"><SelectValue placeholder="Team" /></SelectTrigger><SelectContent><SelectItem value="all">All Teams</SelectItem><SelectItem value="Lead Gen">Lead Gen</SelectItem><SelectItem value="Sales">Sales</SelectItem></SelectContent></Select>
           <div className="relative w-48 h-9"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" /><Input placeholder="Search name, id, email, phone..." className="pl-9 h-full bg-accent/30 border-border/50 focus-visible:ring-primary/30 text-xs" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div>
         </div>

@@ -13,6 +13,8 @@ const SalesTLDashboardPage: React.FC = () => {
   const { user, role } = useAuth();
   const [viewMode, setViewMode] = useState('team'); // 'personal' or 'team'
   const [monthFilter, setMonthFilter] = useState(() => {
+    const saved = localStorage.getItem('netbounce_crm_month_filter_yyyy_mm');
+    if (saved) return saved;
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
@@ -195,7 +197,7 @@ const SalesTLDashboardPage: React.FC = () => {
             </TabsList>
           </Tabs>
 
-          <Select value={monthFilter} onValueChange={setMonthFilter}>
+          <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); localStorage.setItem('netbounce_crm_month_filter_yyyy_mm', v); }}>
           <SelectTrigger className="w-48">
             <SelectValue />
           </SelectTrigger>

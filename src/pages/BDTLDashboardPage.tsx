@@ -10,6 +10,8 @@ import { Users, Plus } from 'lucide-react';
 const BDTLDashboardPage: React.FC = () => {
   const { user, role } = useAuth();
   const [monthFilter, setMonthFilter] = useState(() => {
+    const saved = localStorage.getItem('netbounce_crm_month_filter_yyyy_mm');
+    if (saved) return saved;
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
@@ -78,7 +80,7 @@ const BDTLDashboardPage: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-display font-bold">BD Team Performance</h1>
-        <Select value={monthFilter} onValueChange={setMonthFilter}>
+        <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); localStorage.setItem('netbounce_crm_month_filter_yyyy_mm', v); }}>
           <SelectTrigger className="w-48">
             <SelectValue />
           </SelectTrigger>
