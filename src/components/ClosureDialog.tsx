@@ -298,7 +298,7 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
               id="candidate-email"
               type="email"
               value={form.candidate_email}
-              onChange={e => set('candidate_email', e.target.value)}
+              onChange={e => set('candidate_email', e.target.value.trim())}
               placeholder="candidate@example.com"
               required
             />

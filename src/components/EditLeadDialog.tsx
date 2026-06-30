@@ -82,10 +82,11 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
 
       // ── 1. Detect actual changes (null-safe) ─────────────────────
       const changes: string[] = [];
+      const trimmedEmail = updatedData.email.trim();
       if (norm(lead.name) !== updatedData.name)
         changes.push(`Name: "${norm(lead.name)}" → "${updatedData.name}"`);
-      if (norm(lead.email) !== updatedData.email)
-        changes.push(`Email: "${norm(lead.email)}" → "${updatedData.email}"`);
+      if (norm(lead.email) !== trimmedEmail)
+        changes.push(`Email: "${norm(lead.email)}" → "${trimmedEmail}"`);
       if (norm(lead.phone) !== updatedData.phone)
         changes.push(`Phone: "${norm(lead.phone)}" → "${updatedData.phone}"`);
       if (norm(lead.technology) !== updatedData.technology)
@@ -112,22 +113,22 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
 
       // ── 2. Update the lead ────────────────────────────────────────
       const { error: updateError } = await supabase
-        .from('leads')
-        .update({
-          name: updatedData.name,
-          email: updatedData.email,
-          phone: updatedData.phone,
-          technology: updatedData.technology || null,
-          lead_status: updatedData.lead_status as any,
-          lead_category: (updatedData.lead_category || null) as any,
-          lead_source: updatedData.lead_source ? normalizeSource(updatedData.lead_source) : null,
-          linkedin_url: updatedData.linkedin_url || null,
-          university: updatedData.university || null,
-          visa_status: updatedData.visa_status || null,
-          next_followup_date: updatedData.next_followup_date || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('unique_id', lead.unique_id);
+          .from('leads')
+          .update({
+            name: updatedData.name,
+            email: trimmedEmail,
+            phone: updatedData.phone,
+            technology: updatedData.technology || null,
+            lead_status: updatedData.lead_status as any,
+            lead_category: (updatedData.lead_category || null) as any,
+            lead_source: updatedData.lead_source ? normalizeSource(updatedData.lead_source) : null,
+            linkedin_url: updatedData.linkedin_url || null,
+            university: updatedData.university || null,
+            visa_status: updatedData.visa_status || null,
+            next_followup_date: updatedData.next_followup_date || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('unique_id', lead.unique_id);
 
       if (updateError) throw updateError;
 
@@ -323,7 +324,10 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
       return;
     }
 
-    updateLeadMutation.mutate(formData);
+    updateLeadMutation.mutate({
+      ...formData,
+      email: formData.email.trim()
+    });
   };
 
   return (
@@ -353,7 +357,7 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
                 id="edit-email"
                 type="email"
                 value={formData.email}
-                onChange={e => setFormData({ ...formData, email: e.target.value })}
+                onChange={e => setFormData({ ...formData, email: e.target.value.trim() })}
                 placeholder="Enter email address"
               />
             </div>

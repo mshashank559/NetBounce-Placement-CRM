@@ -101,7 +101,7 @@ const AddLeadPage: React.FC = () => {
       }
 
       // ── Duplicate check ──────────────────────────────────────
-      const { data: emailDup } = await supabase.from('leads').select('display_id').eq('email', form.email).maybeSingle();
+      const { data: emailDup } = await supabase.from('leads').select('display_id').eq('email', form.email.trim()).maybeSingle();
       const { data: phoneDup } = await supabase.from('leads').select('display_id').eq('phone', form.phone).maybeSingle();
 
       if (emailDup && phoneDup) {
@@ -129,7 +129,7 @@ const AddLeadPage: React.FC = () => {
 
       const leadData: any = {
         name: form.name,
-        email: form.email,
+        email: form.email.trim(),
         phone: form.phone,
         university: form.university || null,
         technology: form.technology,
@@ -297,7 +297,7 @@ const AddLeadPage: React.FC = () => {
               </div>
               <div>
                 <Label>Email *</Label>
-                <Input type="email" value={form.email} onChange={e => set('email', e.target.value)} required placeholder="email@example.com" />
+                <Input type="email" value={form.email} onChange={e => set('email', e.target.value.trim())} required placeholder="email@example.com" />
               </div>
               <div>
                 <Label>Phone *</Label>

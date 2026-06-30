@@ -638,7 +638,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
                   id="candidate-email"
                   type="email"
                   value={candidateEmail}
-                  onChange={e => setCandidateEmail(e.target.value)}
+                  onChange={e => setCandidateEmail(e.target.value.trim())}
                   placeholder="candidate@example.com"
                   className="mt-1"
                   required
