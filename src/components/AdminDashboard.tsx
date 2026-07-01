@@ -85,6 +85,7 @@ import {
   CartesianGrid
 } from 'recharts';
 import { format, subDays, isBefore, parseISO, isSameDay } from 'date-fns';
+import { getWorkingDaysDifference } from '@/lib/dateUtils';
 
 const ROLES = ['ADMIN', 'PROCESS_ANALYST', 'LEAD_TL', 'LEAD_GEN', 'SALES_TL', 'SALES_TM'] as const;
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
@@ -445,7 +446,7 @@ const AdminDashboard: React.FC = () => {
 
       if (l.lead_status === 'New') {
         const assignmentDate = l.assigned_at ? new Date(l.assigned_at) : new Date(l.created_at || l.updated_at);
-        const daysSinceAssignment = (Date.now() - assignmentDate.getTime()) / (1000 * 60 * 60 * 24);
+        const daysSinceAssignment = getWorkingDaysDifference(assignmentDate, today);
         return daysSinceAssignment > 5;
       }
 

@@ -19,6 +19,7 @@ import LeadDetailDialog from '@/components/LeadDetailDialog';
 import CallActivityDialog from '@/components/CallActivityDialog';
 import ClosureDialog from '@/components/ClosureDialog';
 import AccountantCommentDialog from '@/components/AccountantCommentDialog';
+import { getWorkingDaysDifference } from '@/lib/dateUtils';
 
 const ALL_STATUSES = ['New', 'DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', 'Hot Prospect', 'Closed', 'Non Interested'];
 
@@ -559,9 +560,7 @@ const SalesMemberDashboard: React.FC = () => {
 
     const now = new Date();
     const start = new Date(updatedDate.getFullYear(), updatedDate.getMonth(), updatedDate.getDate());
-    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const diffTime = end.getTime() - start.getTime();
-    const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    const days = getWorkingDaysDifference(start, now);
 
     const threshold = getStatusThreshold(status);
     return threshold !== null && days === threshold;

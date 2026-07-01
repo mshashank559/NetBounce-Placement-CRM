@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { TrendingUp, CheckCircle, Phone, DollarSign, AlertTriangle, Clock, UserPlus, Eye, Search, RefreshCw } from 'lucide-react';
 import LeadDetailDialog from './LeadDetailDialog';
+import { getWorkingDaysDifference } from '@/lib/dateUtils';
 import {
   LineChart, Line, BarChart, Bar, LabelList,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Cell
@@ -365,7 +366,7 @@ const SalesTLDashboard: React.FC = () => {
 
       if (l.lead_status === 'New') {
         const assignmentDate = l.assigned_at ? new Date(l.assigned_at) : new Date(l.updated_at);
-        const daysSinceAssignment = (Date.now() - assignmentDate.getTime()) / (1000 * 60 * 60 * 24);
+        const daysSinceAssignment = getWorkingDaysDifference(assignmentDate, new Date());
         return daysSinceAssignment > 5;
       }
 

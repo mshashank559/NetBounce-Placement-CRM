@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { AlertCircle, CheckCircle2, Clock, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import LeadDetailDialog from '@/components/LeadDetailDialog';
+import { getWorkingDaysDifference } from '@/lib/dateUtils';
 
 const DNRFollowupsPage: React.FC = () => {
   const { user, role } = useAuth();
@@ -47,10 +48,7 @@ const DNRFollowupsPage: React.FC = () => {
         if (threshold === null) return false;
         
         const updatedDate = new Date(lead.updated_at);
-        const start = new Date(updatedDate.getFullYear(), updatedDate.getMonth(), updatedDate.getDate());
-        const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const diffTime = end.getTime() - start.getTime();
-        const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        const days = getWorkingDaysDifference(updatedDate, now);
         
         return days === threshold;
       });

@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { History, CalendarDays, FileText, Info, MessageSquare, CheckCircle2, Phone, AlertCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { getWorkingDaysDifference } from '@/lib/dateUtils';
 
 const formatToIST = (dateInput: string | Date | null | undefined): string => {
   if (!dateInput) return '';
@@ -239,10 +240,7 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
           if (!status || !updatedDate) return null;
           
           const now = new Date();
-          const start = new Date(updatedDate.getFullYear(), updatedDate.getMonth(), updatedDate.getDate());
-          const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const diffTime = end.getTime() - start.getTime();
-          const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          const days = getWorkingDaysDifference(updatedDate, now);
           
           const getStatusThreshold = (st: string) => {
             switch (st) {

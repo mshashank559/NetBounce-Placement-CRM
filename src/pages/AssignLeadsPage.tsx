@@ -12,6 +12,7 @@ import { motion } from 'framer-motion';
 import { Shuffle, UserPlus, AlertCircle, User, RefreshCw, Search, Eye } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import LeadDetailDialog from '@/components/LeadDetailDialog';
+import { getWorkingDaysDifference } from '@/lib/dateUtils';
 
 const AssignLeadsPage: React.FC = () => {
   const { role, user, profile } = useAuth();
@@ -28,16 +29,6 @@ const AssignLeadsPage: React.FC = () => {
   const [selectedLead, setSelectedLead] = useState<any>(null);
   const [selectedReassignTarget, setSelectedReassignTarget] = useState<Record<string, string>>({});
   
-  const getBusinessDays = (startDate: Date, endDate: Date) => {
-    let count = 0;
-    const curDate = new Date(startDate.getTime());
-    while (curDate <= endDate) {
-      const dayOfWeek = curDate.getDay();
-      if (dayOfWeek !== 0 && dayOfWeek !== 6) count++;
-      curDate.setDate(curDate.getDate() + 1);
-    }
-    return count;
-  };
 
   const { data: unassignedLeads } = useQuery({
     queryKey: ['unassigned-leads'],
@@ -129,20 +120,12 @@ const AssignLeadsPage: React.FC = () => {
         }
       };
 
-      const getIstMidnight = (dateVal: Date | string | number) => {
-        const date = new Date(dateVal);
-        const istTime = new Date(date.getTime() + (5.5 * 60 * 60 * 1000));
-        return new Date(Date.UTC(istTime.getUTCFullYear(), istTime.getUTCMonth(), istTime.getUTCDate()));
-      };
 
-      const end = getIstMidnight(new Date());
       return allLeads.map(lead => {
         const threshold = getStatusThreshold(lead.lead_status);
         if (threshold === null) return null;
         
-        const start = getIstMidnight(lead.updated_at);
-        const diffTime = end.getTime() - start.getTime();
-        const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        const days = getWorkingDaysDifference(lead.updated_at, new Date());
         
         return { ...lead, aging_days: days, threshold };
       })

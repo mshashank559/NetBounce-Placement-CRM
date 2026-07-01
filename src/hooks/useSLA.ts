@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { getWorkingDaysDifference, getWorkingDaysAgo } from '@/lib/dateUtils';
 
 /**
  * SLA Hook — runs on every session load.
@@ -32,14 +33,14 @@ export const useSLA = () => {
         return data?.map(r => r.user_id) || [];
       };
 
-      // ── Rule 1: Unassigned Lead (5 Days) Rule ──
-      const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
+      // ── Rule 1: Unassigned Lead (5 Working Days) Rule ──
+      const fiveDaysAgo = getWorkingDaysAgo(5);
       const { data: unassignedLeads } = (await supabase
         .from('leads')
         .select('unique_id, name, assigned_to, team_lead_id' as any)
         .is('assigned_to', null)
         .not('lead_status', 'in', '("Closed","Non Interested")')
-        .lte('created_at', fiveDaysAgo)) as { data: any[] | null };
+        .lte('created_at', fiveDaysAgo.toISOString())) as { data: any[] | null };
 
       if (unassignedLeads && unassignedLeads.length > 0) {
         const admins = await getRoleUserIds(['ADMIN']);
@@ -243,11 +244,10 @@ export const useSLA = () => {
             else continue;
 
             const baseDateStr = status === 'New' ? (lead.assigned_at || lead.updated_at) : lead.updated_at;
-            const updatedDate = new Date(baseDateStr);
-            updatedDate.setDate(updatedDate.getDate() + delayDays);
-            const followupDateStr = updatedDate.toISOString().split('T')[0];
+            const baseDateObj = new Date(baseDateStr);
+            const workingDaysElapsed = getWorkingDaysDifference(baseDateObj, new Date());
 
-            if (followupDateStr === today) {
+            if (workingDaysElapsed === delayDays) {
               // De-dup check
               const { data: existing } = await supabase
                 .from('notifications')
