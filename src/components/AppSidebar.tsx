@@ -28,7 +28,7 @@ const navItems: NavItem[] = [
   { label: 'Call Tracker', icon: Phone, path: '/calls', roles: ['SALES_TM', 'SALES_TL', 'ADMIN', 'PROCESS_ANALYST'] },
   { label: 'Sales Performance', icon: UsersRound, path: '/sales-performance', roles: ['SALES_TL', 'ADMIN'] },
   { label: 'BD Performance', icon: UsersRound, path: '/bd-performance', roles: ['LEAD_TL', 'ADMIN'] },
-  { label: 'Revenue', icon: DollarSign, path: '/revenue', roles: ['ADMIN', 'SALES_TL'] },
+  { label: 'Revenue', icon: DollarSign, path: '/revenue', roles: ['ADMIN', 'SALES_TL', 'ACCOUNTANT'] },
   { label: 'DNR Follow-ups', icon: AlertCircle, path: '/dnr-followups', roles: ['ADMIN', 'LEAD_GEN', 'LEAD_TL', 'SALES_TL', 'SALES_TM'] },
   { label: 'Analytics', icon: BarChart3, path: '/analytics', roles: ['ADMIN', 'PROCESS_ANALYST', 'LEAD_TL', 'SALES_TL'] },
   { label: 'Notifications', icon: Bell, path: '/notifications', roles: ['ADMIN', 'PROCESS_ANALYST', 'LEAD_TL', 'LEAD_GEN', 'SALES_TL', 'SALES_TM', 'ACCOUNTANT'] },
