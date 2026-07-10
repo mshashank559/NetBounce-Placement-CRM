@@ -32,6 +32,14 @@ const RevenuePage: React.FC = () => {
   const currentYear = new Date().getFullYear();
   const [yearFilter, setYearFilter] = useState(String(currentYear));
   const [activeView, setActiveView] = useState<'my_view' | 'team_view' | 'restricted_view'>('my_view');
+
+  React.useEffect(() => {
+    if (role === 'ADMIN' || role === 'ACCOUNTANT') {
+      setActiveView('restricted_view');
+    } else {
+      setActiveView('my_view');
+    }
+  }, [role]);
   
   // Data Grid Pagination and Dialog states
   const [page, setPage] = useState(1);
@@ -178,13 +186,15 @@ const RevenuePage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-background/50 backdrop-blur-xl p-4 rounded-2xl border border-primary/10 shadow-lg">
         <div className="flex flex-col md:flex-row md:items-center gap-4">
           <h1 className="text-2xl font-display font-bold">Revenue</h1>
-          <Tabs value={activeView} onValueChange={(v) => { setActiveView(v as any); setPage(1); }} className="w-[360px]">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="my_view" className="text-xs">My View</TabsTrigger>
-              <TabsTrigger value="team_view" className="text-xs" disabled={!isTLOrHigher}>My Team View</TabsTrigger>
-              <TabsTrigger value="restricted_view" className="text-xs">Restricted View</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          {role !== 'ADMIN' && role !== 'ACCOUNTANT' && (
+            <Tabs value={activeView} onValueChange={(v) => { setActiveView(v as any); setPage(1); }} className="w-[360px]">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="my_view" className="text-xs">My View</TabsTrigger>
+                <TabsTrigger value="team_view" className="text-xs" disabled={!isTLOrHigher}>My Team View</TabsTrigger>
+                <TabsTrigger value="restricted_view" className="text-xs">Restricted View</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
         </div>
         <Select value={yearFilter} onValueChange={setYearFilter}>
           <SelectTrigger className="w-32">
