@@ -22,7 +22,8 @@ const formatDate = (dateString?: string) => {
   return d.toLocaleDateString('en-IN', {
     day: '2-digit',
     month: '2-digit',
-    year: 'numeric'
+    year: 'numeric',
+    timeZone: 'Asia/Kolkata'
   });
 };
 
@@ -121,13 +122,25 @@ const RevenuePage: React.FC = () => {
     return s1 + s2 + additional;
   };
 
+  const getISTYearAndMonth = (dateString: string) => {
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return { year: 0, month: 0, key: '' };
+    const yearStr = d.toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata', year: 'numeric' });
+    const monthStr = d.toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata', month: '2-digit' });
+    return {
+      year: parseInt(yearStr, 10),
+      month: parseInt(monthStr, 10),
+      key: `${yearStr}-${monthStr}`
+    };
+  };
+
   const monthlyRevenue = useMemo(() => {
     if (!closures) return [];
     const months: Record<string, number> = {};
     closures.forEach(c => {
-      const d = new Date(c.created_at);
-      if (d.getFullYear() !== parseInt(yearFilter)) return;
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!c.created_at) return;
+      const { year, key } = getISTYearAndMonth(c.created_at);
+      if (year !== parseInt(yearFilter)) return;
       const amount = calcRevenue(c);
       months[key] = (months[key] || 0) + amount;
     });
@@ -145,10 +158,23 @@ const RevenuePage: React.FC = () => {
   }, [closures, yearFilter]);
 
   const totalYearRevenue = monthlyRevenue.reduce((s, m) => s + m.revenue, 0);
-  const currentMonthKey = `${currentYear}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+
+  const currentIST = useMemo(() => {
+    const now = new Date();
+    const yearStr = now.toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata', year: 'numeric' });
+    const monthStr = now.toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata', month: '2-digit' });
+    return {
+      year: parseInt(yearStr, 10),
+      month: parseInt(monthStr, 10),
+      key: `${yearStr}-${monthStr}`
+    };
+  }, []);
+
+  const currentMonthKey = currentIST.key;
+
   const currentMonthRevenue = closures?.reduce((s, c) => {
-    const d = new Date(c.created_at);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    if (!c.created_at) return s;
+    const { key } = getISTYearAndMonth(c.created_at);
     if (key !== currentMonthKey) return s;
     return s + calcRevenue(c);
   }, 0) || 0;
