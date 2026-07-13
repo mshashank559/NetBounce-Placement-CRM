@@ -62,6 +62,40 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 
 const formatDate = (dateString?: string) => formatToISTDateString(dateString);
 
+const formatISTShort = (isoString?: string | null) => {
+  if (!isoString) return '—';
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit',
+    month: 'short'
+  }) + ', ' + d.toLocaleTimeString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+};
+
+const formatISTLong = (isoString?: string | null) => {
+  if (!isoString) return '—';
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  }) + ' at ' + d.toLocaleTimeString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+};
+
 const StatCard: React.FC<{
   title: string;
   value: string | number;
@@ -439,7 +473,7 @@ const ProcessAnalystDashboard: React.FC = () => {
                               {getStatusBadge(lead.lead_status || '')}
                             </TableCell>
                             <TableCell className="text-[10px] text-muted-foreground font-mono">
-                              {format(parseISO(lead.updated_at), 'dd MMM, HH:mm')}
+                              {formatISTShort(lead.updated_at)}
                             </TableCell>
                           </TableRow>
                         ))
@@ -486,7 +520,7 @@ const ProcessAnalystDashboard: React.FC = () => {
               <Card className="glass-card border-red-500/20 bg-red-500/5"><CardHeader className="pb-2 text-red-500 flex flex-row items-center justify-between"><CardTitle className="text-lg font-display flex items-center gap-2"><Clock className="h-5 w-5" /> SLA Monitoring</CardTitle><Badge variant="destructive" className="animate-pulse">{slaAlerts.length} Alerts</Badge></CardHeader><CardContent className="p-0"><div className="max-h-[350px] overflow-y-auto"><Table><TableHeader className="bg-red-500/10"><TableRow><TableHead className="text-xs">Lead</TableHead><TableHead className="text-xs">Assigned</TableHead><TableHead className="text-xs text-right">Status</TableHead></TableRow></TableHeader><TableBody>{slaAlerts.slice(0, 10).map(l => (<TableRow key={l.unique_id} className="border-red-500/10"><TableCell className="text-xs font-bold">{l.name}</TableCell><TableCell className="text-xs">{allUsers.find(u => u.user_id === l.assigned_to)?.full_name || 'Unassigned'}</TableCell><TableCell className="text-right text-[10px] font-bold text-red-500">INACTIVE</TableCell></TableRow>))}</TableBody></Table></div></CardContent></Card>
               <Card className="glass-card border-amber-500/20 bg-amber-500/5"><CardHeader className="pb-2 text-amber-500"><CardTitle className="text-lg font-display flex items-center gap-2"><AlertTriangle className="h-5 w-5" /> Concern Center</CardTitle></CardHeader><CardContent className="p-0"><div className="max-h-[350px] overflow-y-auto"><Table><TableHeader className="bg-amber-500/10"><TableRow><TableHead className="text-xs">Lead</TableHead><TableHead className="text-xs">Issue</TableHead></TableRow></TableHeader><TableBody>{concerns?.slice(0, 10).map(c => (<TableRow key={c.id} className="border-amber-500/10"><TableCell className="text-xs font-bold">{leads?.find(l => l.unique_id === c.lead_id)?.name || 'Unknown'}</TableCell><TableCell className="text-xs italic">"{c.description}"</TableCell></TableRow>))}</TableBody></Table></div></CardContent></Card>
             </div>
-            <Card className="glass-card"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><Bell className="h-5 w-5 text-primary animate-bell-shake" /> Notification Monitoring</CardTitle></CardHeader><CardContent className="p-0"><div className="max-h-[400px] overflow-y-auto divide-y divide-border/50">{notifications?.slice(0, 20).map(n => (<div key={n.id} className="p-4 hover:bg-accent/20 flex items-start gap-4"><div className="p-2 rounded-full bg-primary/10 text-primary"><Activity className="h-4 w-4" /></div><div className="flex-1"><p className="text-sm font-bold">{n.title}</p><p className="text-xs text-muted-foreground">{n.message}</p><p className="text-[9px] text-muted-foreground mt-1 font-mono uppercase">{format(parseISO(n.created_at), 'PPPP p')}</p></div></div>))}</div></CardContent></Card>
+            <Card className="glass-card"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><Bell className="h-5 w-5 text-primary animate-bell-shake" /> Notification Monitoring</CardTitle></CardHeader><CardContent className="p-0"><div className="max-h-[400px] overflow-y-auto divide-y divide-border/50">{notifications?.slice(0, 20).map(n => (<div key={n.id} className="p-4 hover:bg-accent/20 flex items-start gap-4"><div className="p-2 rounded-full bg-primary/10 text-primary"><Activity className="h-4 w-4" /></div><div className="flex-1"><p className="text-sm font-bold">{n.title}</p><p className="text-xs text-muted-foreground">{n.message}</p><p className="text-[9px] text-muted-foreground mt-1 font-mono uppercase">{formatISTLong(n.created_at)}</p></div></div>))}</div></CardContent></Card>
           </motion.div>
         )}
       </AnimatePresence>
