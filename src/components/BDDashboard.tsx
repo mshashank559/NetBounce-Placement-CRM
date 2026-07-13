@@ -13,33 +13,12 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { Users, TrendingUp, CheckCircle, Plus, AlertTriangle, UserPlus, Shuffle, Clock, Eye } from 'lucide-react';
 import LeadDetailDialog from './LeadDetailDialog';
+import { getISTYearAndMonth, getISTDateString, formatToISTDateString } from '@/lib/dateUtils';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
-const formatDate = (dateString?: string) => {
-  if (!dateString) return '—';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-    const [year, month, day] = dateString.split('-').map(Number);
-    return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
-  }
-  const d = new Date(dateString);
-  if (isNaN(d.getTime())) return '—';
-  try {
-    const formatter = new Intl.DateTimeFormat('en-IN', {
-      timeZone: 'Asia/Kolkata',
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-    return formatter.format(d);
-  } catch (e) {
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    return `${day}/${month}/${year}`;
-  }
-};
+const formatDate = (dateString?: string) => formatToISTDateString(dateString);
 
 const BDDashboard: React.FC = () => {
   const { user, profile } = useAuth();
@@ -50,7 +29,7 @@ const BDDashboard: React.FC = () => {
   const [detailsLead, setDetailsLead] = useState<any>(null);
   const [monthFilter, setMonthFilter] = useState(() => {
     const saved = localStorage.getItem('netbounce_crm_month_filter_month_num');
-    return saved || String(new Date().getMonth() + 1);
+    return saved || String(getISTYearAndMonth(new Date()).month);
   });
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -144,12 +123,13 @@ const BDDashboard: React.FC = () => {
       
       // 2. Month Filter
       if (monthFilter !== 'all') {
-        if (new Date(l.created_at).getMonth() + 1 !== parseInt(monthFilter)) return false;
+        if (getISTYearAndMonth(l.created_at).month !== parseInt(monthFilter)) return false;
       }
 
       // 3. Date Range Filter
-      if (dateFrom && new Date(l.created_at) < new Date(dateFrom)) return false;
-      if (dateTo && new Date(l.created_at) > new Date(dateTo + 'T23:59:59')) return false;
+      const istDateStr = getISTDateString(l.created_at);
+      if (dateFrom && istDateStr < dateFrom) return false;
+      if (dateTo && istDateStr > dateTo) return false;
 
       // 4. Status Filter
       if (statusFilter !== 'all' && l.lead_status !== statusFilter) return false;
@@ -221,9 +201,10 @@ const BDDashboard: React.FC = () => {
     
     return bdUsers.map(p => {
       const pLeads = leads.filter(l => l.lead_generated_by === p.user_id);
-      const today = new Date().toISOString().split('T')[0];
-      const dailyAdded = pLeads.filter(l => l.created_at.startsWith(today)).length;
-      const monthlyAdded = pLeads.filter(l => new Date(l.created_at).getMonth() + 1 === parseInt(monthFilter)).length;
+      const today = getISTDateString(new Date());
+      const dailyAdded = pLeads.filter(l => getISTDateString(l.created_at) === today).length;
+      const targetMonth = monthFilter === 'all' ? getISTYearAndMonth(new Date()).month : parseInt(monthFilter);
+      const monthlyAdded = pLeads.filter(l => getISTYearAndMonth(l.created_at).month === targetMonth).length;
       const converted = pLeads.filter(l => l.lead_status === 'Closed').length;
 
       return { ...p, dailyAdded, monthlyAdded, converted, total: pLeads.length };

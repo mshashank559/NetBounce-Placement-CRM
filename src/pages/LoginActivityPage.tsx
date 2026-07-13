@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Activity, Calendar, Clock, LogIn, LogOut } from 'lucide-react';
 
+import { getISTYearAndMonth, getISTDateString, formatToISTDateString } from '@/lib/dateUtils';
+
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -18,13 +20,13 @@ const MONTH_NAMES = [
 const fmt = (iso: string | null) => {
   if (!iso) return '—';
   const d = new Date(iso);
-  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+  return d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
 };
 
 const fmtDate = (iso: string | null) => {
   if (!iso) return '—';
   const d = new Date(iso);
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' });
 };
 
 const duration = (loginIso: string, logoutIso: string | null) => {
@@ -75,20 +77,16 @@ const LoginActivityPage: React.FC = () => {
   // ── Client-side filtering ─────────────────────────────────────
   const filtered = useMemo(() => {
     return activity.filter(row => {
-      const loginDate = new Date(row.logged_in_at);
-
       if (userFilter !== 'all' && row.user_id !== userFilter) return false;
 
       if (monthFilter !== 'all') {
-        if (loginDate.getMonth() + 1 !== parseInt(monthFilter)) return false;
+        const ist = getISTYearAndMonth(row.logged_in_at);
+        if (ist.month !== parseInt(monthFilter)) return false;
       }
 
-      if (dateFrom) {
-        if (loginDate < new Date(dateFrom + 'T00:00:00')) return false;
-      }
-      if (dateTo) {
-        if (loginDate > new Date(dateTo + 'T23:59:59')) return false;
-      }
+      const istDateStr = getISTDateString(row.logged_in_at);
+      if (dateFrom && istDateStr < dateFrom) return false;
+      if (dateTo && istDateStr > dateTo) return false;
 
       return true;
     });

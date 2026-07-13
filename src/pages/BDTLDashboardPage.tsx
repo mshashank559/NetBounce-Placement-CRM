@@ -7,13 +7,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Users, Plus } from 'lucide-react';
 
+import { getISTYearAndMonth, getISTDateString } from '@/lib/dateUtils';
+
 const BDTLDashboardPage: React.FC = () => {
   const { user, role } = useAuth();
   const [monthFilter, setMonthFilter] = useState(() => {
     const saved = localStorage.getItem('netbounce_crm_month_filter_yyyy_mm');
     if (saved) return saved;
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const { year, month } = getISTYearAndMonth(new Date());
+    return `${year}-${String(month).padStart(2, '0')}`;
   });
 
   const { data: bdMembers } = useQuery({
@@ -42,16 +44,16 @@ const BDTLDashboardPage: React.FC = () => {
   });
 
   const [filterYear, filterMonth] = monthFilter.split('-').map(Number);
-  const today = new Date().toISOString().split('T')[0];
+  const today = getISTDateString(new Date());
 
   const memberStats = useMemo(() => {
     if (!bdMembers) return [];
     return bdMembers.map(member => {
       const memberLeads = leadStats?.filter(l => l.lead_generated_by === member.user_id) || [];
-      const leadsToday = memberLeads.filter(l => l.created_at?.startsWith(today)).length;
+      const leadsToday = memberLeads.filter(l => getISTDateString(l.created_at) === today).length;
       const leadsMonth = memberLeads.filter(l => {
-        const d = new Date(l.created_at);
-        return d.getFullYear() === filterYear && d.getMonth() + 1 === filterMonth;
+        const ist = getISTYearAndMonth(l.created_at);
+        return ist.year === filterYear && ist.month === filterMonth;
       }).length;
 
       return {

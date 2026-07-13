@@ -56,33 +56,11 @@ import {
   AreaChart,
   Area
 } from 'recharts';
-import { format, subDays, isBefore, parseISO, isSameDay } from 'date-fns';
+import { getWorkingDaysDifference, getISTYearAndMonth, getISTDateString, formatToISTDateString } from '@/lib/dateUtils';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
-const formatDate = (dateString?: string) => {
-  if (!dateString) return '—';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-    const [year, month, day] = dateString.split('-').map(Number);
-    return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
-  }
-  const d = new Date(dateString);
-  if (isNaN(d.getTime())) return '—';
-  try {
-    const formatter = new Intl.DateTimeFormat('en-IN', {
-      timeZone: 'Asia/Kolkata',
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-    return formatter.format(d);
-  } catch (e) {
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    return `${day}/${month}/${year}`;
-  }
-};
+const formatDate = (dateString?: string) => formatToISTDateString(dateString);
 
 const StatCard: React.FC<{
   title: string;
@@ -116,7 +94,9 @@ const ProcessAnalystDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('analytics');
   const [monthFilter, setMonthFilter] = useState(() => {
     const saved = localStorage.getItem('netbounce_crm_month_filter_yyyy_mm');
-    return saved || format(new Date(), 'yyyy-MM');
+    if (saved) return saved;
+    const { year, month } = getISTYearAndMonth(new Date());
+    return `${year}-${String(month).padStart(2, '0')}`;
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [teamFilter, setTeamFilter] = useState('all');
@@ -209,8 +189,14 @@ const ProcessAnalystDashboard: React.FC = () => {
 
     if (monthFilter && monthFilter !== 'all') {
       const [year, month] = monthFilter.split('-').map(Number);
-      fLeads = fLeads.filter(l => { const d = new Date(l.created_at); return d.getFullYear() === year && d.getMonth() + 1 === month; });
-      fClosures = fClosures.filter(c => { const d = new Date(c.created_at); return d.getFullYear() === year && d.getMonth() + 1 === month; });
+      fLeads = fLeads.filter(l => {
+        const ist = getISTYearAndMonth(l.created_at);
+        return ist.year === year && ist.month === month;
+      });
+      fClosures = fClosures.filter(c => {
+        const ist = getISTYearAndMonth(c.created_at);
+        return ist.year === year && ist.month === month;
+      });
     }
     if (statusFilter !== 'all') fLeads = fLeads.filter(l => l.lead_status === statusFilter);
     if (teamFilter !== 'all') {
@@ -258,8 +244,18 @@ const ProcessAnalystDashboard: React.FC = () => {
 
   const analyticsData = useMemo(() => {
     const last15Days = Array.from({ length: 15 }).map((_, i) => {
-      const d = subDays(new Date(), 14 - i);
-      return { name: format(d, 'MMM dd'), count: leads?.filter(l => isSameDay(parseISO(l.created_at), d)).length || 0 };
+      const d = new Date();
+      d.setDate(d.getDate() - (14 - i));
+      const targetISTStr = getISTDateString(d);
+      
+      const parts = targetISTStr.split('-');
+      const dateObj = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      const name = dateObj.toLocaleDateString('en-IN', { month: 'short', day: '2-digit' });
+      
+      return {
+        name,
+        count: leads?.filter(l => getISTDateString(l.created_at) === targetISTStr).length || 0
+      };
     });
     const statusMap: Record<string, number> = {};
     leads?.forEach(l => { statusMap[l.lead_status || 'Unknown'] = (statusMap[l.lead_status || 'Unknown'] || 0) + 1; });
@@ -269,10 +265,14 @@ const ProcessAnalystDashboard: React.FC = () => {
   const slaAlerts = useMemo(() => {
     if (!leads) return [];
     const today = new Date();
+    const todayStr = getISTDateString(today);
     return leads.filter(l => {
       if (['Closed', 'Non Interested'].includes(l.lead_status || '')) return false;
-      const lastUpdate = parseISO(l.updated_at);
-      return !isSameDay(lastUpdate, today) || isBefore(lastUpdate, subDays(today, 2));
+      const lastUpdateStr = getISTDateString(l.updated_at);
+      const todayMs = new Date(todayStr).getTime();
+      const lastUpdateMs = new Date(lastUpdateStr).getTime();
+      const diffDays = Math.floor((todayMs - lastUpdateMs) / (1000 * 60 * 60 * 24));
+      return diffDays >= 2;
     });
   }, [leads]);
 

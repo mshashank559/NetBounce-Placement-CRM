@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { TrendingUp, CheckCircle, Phone, DollarSign, AlertTriangle, Clock, UserPlus, Eye, Search, RefreshCw } from 'lucide-react';
 import LeadDetailDialog from './LeadDetailDialog';
-import { getWorkingDaysDifference } from '@/lib/dateUtils';
+import { getWorkingDaysDifference, getISTYearAndMonth, getISTDateString, formatToISTDateString } from '@/lib/dateUtils';
 import {
   LineChart, Line, BarChart, Bar, LabelList,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Cell
@@ -21,29 +21,7 @@ import {
 
 const COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'];
 
-const formatDate = (dateString?: string) => {
-  if (!dateString) return '—';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-    const [year, month, day] = dateString.split('-').map(Number);
-    return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
-  }
-  const d = new Date(dateString);
-  if (isNaN(d.getTime())) return '—';
-  try {
-    const formatter = new Intl.DateTimeFormat('en-IN', {
-      timeZone: 'Asia/Kolkata',
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-    return formatter.format(d);
-  } catch (e) {
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    return `${day}/${month}/${year}`;
-  }
-};
+const formatDate = (dateString?: string) => formatToISTDateString(dateString);
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const STATUS_FUNNEL = ['New','DNR1','DNR2','DNR3','Connected','Qualified','Hot Prospect','Closed'];
 
@@ -116,7 +94,7 @@ const SalesTLDashboard: React.FC = () => {
   const [reassigningLeadId, setReassigningLeadId] = useState<string | null>(null);
   const [monthFilter, setMonthFilter] = useState(() => {
     const saved = localStorage.getItem('netbounce_crm_month_filter_month_num');
-    return saved || String(new Date().getMonth() + 1);
+    return saved || String(getISTYearAndMonth(new Date()).month);
   });
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -299,10 +277,11 @@ const SalesTLDashboard: React.FC = () => {
       // Global view member filter
       if (viewMode === 'global' && globalMemberFilter !== 'all' && l.assigned_to !== globalMemberFilter) return false;
       if (viewMode === 'global' && globalLeadGenFilter !== 'all' && l.lead_generated_by !== globalLeadGenFilter) return false;
-      const d = new Date(l.created_at);
-      if (monthFilter !== 'all' && d.getMonth() + 1 !== parseInt(monthFilter)) return false;
-      if (dateFrom && d < new Date(dateFrom)) return false;
-      if (dateTo && d > new Date(dateTo + 'T23:59:59')) return false;
+      const { month: leadMonth } = getISTYearAndMonth(l.created_at);
+      if (monthFilter !== 'all' && leadMonth !== parseInt(monthFilter)) return false;
+      const istDateStr = getISTDateString(l.created_at);
+      if (dateFrom && istDateStr < dateFrom) return false;
+      if (dateTo && istDateStr > dateTo) return false;
       if (nameSearch) {
         const query = nameSearch.toLowerCase();
         const matchesName = l.name?.toLowerCase().includes(query);
@@ -320,7 +299,7 @@ const SalesTLDashboard: React.FC = () => {
   const poolLeads = leads.filter(l => l.assigned_to === user?.id && l.assignment_type === 'Team');
 
   // ── KPIs ──
-  const today = new Date().toISOString().split('T')[0];
+  const today = getISTDateString(new Date());
   const activeLeads = filteredLeads.filter(l => l.lead_status !== 'Closed').length;
   const closures = filteredLeads.filter(l => l.lead_status === 'Closed').length;
 
@@ -756,10 +735,12 @@ const SalesTLDashboard: React.FC = () => {
                 <tbody>
                   {salesMembers.map(m => {
                     const mLeads = leads.filter(l => l.assigned_to === m.user_id);
-                    const mMonthLeads = mLeads.filter(l => new Date(l.created_at).getMonth() + 1 === parseInt(monthFilter === 'all' ? String(new Date().getMonth()+1) : monthFilter));
+                    const currentISTMonth = getISTYearAndMonth(new Date()).month;
+                    const targetMonth = parseInt(monthFilter === 'all' ? String(currentISTMonth) : monthFilter);
+                    const mMonthLeads = mLeads.filter(l => getISTYearAndMonth(l.created_at).month === targetMonth);
                     const mClosed = mLeads.filter(l => l.lead_status === 'Closed').length;
                     const mDailyCalls = callLogs.filter(c => c.user_id === m.user_id && c.call_date === today).reduce((s, c) => s + (c.call_count || 0), 0);
-                    const mMonthlyCalls = callLogs.filter(c => c.user_id === m.user_id && new Date(c.call_date + 'T00:00:00').getMonth() + 1 === parseInt(monthFilter === 'all' ? String(new Date().getMonth()+1) : monthFilter)).reduce((s, c) => s + (c.call_count || 0), 0);
+                    const mMonthlyCalls = callLogs.filter(c => c.user_id === m.user_id && getISTYearAndMonth(c.call_date + 'T00:00:00').month === targetMonth).reduce((s, c) => s + (c.call_count || 0), 0);
                     const convRate = mLeads.length > 0 ? ((mClosed / mLeads.length) * 100).toFixed(1) : '0.0';
                     const isInactive = mDailyCalls === 0;
                     const isTop = mClosed >= 3;

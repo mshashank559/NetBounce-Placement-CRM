@@ -68,29 +68,9 @@ const HIGHLIGHT_COLORS = [
 // ── Month label helper ────────────────────────────────────────────────────────
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-const formatDate = (dateString?: string) => {
-  if (!dateString) return '—';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-    const [year, month, day] = dateString.split('-').map(Number);
-    return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
-  }
-  const d = new Date(dateString);
-  if (isNaN(d.getTime())) return '—';
-  try {
-    const formatter = new Intl.DateTimeFormat('en-IN', {
-      timeZone: 'Asia/Kolkata',
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-    return formatter.format(d);
-  } catch (e) {
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    return `${day}/${month}/${year}`;
-  }
-};
+import { getISTYearAndMonth, getISTDateString, formatToISTDateString } from '@/lib/dateUtils';
+
+const formatDate = (dateString?: string) => formatToISTDateString(dateString);
 
 interface ReassignDropdownMenuProps {
   candidates: { user_id: string; full_name: string; role: string }[];
@@ -247,20 +227,20 @@ const LeadsPage: React.FC = () => {
 
       // 3. Month filter (for current year)
       if (monthFilter !== 'all') {
-        const year = new Date().getFullYear();
+        const year = getISTYearAndMonth(new Date()).year;
         const monthNum = parseInt(monthFilter);
-        const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01T00:00:00`;
+        const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01T00:00:00+05:30`;
         const lastDay = new Date(year, monthNum, 0).getDate();
-        const endDate = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}T23:59:59`;
+        const endDate = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}T23:59:59+05:30`;
         query = query.gte('created_at', startDate).lte('created_at', endDate);
       }
 
       // 4. Date range filter
       if (dateFrom) {
-        query = query.gte('created_at', dateFrom);
+        query = query.gte('created_at', `${dateFrom}T00:00:00+05:30`);
       }
       if (dateTo) {
-        query = query.lte('created_at', dateTo + 'T23:59:59');
+        query = query.lte('created_at', `${dateTo}T23:59:59+05:30`);
       }
 
       // 5. Team member filter

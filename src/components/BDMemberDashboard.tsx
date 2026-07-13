@@ -16,6 +16,7 @@ import { Users, Plus, CheckCircle, UserPlus, AlertTriangle, CheckCircle2, Clock,
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import LeadDetailDialog from './LeadDetailDialog';
 import { normalizeSource } from '@/lib/leads';
+import { getISTYearAndMonth, getISTDateString, formatToISTDateString } from '@/lib/dateUtils';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend
@@ -23,29 +24,7 @@ import {
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
-const formatDate = (dateString?: string) => {
-  if (!dateString) return '—';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-    const [year, month, day] = dateString.split('-').map(Number);
-    return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
-  }
-  const d = new Date(dateString);
-  if (isNaN(d.getTime())) return '—';
-  try {
-    const formatter = new Intl.DateTimeFormat('en-IN', {
-      timeZone: 'Asia/Kolkata',
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-    return formatter.format(d);
-  } catch (e) {
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    return `${day}/${month}/${year}`;
-  }
-};
+const formatDate = (dateString?: string) => formatToISTDateString(dateString);
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -58,7 +37,7 @@ const BDMemberDashboard: React.FC = () => {
   const [detailsLead, setDetailsLead] = useState<any>(null);
   const [monthFilter, setMonthFilter] = useState(() => {
     const saved = localStorage.getItem('netbounce_crm_month_filter_month_num');
-    return saved || String(new Date().getMonth() + 1);
+    return saved || String(getISTYearAndMonth(new Date()).month);
   });
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -105,20 +84,20 @@ const BDMemberDashboard: React.FC = () => {
 
       // Apply month filter
       if (monthFilter !== 'all') {
-        const year = new Date().getFullYear();
+        const year = getISTYearAndMonth(new Date()).year;
         const monthNum = parseInt(monthFilter);
-        const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01T00:00:00`;
+        const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01T00:00:00+05:30`;
         const lastDay = new Date(year, monthNum, 0).getDate();
-        const endDate = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}T23:59:59`;
+        const endDate = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}T23:59:59+05:30`;
         query = query.gte('created_at', startDate).lte('created_at', endDate);
       }
 
       // Apply date range filters
       if (dateFrom) {
-        query = query.gte('created_at', dateFrom);
+        query = query.gte('created_at', `${dateFrom}T00:00:00+05:30`);
       }
       if (dateTo) {
-        query = query.lte('created_at', dateTo + 'T23:59:59');
+        query = query.lte('created_at', `${dateTo}T23:59:59+05:30`);
       }
 
       const from = (page - 1) * PAGE_SIZE;
@@ -162,20 +141,20 @@ const BDMemberDashboard: React.FC = () => {
 
       // Apply month filter
       if (monthFilter !== 'all') {
-        const year = new Date().getFullYear();
+        const year = getISTYearAndMonth(new Date()).year;
         const monthNum = parseInt(monthFilter);
-        const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01T00:00:00`;
+        const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01T00:00:00+05:30`;
         const lastDay = new Date(year, monthNum, 0).getDate();
-        const endDate = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}T23:59:59`;
+        const endDate = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}T23:59:59+05:30`;
         query = query.gte('created_at', startDate).lte('created_at', endDate);
       }
 
       // Apply date range filters
       if (dateFrom) {
-        query = query.gte('created_at', dateFrom);
+        query = query.gte('created_at', `${dateFrom}T00:00:00+05:30`);
       }
       if (dateTo) {
-        query = query.lte('created_at', dateTo + 'T23:59:59');
+        query = query.lte('created_at', `${dateTo}T23:59:59+05:30`);
       }
 
       const { data, error } = await query;
@@ -208,9 +187,9 @@ const BDMemberDashboard: React.FC = () => {
   });
 
   // ── KPI Calculations ─────────────────────────────────────
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getISTDateString(new Date());
   const totalLeads = statsLeads.length;
-  const newToday = statsLeads.filter(l => l.created_at.startsWith(todayStr)).length;
+  const newToday = statsLeads.filter(l => getISTDateString(l.created_at) === todayStr).length;
   const assignedLeads = statsLeads.filter(l => l.assigned_to !== null).length;
   const closures = statsLeads.filter(l => l.lead_status === 'Closed').length;
 
@@ -221,7 +200,7 @@ const BDMemberDashboard: React.FC = () => {
     let hot = 0, cold = 0;
 
     statsLeads.forEach(l => {
-      const date = l.created_at.split('T')[0];
+      const date = getISTDateString(l.created_at);
       dailyMap[date] = (dailyMap[date] || 0) + 1;
       const src = normalizeSource(l.lead_source);
       sourceMap[src] = (sourceMap[src] || 0) + 1;

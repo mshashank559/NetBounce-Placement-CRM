@@ -19,33 +19,11 @@ import LeadDetailDialog from '@/components/LeadDetailDialog';
 import CallActivityDialog from '@/components/CallActivityDialog';
 import ClosureDialog from '@/components/ClosureDialog';
 import AccountantCommentDialog from '@/components/AccountantCommentDialog';
-import { getWorkingDaysDifference } from '@/lib/dateUtils';
+import { getWorkingDaysDifference, getISTYearAndMonth, getISTDateString, formatToISTDateString } from '@/lib/dateUtils';
 
 const ALL_STATUSES = ['New', 'DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', 'Hot Prospect', 'Closed', 'Non Interested'];
 
-const formatDate = (dateString?: string) => {
-  if (!dateString) return '—';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-    const [year, month, day] = dateString.split('-').map(Number);
-    return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
-  }
-  const d = new Date(dateString);
-  if (isNaN(d.getTime())) return '—';
-  try {
-    const formatter = new Intl.DateTimeFormat('en-IN', {
-      timeZone: 'Asia/Kolkata',
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-    return formatter.format(d);
-  } catch (e) {
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    return `${day}/${month}/${year}`;
-  }
-};
+const formatDate = (dateString?: string) => formatToISTDateString(dateString);
 
 const STATUS_FLOW: Record<string, string[]> = {
   'New':          ALL_STATUSES,
@@ -92,7 +70,7 @@ const SalesMemberDashboard: React.FC = () => {
   const [viewMode, setViewMode] = useState<'personal' | 'global'>('personal');
   const [monthFilter, setMonthFilter] = useState(() => {
     const saved = localStorage.getItem('netbounce_crm_month_filter_month_num');
-    return saved || String(new Date().getMonth() + 1);
+    return saved || String(getISTYearAndMonth(new Date()).month);
   });
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -338,20 +316,20 @@ const SalesMemberDashboard: React.FC = () => {
 
       // Apply month filter
       if (monthFilter !== 'all') {
-        const year = new Date().getFullYear();
+        const year = getISTYearAndMonth(new Date()).year;
         const monthNum = parseInt(monthFilter);
-        const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01T00:00:00`;
+        const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01T00:00:00+05:30`;
         const lastDay = new Date(year, monthNum, 0).getDate();
-        const endDate = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}T23:59:59`;
+        const endDate = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}T23:59:59+05:30`;
         query = query.gte('created_at', startDate).lte('created_at', endDate);
       }
 
       // Apply date range filters
       if (dateFrom) {
-        query = query.gte('created_at', dateFrom);
+        query = query.gte('created_at', `${dateFrom}T00:00:00+05:30`);
       }
       if (dateTo) {
-        query = query.lte('created_at', dateTo + 'T23:59:59');
+        query = query.lte('created_at', `${dateTo}T23:59:59+05:30`);
       }
 
       // Apply global filters
@@ -416,20 +394,20 @@ const SalesMemberDashboard: React.FC = () => {
 
       // Apply month filter
       if (monthFilter !== 'all') {
-        const year = new Date().getFullYear();
+        const year = getISTYearAndMonth(new Date()).year;
         const monthNum = parseInt(monthFilter);
-        const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01T00:00:00`;
+        const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01T00:00:00+05:30`;
         const lastDay = new Date(year, monthNum, 0).getDate();
-        const endDate = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}T23:59:59`;
+        const endDate = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}T23:59:59+05:30`;
         query = query.gte('created_at', startDate).lte('created_at', endDate);
       }
 
       // Apply date range filters
       if (dateFrom) {
-        query = query.gte('created_at', dateFrom);
+        query = query.gte('created_at', `${dateFrom}T00:00:00+05:30`);
       }
       if (dateTo) {
-        query = query.lte('created_at', dateTo + 'T23:59:59');
+        query = query.lte('created_at', `${dateTo}T23:59:59+05:30`);
       }
 
       // Apply global filters
@@ -507,14 +485,15 @@ const SalesMemberDashboard: React.FC = () => {
     enabled: !!user,
   });
 
-  // ── KPIs ──
-  const today = new Date().toISOString().split('T')[0];
+  const today = getISTDateString(new Date());
   const activeLeads = statsLeads.filter(l => l.lead_status !== 'Closed').length;
   const closures = statsLeads.filter(l => l.lead_status === 'Closed').length;
   const todayCalls = callLogs.filter(c => c.call_date === today).reduce((s, c) => s + (c.call_count || 0), 0);
+  const currentISTMonth = getISTYearAndMonth(new Date()).month;
+  const targetMonth = parseInt(monthFilter === 'all' ? String(currentISTMonth) : monthFilter);
   const monthCallLogs = callLogs.filter(c => {
-    const m = new Date(c.call_date + 'T00:00:00').getMonth() + 1;
-    return m === parseInt(monthFilter === 'all' ? String(new Date().getMonth() + 1) : monthFilter);
+    const m = getISTYearAndMonth(c.call_date + 'T00:00:00').month;
+    return m === targetMonth;
   });
   const monthlyCalls = monthCallLogs.reduce((s, c) => s + (c.call_count || 0), 0);
 

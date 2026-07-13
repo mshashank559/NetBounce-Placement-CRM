@@ -444,6 +444,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
       queryClient.invalidateQueries({ queryKey: ['all-closures'] });
       queryClient.invalidateQueries({ queryKey: ['closure', lead.unique_id] });
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['revenue-closures'] });
 
       // Compute next follow-up date based on status delay
       let delayDays = 1;

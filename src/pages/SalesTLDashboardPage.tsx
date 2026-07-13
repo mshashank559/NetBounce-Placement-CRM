@@ -9,14 +9,16 @@ import { Badge } from '@/components/ui/badge';
 import { Phone, Users, CheckCircle, DollarSign, RefreshCw, Eye, LayoutDashboard, User } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
+import { getISTYearAndMonth, getISTDateString } from '@/lib/dateUtils';
+
 const SalesTLDashboardPage: React.FC = () => {
   const { user, role } = useAuth();
   const [viewMode, setViewMode] = useState('team'); // 'personal' or 'team'
   const [monthFilter, setMonthFilter] = useState(() => {
     const saved = localStorage.getItem('netbounce_crm_month_filter_yyyy_mm');
     if (saved) return saved;
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const { year, month } = getISTYearAndMonth(new Date());
+    return `${year}-${String(month).padStart(2, '0')}`;
   });
 
   const { data: salesMembers } = useQuery({
@@ -106,7 +108,7 @@ const SalesTLDashboardPage: React.FC = () => {
     enabled: !!user && !!role,
   });
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = getISTDateString(new Date());
   const [filterYear, filterMonth] = monthFilter.split('-').map(Number);
 
   const memberStats = useMemo(() => {
@@ -119,14 +121,14 @@ const SalesTLDashboardPage: React.FC = () => {
 
       const todayCalls = memberCalls.filter(c => c.call_date === today).reduce((s, c) => s + (c.call_count || 0), 0);
       const monthlyCalls = memberCalls.filter(c => {
-        const d = new Date(c.call_date);
-        return d.getFullYear() === filterYear && d.getMonth() + 1 === filterMonth;
+        const ist = getISTYearAndMonth(c.call_date + 'T00:00:00');
+        return ist.year === filterYear && ist.month === filterMonth;
       }).reduce((s, c) => s + (c.call_count || 0), 0);
 
-      const leadsToday = memberLeads.filter(l => l.created_at?.startsWith(today)).length;
+      const leadsToday = memberLeads.filter(l => getISTDateString(l.created_at) === today).length;
       const leadsMonth = memberLeads.filter(l => {
-        const d = new Date(l.created_at);
-        return d.getFullYear() === filterYear && d.getMonth() + 1 === filterMonth;
+        const ist = getISTYearAndMonth(l.created_at);
+        return ist.year === filterYear && ist.month === filterMonth;
       }).length;
 
       const statusBreakdown: Record<string, number> = {};

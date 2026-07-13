@@ -277,6 +277,7 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
       queryClient.invalidateQueries({ queryKey: ['closure', lead.unique_id] });
       queryClient.invalidateQueries({ queryKey: ['all-closures'] });
+      queryClient.invalidateQueries({ queryKey: ['revenue-closures'] });
       onClose();
     },
     onError: (err: Error) => toast.error(err.message),
