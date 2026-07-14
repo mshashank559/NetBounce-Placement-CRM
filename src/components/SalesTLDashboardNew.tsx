@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { TrendingUp, CheckCircle, Phone, DollarSign, AlertTriangle, Clock, UserPlus, Eye, Search, RefreshCw } from 'lucide-react';
 import LeadDetailDialog from './LeadDetailDialog';
-import { getWorkingDaysDifference, getISTYearAndMonth, getISTDateString, formatToISTDateString } from '@/lib/dateUtils';
+import { getWorkingDaysDifference, getISTYearAndMonth, getISTDateString, formatToISTDateString, isInCurrentShift } from '@/lib/dateUtils';
 import {
   LineChart, Line, BarChart, Bar, LabelList,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Cell
@@ -307,9 +307,9 @@ const SalesTLDashboard: React.FC = () => {
 
   const todayCalls = useMemo(() => {
     return callLogs
-      .filter(c => c.call_date === today && filteredLeadIds.has(c.lead_id))
+      .filter(c => isInCurrentShift(c.call_date + 'T00:00:00') && filteredLeadIds.has(c.lead_id))
       .reduce((s, c) => s + (c.call_count || 0), 0);
-  }, [callLogs, today, filteredLeadIds]);
+  }, [callLogs, filteredLeadIds]);
 
   const revenue = useMemo(() => {
     return closureData
@@ -739,7 +739,7 @@ const SalesTLDashboard: React.FC = () => {
                     const targetMonth = parseInt(monthFilter === 'all' ? String(currentISTMonth) : monthFilter);
                     const mMonthLeads = mLeads.filter(l => getISTYearAndMonth(l.created_at).month === targetMonth);
                     const mClosed = mLeads.filter(l => l.lead_status === 'Closed').length;
-                    const mDailyCalls = callLogs.filter(c => c.user_id === m.user_id && c.call_date === today).reduce((s, c) => s + (c.call_count || 0), 0);
+                    const mDailyCalls = callLogs.filter(c => c.user_id === m.user_id && isInCurrentShift(c.call_date + 'T00:00:00')).reduce((s, c) => s + (c.call_count || 0), 0);
                     const mMonthlyCalls = callLogs.filter(c => c.user_id === m.user_id && getISTYearAndMonth(c.call_date + 'T00:00:00').month === targetMonth).reduce((s, c) => s + (c.call_count || 0), 0);
                     const convRate = mLeads.length > 0 ? ((mClosed / mLeads.length) * 100).toFixed(1) : '0.0';
                     const isInactive = mDailyCalls === 0;

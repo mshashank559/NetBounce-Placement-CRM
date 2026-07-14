@@ -16,7 +16,7 @@ import { Users, Plus, CheckCircle, UserPlus, AlertTriangle, CheckCircle2, Clock,
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import LeadDetailDialog from './LeadDetailDialog';
 import { normalizeSource } from '@/lib/leads';
-import { getISTYearAndMonth, getISTDateString, formatToISTDateString } from '@/lib/dateUtils';
+import { getISTYearAndMonth, getISTDateString, formatToISTDateString, isInCurrentShift } from '@/lib/dateUtils';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend
@@ -187,9 +187,9 @@ const BDMemberDashboard: React.FC = () => {
   });
 
   // ── KPI Calculations ─────────────────────────────────────
-  const todayStr = getISTDateString(new Date());
   const totalLeads = statsLeads.length;
-  const newToday = statsLeads.filter(l => getISTDateString(l.created_at) === todayStr).length;
+  // Use shift-window boundary (7:30 PM IST rollover) instead of calendar midnight
+  const newToday = statsLeads.filter(l => isInCurrentShift(l.created_at)).length;
   const assignedLeads = statsLeads.filter(l => l.assigned_to !== null).length;
   const closures = statsLeads.filter(l => l.lead_status === 'Closed').length;
 

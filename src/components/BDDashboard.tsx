@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { Users, TrendingUp, CheckCircle, Plus, AlertTriangle, UserPlus, Shuffle, Clock, Eye } from 'lucide-react';
 import LeadDetailDialog from './LeadDetailDialog';
-import { getISTYearAndMonth, getISTDateString, formatToISTDateString } from '@/lib/dateUtils';
+import { getISTYearAndMonth, getISTDateString, formatToISTDateString, isInCurrentShift } from '@/lib/dateUtils';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
@@ -203,8 +203,7 @@ const BDDashboard: React.FC = () => {
     
     return bdUsers.map(p => {
       const pLeads = leads.filter(l => l.lead_generated_by === p.user_id);
-      const today = getISTDateString(new Date());
-      const dailyAdded = pLeads.filter(l => getISTDateString(l.created_at) === today).length;
+      const dailyAdded = pLeads.filter(l => isInCurrentShift(l.created_at)).length;
       const targetMonth = monthFilter === 'all' ? getISTYearAndMonth(new Date()).month : parseInt(monthFilter);
       const monthlyAdded = pLeads.filter(l => getISTYearAndMonth(l.created_at).month === targetMonth).length;
       const converted = pLeads.filter(l => l.lead_status === 'Closed').length;

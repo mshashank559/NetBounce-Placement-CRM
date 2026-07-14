@@ -19,7 +19,7 @@ import LeadDetailDialog from '@/components/LeadDetailDialog';
 import CallActivityDialog from '@/components/CallActivityDialog';
 import ClosureDialog from '@/components/ClosureDialog';
 import AccountantCommentDialog from '@/components/AccountantCommentDialog';
-import { getWorkingDaysDifference, getISTYearAndMonth, getISTDateString, formatToISTDateString } from '@/lib/dateUtils';
+import { getWorkingDaysDifference, getISTYearAndMonth, getISTDateString, formatToISTDateString, isInCurrentShift } from '@/lib/dateUtils';
 
 const ALL_STATUSES = ['New', 'DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', 'Hot Prospect', 'Closed', 'Non Interested'];
 
@@ -488,7 +488,7 @@ const SalesMemberDashboard: React.FC = () => {
   const today = getISTDateString(new Date());
   const activeLeads = statsLeads.filter(l => l.lead_status !== 'Closed').length;
   const closures = statsLeads.filter(l => l.lead_status === 'Closed').length;
-  const todayCalls = callLogs.filter(c => c.call_date === today).reduce((s, c) => s + (c.call_count || 0), 0);
+  const todayCalls = callLogs.filter(c => isInCurrentShift(c.call_date + 'T00:00:00')).reduce((s, c) => s + (c.call_count || 0), 0);
   const currentISTMonth = getISTYearAndMonth(new Date()).month;
   const targetMonth = parseInt(monthFilter === 'all' ? String(currentISTMonth) : monthFilter);
   const monthCallLogs = callLogs.filter(c => {
