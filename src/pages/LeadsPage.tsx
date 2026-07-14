@@ -1113,7 +1113,7 @@ const LeadsPage: React.FC = () => {
                         {/* ── Next Follow-up ── */}
                         <td className="p-3 text-xs font-medium whitespace-nowrap">
                           {lead.next_followup_date ? (
-                            <span className={lead.next_followup_date < new Date().toISOString().split('T')[0] ? 'text-red-500 font-semibold' : lead.next_followup_date === new Date().toISOString().split('T')[0] ? 'text-amber-600 font-semibold' : 'text-muted-foreground'}>
+                            <span className={lead.next_followup_date < getISTDateString(new Date()) ? 'text-red-500 font-semibold' : lead.next_followup_date === getISTDateString(new Date()) ? 'text-amber-600 font-semibold' : 'text-muted-foreground'}>
                               {formatDate(lead.next_followup_date)}
                             </span>
                           ) : '—'}

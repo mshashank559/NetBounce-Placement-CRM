@@ -12,6 +12,7 @@ import { Phone, Send, FileText, Plus, Trash2, Calendar } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
+import { getISTDateString } from '@/lib/dateUtils';
 
 interface CallActivityDialogProps {
   lead: any;
@@ -168,7 +169,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
         throw new Error('Document remarks are required when Send Document is checked');
       }
 
-      const todayDate = new Date().toISOString().split('T')[0];
+      const todayDate = getISTDateString(new Date());
 
       // 1. Log the call only if the communication method is 'Call'
       if (wayOfContact.toLowerCase() === 'call') {

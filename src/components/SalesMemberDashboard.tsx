@@ -492,7 +492,7 @@ const SalesMemberDashboard: React.FC = () => {
   const currentISTMonth = getISTYearAndMonth(new Date()).month;
   const targetMonth = parseInt(monthFilter === 'all' ? String(currentISTMonth) : monthFilter);
   const monthCallLogs = callLogs.filter(c => {
-    const m = getISTYearAndMonth(c.call_date + 'T00:00:00').month;
+    const m = parseInt(c.call_date.split('-')[1], 10);
     return m === targetMonth;
   });
   const monthlyCalls = monthCallLogs.reduce((s, c) => s + (c.call_count || 0), 0);
@@ -538,8 +538,7 @@ const SalesMemberDashboard: React.FC = () => {
     if ((l as any).dnr_followup_done || ['Closed', 'Non Interested'].includes(status)) return false;
 
     const now = new Date();
-    const start = new Date(updatedDate.getFullYear(), updatedDate.getMonth(), updatedDate.getDate());
-    const days = getWorkingDaysDifference(start, now);
+    const days = getWorkingDaysDifference(updatedDate, now);
 
     const threshold = getStatusThreshold(status);
     return threshold !== null && days === threshold;

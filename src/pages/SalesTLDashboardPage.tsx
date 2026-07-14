@@ -123,8 +123,10 @@ const SalesTLDashboardPage: React.FC = () => {
         .filter(c => c.call_date === today)
         .reduce((s, c) => s + (c.call_count || 0), 0);
       const monthlyCalls = memberCalls.filter(c => {
-        const ist = getISTYearAndMonth(c.call_date + 'T00:00:00');
-        return ist.year === filterYear && ist.month === filterMonth;
+        const parts = c.call_date.split('-');
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        return y === filterYear && m === filterMonth;
       }).reduce((s, c) => s + (c.call_count || 0), 0);
 
       const leadsToday = memberLeads.filter(l => getISTDateString(l.created_at) === today).length;

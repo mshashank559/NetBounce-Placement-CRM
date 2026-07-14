@@ -740,7 +740,7 @@ const SalesTLDashboard: React.FC = () => {
                     const mMonthLeads = mLeads.filter(l => getISTYearAndMonth(l.created_at).month === targetMonth);
                     const mClosed = mLeads.filter(l => l.lead_status === 'Closed').length;
                     const mDailyCalls = callLogs.filter(c => c.user_id === m.user_id && c.call_date === today).reduce((s, c) => s + (c.call_count || 0), 0);
-                    const mMonthlyCalls = callLogs.filter(c => c.user_id === m.user_id && getISTYearAndMonth(c.call_date + 'T00:00:00').month === targetMonth).reduce((s, c) => s + (c.call_count || 0), 0);
+                    const mMonthlyCalls = callLogs.filter(c => c.user_id === m.user_id && parseInt(c.call_date.split('-')[1], 10) === targetMonth).reduce((s, c) => s + (c.call_count || 0), 0);
                     const convRate = mLeads.length > 0 ? ((mClosed / mLeads.length) * 100).toFixed(1) : '0.0';
                     const isInactive = mDailyCalls === 0;
                     const isTop = mClosed >= 3;
