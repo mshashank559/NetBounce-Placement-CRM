@@ -139,6 +139,8 @@ const ProcessAnalystDashboard: React.FC = () => {
   const [globalSalesMemberFilter, setGlobalSalesMemberFilter] = useState('all');
   const [leadsPage, setLeadsPage] = useState(1);
   const PAGE_SIZE = 50;
+  const [notifPage, setNotifPage] = useState(1);
+  const NOTIF_PAGE_SIZE = 10;
 
   React.useEffect(() => {
     setLeadsPage(1);
@@ -186,14 +188,23 @@ const ProcessAnalystDashboard: React.FC = () => {
     },
   });
 
-  const { data: notifications } = useQuery({
-    queryKey: ['all-notifications-pa'],
+  const { data: notificationsData } = useQuery({
+    queryKey: ['all-notifications-pa', notifPage],
     queryFn: async () => {
-      const { data, error } = await supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(50);
+      const from = (notifPage - 1) * NOTIF_PAGE_SIZE;
+      const to = from + NOTIF_PAGE_SIZE - 1;
+      const { data, count, error } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to);
       if (error) throw error;
-      return data || [];
+      return { list: data || [], totalCount: count || 0 };
     },
   });
+
+  const notifications = notificationsData?.list || [];
+  const notificationsTotalCount = notificationsData?.totalCount || 0;
 
   const { data: concerns } = useQuery({
     queryKey: ['all-concerns-pa'],
@@ -520,7 +531,65 @@ const ProcessAnalystDashboard: React.FC = () => {
               <Card className="glass-card border-red-500/20 bg-red-500/5"><CardHeader className="pb-2 text-red-500 flex flex-row items-center justify-between"><CardTitle className="text-lg font-display flex items-center gap-2"><Clock className="h-5 w-5" /> SLA Monitoring</CardTitle><Badge variant="destructive" className="animate-pulse">{slaAlerts.length} Alerts</Badge></CardHeader><CardContent className="p-0"><div className="max-h-[350px] overflow-y-auto"><Table><TableHeader className="bg-red-500/10"><TableRow><TableHead className="text-xs">Lead</TableHead><TableHead className="text-xs">Assigned</TableHead><TableHead className="text-xs text-right">Status</TableHead></TableRow></TableHeader><TableBody>{slaAlerts.slice(0, 10).map(l => (<TableRow key={l.unique_id} className="border-red-500/10"><TableCell className="text-xs font-bold">{l.name}</TableCell><TableCell className="text-xs">{allUsers.find(u => u.user_id === l.assigned_to)?.full_name || 'Unassigned'}</TableCell><TableCell className="text-right text-[10px] font-bold text-red-500">INACTIVE</TableCell></TableRow>))}</TableBody></Table></div></CardContent></Card>
               <Card className="glass-card border-amber-500/20 bg-amber-500/5"><CardHeader className="pb-2 text-amber-500"><CardTitle className="text-lg font-display flex items-center gap-2"><AlertTriangle className="h-5 w-5" /> Concern Center</CardTitle></CardHeader><CardContent className="p-0"><div className="max-h-[350px] overflow-y-auto"><Table><TableHeader className="bg-amber-500/10"><TableRow><TableHead className="text-xs">Lead</TableHead><TableHead className="text-xs">Issue</TableHead></TableRow></TableHeader><TableBody>{concerns?.slice(0, 10).map(c => (<TableRow key={c.id} className="border-amber-500/10"><TableCell className="text-xs font-bold">{leads?.find(l => l.unique_id === c.lead_id)?.name || 'Unknown'}</TableCell><TableCell className="text-xs italic">"{c.description}"</TableCell></TableRow>))}</TableBody></Table></div></CardContent></Card>
             </div>
-            <Card className="glass-card"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><Bell className="h-5 w-5 text-primary animate-bell-shake" /> Notification Monitoring</CardTitle></CardHeader><CardContent className="p-0"><div className="max-h-[400px] overflow-y-auto divide-y divide-border/50">{notifications?.slice(0, 20).map(n => (<div key={n.id} className="p-4 hover:bg-accent/20 flex items-start gap-4"><div className="p-2 rounded-full bg-primary/10 text-primary"><Activity className="h-4 w-4" /></div><div className="flex-1"><p className="text-sm font-bold">{n.title}</p><p className="text-xs text-muted-foreground">{n.message}</p><p className="text-[9px] text-muted-foreground mt-1 font-mono uppercase">{formatISTLong(n.created_at)}</p></div></div>))}</div></CardContent></Card>
+            <Card className="glass-card">
+              <CardHeader>
+                <CardTitle className="text-lg font-display flex items-center gap-2">
+                  <Bell className="h-5 w-5 text-primary animate-bell-shake" /> Notification Monitoring
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0 flex flex-col">
+                <div className="max-h-[400px] overflow-y-auto divide-y divide-border/50 flex-1">
+                  {notifications.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-muted-foreground">No notifications</div>
+                  ) : (
+                    notifications.map(n => (
+                      <div key={n.id} className="p-4 hover:bg-accent/20 flex items-start gap-4">
+                        <div className="p-2 rounded-full bg-primary/10 text-primary">
+                          <Activity className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-bold">{n.title}</p>
+                          <p className="text-xs text-muted-foreground">{n.message}</p>
+                          <p className="text-[9px] text-muted-foreground mt-1 font-mono uppercase">
+                            {formatISTLong(n.created_at)}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                {notificationsTotalCount > NOTIF_PAGE_SIZE && (
+                  <div className="flex justify-between items-center p-3 border-t border-border flex-wrap gap-2 bg-accent/5">
+                    <span className="text-[10px] text-muted-foreground">
+                      Showing {Math.min(notificationsTotalCount, (notifPage - 1) * NOTIF_PAGE_SIZE + 1)} to {Math.min(notificationsTotalCount, notifPage * NOTIF_PAGE_SIZE)} of {notificationsTotalCount}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs px-2"
+                        disabled={notifPage === 1}
+                        onClick={() => setNotifPage(p => Math.max(1, p - 1))}
+                      >
+                        Prev
+                      </Button>
+                      <span className="text-[10px] font-medium px-1">
+                        Page {notifPage} of {Math.ceil(notificationsTotalCount / NOTIF_PAGE_SIZE)}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs px-2"
+                        disabled={notifPage * NOTIF_PAGE_SIZE >= notificationsTotalCount}
+                        onClick={() => setNotifPage(p => p + 1)}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </motion.div>
         )}
       </AnimatePresence>

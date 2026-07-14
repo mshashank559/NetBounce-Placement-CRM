@@ -28,19 +28,57 @@ const NotificationsPage: React.FC = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 20;
 
-  const { data: notifications } = useQuery({
-    queryKey: ['notifications', user?.id],
+  const { data, isLoading } = useQuery({
+    queryKey: ['notifications', user?.id, currentPage, filterType, dateFrom, dateTo],
     queryFn: async () => {
-      const { data } = await supabase
+      let query = supabase
         .from('notifications')
-        .select('*')
+        .select('*', { count: 'exact' })
         .eq('user_id', user!.id)
         .order('created_at', { ascending: false });
-      return data || [];
+
+      if (dateFrom) {
+        query = query.gte('created_at', `${dateFrom}T00:00:00`);
+      }
+      if (dateTo) {
+        query = query.lte('created_at', `${dateTo}T23:59:59`);
+      }
+
+      if (filterType !== 'all') {
+        if (filterType === 'DNR Updates') {
+          query = query.eq('type', 'dnr');
+        } else if (filterType === 'Lead Added') {
+          query = query.in('type', ['new_lead', 'lead_added']);
+        } else if (filterType === 'Lead Closed') {
+          query = query.eq('type', 'closure');
+        } else if (filterType === 'Revenue') {
+          query = query.eq('type', 'revenue');
+        } else if (filterType === 'Follow-ups') {
+          query = query.eq('type', 'followup');
+        } else if (filterType === 'Document Updates') {
+          query = query.eq('type', 'accountant_update');
+        } else if (filterType === 'SLA Alerts') {
+          query = query.like('title', '%SLA Alert%');
+        } else {
+          query = query.eq('type', filterType);
+        }
+      }
+
+      const from = (currentPage - 1) * pageSize;
+      const to = from + pageSize - 1;
+      const { data: dbData, count, error } = await query.range(from, to);
+
+      if (error) throw error;
+      return { list: dbData || [], totalCount: count || 0 };
     },
     enabled: !!user,
   });
+
+  const notificationsList = data?.list || [];
+  const totalCount = data?.totalCount || 0;
 
   const markRead = useMutation({
     mutationFn: async (id: string) => {
@@ -104,26 +142,6 @@ const NotificationsPage: React.FC = () => {
     toggleSelection(n.id);
   };
 
-  const filteredNotifications = notifications?.filter(n => {
-    // Filter by date range
-    if (n.created_at) {
-      const createdDate = new Date(n.created_at);
-      if (dateFrom && createdDate < new Date(dateFrom)) return false;
-      if (dateTo && createdDate > new Date(dateTo + 'T23:59:59')) return false;
-    }
-
-    // Filter by type
-    if (filterType === 'all') return true;
-    if (filterType === 'DNR Updates') return n.type === 'dnr';
-    if (filterType === 'Lead Added') return n.type === 'new_lead' || n.type === 'lead_added';
-    if (filterType === 'Lead Closed') return n.type === 'closure';
-    if (filterType === 'Revenue') return n.type === 'revenue';
-    if (filterType === 'Follow-ups') return n.type === 'followup';
-    if (filterType === 'Document Updates') return n.type === 'accountant_update';
-    if (filterType === 'SLA Alerts') return !!(n.title && n.title.includes('SLA Alert'));
-    return n.type === filterType;
-  });
-
   const toggleSelection = (id: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
@@ -133,14 +151,14 @@ const NotificationsPage: React.FC = () => {
     });
   };
 
-  const isAllSelected = filteredNotifications && filteredNotifications.length > 0 && filteredNotifications.every(n => selectedIds.has(n.id));
+  const isAllSelected = notificationsList && notificationsList.length > 0 && notificationsList.every(n => selectedIds.has(n.id));
 
   const toggleSelectAll = () => {
-    if (!filteredNotifications) return;
+    if (!notificationsList) return;
     if (isAllSelected) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredNotifications.map(n => n.id)));
+      setSelectedIds(new Set(notificationsList.map(n => n.id)));
     }
   };
 
@@ -154,7 +172,7 @@ const NotificationsPage: React.FC = () => {
             <Input
               type="date"
               value={dateFrom}
-              onChange={e => setDateFrom(e.target.value)}
+              onChange={e => { setDateFrom(e.target.value); setCurrentPage(1); }}
               className="w-[130px] h-7 text-xs border-0 bg-transparent pl-1 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm"
               title="From date"
             />
@@ -162,7 +180,7 @@ const NotificationsPage: React.FC = () => {
             <Input
               type="date"
               value={dateTo}
-              onChange={e => setDateTo(e.target.value)}
+              onChange={e => { setDateTo(e.target.value); setCurrentPage(1); }}
               className="w-[130px] h-7 text-xs border-0 bg-transparent pl-1 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm"
               title="To date"
             />
@@ -171,6 +189,7 @@ const NotificationsPage: React.FC = () => {
             value={filterType}
             onValueChange={(val) => {
               setFilterType(val);
+              setCurrentPage(1);
               setSelectedIds(new Set());
             }}
           >
@@ -197,7 +216,7 @@ const NotificationsPage: React.FC = () => {
       <Card className="glass-card">
         <CardContent className="p-4">
           {/* Select All & Bulk Actions Bar */}
-          {filteredNotifications && filteredNotifications.length > 0 && (
+          {notificationsList && notificationsList.length > 0 && (
             <div className="flex items-center justify-between mb-3 pb-3 border-b border-border/60">
               <div className="flex items-center gap-2">
                 <Checkbox
@@ -206,7 +225,7 @@ const NotificationsPage: React.FC = () => {
                   onCheckedChange={toggleSelectAll}
                 />
                 <label htmlFor="select-all-notifications" className="text-xs font-medium text-muted-foreground cursor-pointer select-none">
-                  Select All ({filteredNotifications.length})
+                  Select All ({notificationsList.length})
                 </label>
               </div>
               <AnimatePresence>
@@ -244,14 +263,19 @@ const NotificationsPage: React.FC = () => {
             </div>
           )}
 
-          {!filteredNotifications?.length ? (
+          {isLoading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+              <p className="text-xs text-muted-foreground mt-2">Loading notifications...</p>
+            </div>
+          ) : !notificationsList?.length ? (
             <div className="text-center py-8 text-muted-foreground">
               <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
               <p>No notifications</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {filteredNotifications.map((n, i) => (
+              {notificationsList.map((n, i) => (
                 <motion.div
                   key={n.id}
                   initial={{ opacity: 0, x: -10 }}
@@ -306,6 +330,36 @@ const NotificationsPage: React.FC = () => {
                   </div>
                 </motion.div>
               ))}
+
+              {/* Pagination controls */}
+              {totalCount > pageSize && (
+                <div className="flex justify-between items-center pt-4 border-t border-border flex-wrap gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    Showing {Math.min(totalCount, (currentPage - 1) * pageSize + 1)} to {Math.min(totalCount, currentPage * pageSize)} of {totalCount} notifications
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-xs font-medium">
+                      Page {currentPage} of {Math.ceil(totalCount / pageSize) || 1}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={currentPage * pageSize >= totalCount}
+                      onClick={() => setCurrentPage(p => p + 1)}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
