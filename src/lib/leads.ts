@@ -4,48 +4,16 @@ import { supabase } from "@/integrations/supabase/client";
  * Fetches all leads from the database, handling Supabase's default 1000-row pagination limit.
  */
 export async function fetchAllLeads() {
-  const { count, error: countErr } = await supabase
-    .from('leads')
-    .select('*', { count: 'exact', head: true });
+  const { data, error } = await supabase.rpc('get_leads_v2');
 
-  if (countErr) {
-    console.error("Error fetching leads count:", countErr);
-    throw countErr;
-  }
-  
-  const total = count || 0;
-  if (total === 0) return [];
-
-  const step = 1000;
-  const promises = [];
-
-  for (let from = 0; from < total; from += step) {
-    const to = Math.min(from + step - 1, total - 1);
-    promises.push(
-      supabase
-        .from('leads')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .range(from, to)
-    );
+  if (error) {
+    console.error("Error fetching leads via RPC:", error);
+    throw error;
   }
 
-  const results = await Promise.all(promises);
-  let allLeads: any[] = [];
-  
-  for (const r of results) {
-    if (r.error) {
-      console.error("Error fetching parallel leads range:", r.error);
-      throw r.error;
-    }
-    if (r.data) {
-      allLeads = [...allLeads, ...r.data];
-    }
-  }
-
-  // Ensure items are ordered by created_at descending (newest first)
-  allLeads.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  return allLeads;
+  const sortedLeads = [...(data || [])];
+  sortedLeads.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  return sortedLeads;
 }
 
 /**
