@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
  * Fetches all leads from the database, handling Supabase's default 1000-row pagination limit.
  */
 export async function fetchAllLeads() {
-  const { data, error } = await supabase.rpc('get_leads_v2');
+  const { data, error } = await (supabase.rpc as any)('get_leads_v2');
 
   if (error) {
     console.error("Error fetching leads via RPC:", error);
