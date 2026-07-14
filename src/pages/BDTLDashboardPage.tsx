@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Users, Plus } from 'lucide-react';
 
-import { getISTYearAndMonth, getISTDateString } from '@/lib/dateUtils';
+import { getISTYearAndMonth, isInCurrentShift } from '@/lib/dateUtils';
 
 const BDTLDashboardPage: React.FC = () => {
   const { user, role } = useAuth();
@@ -44,13 +44,13 @@ const BDTLDashboardPage: React.FC = () => {
   });
 
   const [filterYear, filterMonth] = monthFilter.split('-').map(Number);
-  const today = getISTDateString(new Date());
 
   const memberStats = useMemo(() => {
     if (!bdMembers) return [];
     return bdMembers.map(member => {
       const memberLeads = leadStats?.filter(l => l.lead_generated_by === member.user_id) || [];
-      const leadsToday = memberLeads.filter(l => getISTDateString(l.created_at) === today).length;
+      // Use shift-window boundary (7:30 PM IST rollover) instead of calendar midnight
+      const leadsToday = memberLeads.filter(l => isInCurrentShift(l.created_at)).length;
       const leadsMonth = memberLeads.filter(l => {
         const ist = getISTYearAndMonth(l.created_at);
         return ist.year === filterYear && ist.month === filterMonth;
@@ -63,7 +63,7 @@ const BDTLDashboardPage: React.FC = () => {
         leadsMonth,
       };
     });
-  }, [bdMembers, leadStats, today, filterYear, filterMonth]);
+  }, [bdMembers, leadStats, filterYear, filterMonth]);
 
   if (role !== 'LEAD_TL' && role !== 'ADMIN') {
     return <div className="text-center text-muted-foreground p-8">Access denied</div>;

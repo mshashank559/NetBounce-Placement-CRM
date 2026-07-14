@@ -108,3 +108,52 @@ export const getWorkingDaysAgo = (days: number, baseDate: Date | string | number
   }
   return date;
 };
+
+/**
+ * Returns the UTC Date object representing the START of the current operational shift.
+ *
+ * Business logic (Option A — confirmed):
+ *   The working day runs 7:30 PM IST → 7:30 PM IST (next day).
+ *   - If current IST time < 19:30 → shift started at 19:30 the PREVIOUS calendar day.
+ *   - If current IST time ≥ 19:30 → shift started at 19:30 TODAY.
+ *
+ * All "+ Today" counts must use this boundary instead of midnight.
+ */
+export const getShiftStart = (): Date => {
+  // IST = UTC + 5:30
+  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+  // Current time expressed in IST as a plain local-style Date
+  const nowUTC = new Date();
+  const nowIST = new Date(nowUTC.getTime() + IST_OFFSET_MS);
+
+  const hours = nowIST.getUTCHours();
+  const minutes = nowIST.getUTCMinutes();
+  const isPastShiftStart = hours > 19 || (hours === 19 && minutes >= 30);
+
+  // Build a Date representing 19:30 IST on the correct day (in UTC arithmetic)
+  // Start from today midnight UTC-as-IST
+  const shiftDayIST = new Date(nowIST);
+  shiftDayIST.setUTCHours(19, 30, 0, 0); // 19:30 IST expressed as UTC fields
+
+  if (!isPastShiftStart) {
+    // Shift started yesterday: move back one full day
+    shiftDayIST.setUTCDate(shiftDayIST.getUTCDate() - 1);
+  }
+
+  // Convert IST-arithmetic result back to true UTC
+  return new Date(shiftDayIST.getTime() - IST_OFFSET_MS);
+};
+
+/**
+ * Returns true if the given ISO date string falls inside the current operational shift.
+ * Use this everywhere "+ Today" is computed, instead of comparing YYYY-MM-DD strings.
+ *
+ * @param isoDate - Any ISO 8601 string (created_at, updated_at, call_date + 'T00:00:00', …)
+ */
+export const isInCurrentShift = (isoDate: string | null | undefined): boolean => {
+  if (!isoDate) return false;
+  const d = new Date(isoDate);
+  if (isNaN(d.getTime())) return false;
+  return d >= getShiftStart();
+};

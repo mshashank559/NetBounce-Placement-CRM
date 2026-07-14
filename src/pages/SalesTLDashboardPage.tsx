@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Phone, Users, CheckCircle, DollarSign, RefreshCw, Eye, LayoutDashboard, User } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-import { getISTYearAndMonth, getISTDateString } from '@/lib/dateUtils';
+import { getISTYearAndMonth, isInCurrentShift } from '@/lib/dateUtils';
 
 const SalesTLDashboardPage: React.FC = () => {
   const { user, role } = useAuth();
@@ -108,7 +108,6 @@ const SalesTLDashboardPage: React.FC = () => {
     enabled: !!user && !!role,
   });
 
-  const today = getISTDateString(new Date());
   const [filterYear, filterMonth] = monthFilter.split('-').map(Number);
 
   const memberStats = useMemo(() => {
@@ -119,13 +118,16 @@ const SalesTLDashboardPage: React.FC = () => {
       const memberClosedIds = new Set(memberLeads.filter(l => l.lead_status === 'Closed').map(l => l.unique_id));
       const memberClosures = closures?.filter(c => memberClosedIds.has(c.lead_id)) || [];
 
-      const todayCalls = memberCalls.filter(c => c.call_date === today).reduce((s, c) => s + (c.call_count || 0), 0);
+      // Use shift-window boundary (7:30 PM IST rollover) instead of calendar midnight
+      const todayCalls = memberCalls
+        .filter(c => isInCurrentShift(c.call_date + 'T00:00:00'))
+        .reduce((s, c) => s + (c.call_count || 0), 0);
       const monthlyCalls = memberCalls.filter(c => {
         const ist = getISTYearAndMonth(c.call_date + 'T00:00:00');
         return ist.year === filterYear && ist.month === filterMonth;
       }).reduce((s, c) => s + (c.call_count || 0), 0);
 
-      const leadsToday = memberLeads.filter(l => getISTDateString(l.created_at) === today).length;
+      const leadsToday = memberLeads.filter(l => isInCurrentShift(l.created_at)).length;
       const leadsMonth = memberLeads.filter(l => {
         const ist = getISTYearAndMonth(l.created_at);
         return ist.year === filterYear && ist.month === filterMonth;
@@ -164,7 +166,7 @@ const SalesTLDashboardPage: React.FC = () => {
         closedCount: memberClosedIds.size,
       };
     });
-  }, [salesMembers, allLeads, callLogs, closures, today, filterYear, filterMonth]);
+  }, [salesMembers, allLeads, callLogs, closures, filterYear, filterMonth]);
 
   const displayedStats = useMemo(() => {
     if (viewMode === 'personal') {

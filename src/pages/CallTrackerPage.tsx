@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Phone, User, Calendar, MessageSquare, Search } from 'lucide-react';
+import { isInCurrentShift } from '@/lib/dateUtils';
 
 const CallTrackerPage: React.FC = () => {
   const { user, role } = useAuth();
@@ -113,8 +114,6 @@ const CallTrackerPage: React.FC = () => {
 
   // Compute live KPIs dynamically based on what is currently displayed
   const stats = useMemo(() => {
-    const todayStr = new Date().toDateString();
-    
     let todayCalls = 0;
     let totalCalls = 0;
 
@@ -122,8 +121,8 @@ const CallTrackerPage: React.FC = () => {
       const isCall = !item.way_of_contact || item.way_of_contact.trim().toUpperCase() === 'CALL';
       if (isCall) {
         totalCalls++;
-        const itemDate = new Date(item.created_at).toDateString();
-        if (itemDate === todayStr) {
+        // Use shift-window boundary (7:30 PM IST rollover) instead of midnight
+        if (isInCurrentShift(item.created_at)) {
           todayCalls++;
         }
       }
@@ -198,7 +197,7 @@ const CallTrackerPage: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="text-4xl font-display font-bold">{stats.todayCalls}</div>
-              <p className="text-xs text-muted-foreground mt-1.5">Resets automatically at midnight</p>
+              <p className="text-xs text-muted-foreground mt-1.5">Resets at 7:30 PM IST (shift boundary)</p>
             </CardContent>
           </Card>
         </motion.div>
