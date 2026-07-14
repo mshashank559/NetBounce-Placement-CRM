@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchAllLeads } from '@/lib/leads';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
 import { 
   Users, 
   TrendingUp, 
@@ -137,6 +138,7 @@ const ViewSkeleton = () => (
 );
 
 const ProcessAnalystDashboard: React.FC = () => {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('analytics');
   const [monthFilter, setMonthFilter] = useState(() => {
     const saved = localStorage.getItem('netbounce_crm_month_filter_yyyy_mm');
