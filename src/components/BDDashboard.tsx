@@ -187,11 +187,13 @@ const BDDashboard: React.FC = () => {
   }, [leads]);
 
   const displayedLeads = useMemo(() => {
+    // In Global View, always show all leads — the pending filter is irrelevant
+    if (viewMode === 'global') return filteredLeads;
     if (queueTab === 'pending') {
       return filteredLeads.filter(l => l.assignment_type === 'Pending' && l.lead_status !== 'Closed');
     }
     return filteredLeads;
-  }, [filteredLeads, queueTab]);
+  }, [filteredLeads, queueTab, viewMode]);
 
   // ── Team Performance Overview (Section 2) ────────────────
   const teamMetrics = useMemo(() => {
