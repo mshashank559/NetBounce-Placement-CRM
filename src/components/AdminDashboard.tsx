@@ -497,6 +497,7 @@ const AdminDashboard: React.FC = () => {
 
   // SLA Monitoring Logic
   const slaAlerts = useMemo(() => {
+    if (activeTab !== 'monitoring') return [];
     if (!leads) return [];
     const today = new Date();
     const todayStr = getISTDateString(today);
@@ -515,7 +516,7 @@ const AdminDashboard: React.FC = () => {
       const diffDays = Math.floor((todayMs - lastUpdateMs) / (1000 * 60 * 60 * 24));
       return diffDays >= 2;
     });
-  }, [leads]);
+  }, [leads, activeTab]);
 
   // Filtering Logic
   const filteredData = useMemo(() => {
@@ -562,6 +563,7 @@ const AdminDashboard: React.FC = () => {
 
   // Global view — all leads with optional date/search/team filter
   const globalLeads = useMemo(() => {
+    if (activeTab !== 'global') return [];
     if (!leads) return [];
     return leads.filter(l => {
       const leadDateStr = getISTDateString(l.created_at);
@@ -580,7 +582,7 @@ const AdminDashboard: React.FC = () => {
       }
       return true;
     });
-  }, [leads, globalDateFrom, globalDateTo, globalSearch, globalSalesMemberFilter, selectedGenerator]);
+  }, [leads, globalDateFrom, globalDateTo, globalSearch, globalSalesMemberFilter, selectedGenerator, activeTab]);
 
   // Derived lists for Global View filter dropdowns
   const globalSalesMembersList = useMemo(() => {
@@ -594,6 +596,17 @@ const AdminDashboard: React.FC = () => {
 
   // Revenue
   const revenueStats = useMemo(() => {
+    // If server-side stats are already fetched, bypass calculations
+    if (dashboardStats) {
+      return {
+        total: dashboardStats.revenue,
+        team: {
+          Sales: 0,
+          LeadGen: 0
+        }
+      };
+    }
+
     const calcRevenue = (closure: any) => {
       const s1 = closure.slot1 ? (Number(closure.slot1_amount) || 0) : 0;
       const s2 = closure.slot2 ? (Number(closure.slot2_amount) || 0) : 0;
@@ -634,10 +647,13 @@ const AdminDashboard: React.FC = () => {
         LeadGen: leadGenTotal
       }
     };
-  }, [filteredData.closures, allUsers, leadMap]);
+  }, [filteredData.closures, allUsers, leadMap, dashboardStats]);
 
   // Charts
   const analyticsData = useMemo(() => {
+    if (activeTab !== 'analytics') {
+      return { inflow: [], funnel: [], status: [] };
+    }
     const last15Days = Array.from({ length: 15 }).map((_, i) => {
       const d = new Date();
       d.setDate(d.getDate() - (14 - i));
@@ -655,7 +671,7 @@ const AdminDashboard: React.FC = () => {
     const statusMap: Record<string, number> = {};
     leads?.forEach(l => { statusMap[l.lead_status || 'Unknown'] = (statusMap[l.lead_status || 'Unknown'] || 0) + 1; });
     return { inflow: last15Days, funnel: [{ name: 'Total', value: leads?.length || 0 }, { name: 'Qualified', value: leads?.filter(l => l.lead_status === 'Qualified').length || 0 }, { name: 'Hot', value: leads?.filter(l => l.lead_status === 'Hot Prospect').length || 0 }, { name: 'Closed', value: leads?.filter(l => l.lead_status === 'Closed').length || 0 }], status: Object.entries(statusMap).map(([name, value]) => ({ name, value })) };
-  }, [leads]);
+  }, [leads, activeTab]);
 
   // ── Sorted users for comparison charts ──
   const sortedSalesUsers = useMemo(() => {
@@ -699,6 +715,7 @@ const AdminDashboard: React.FC = () => {
   };
 
   const salesChartData = useMemo(() => {
+    if (activeTab !== 'analytics') return [];
     const callLogsMap = new Map<string, number>();
     if (callLogs) {
       callLogs.forEach(c => {
@@ -739,9 +756,10 @@ const AdminDashboard: React.FC = () => {
         value: salesMetric === 'calls' ? callsCount : salesMetric === 'revenue' ? revenueSum : closuresCount,
       };
     });
-  }, [sortedSalesUsers, callLogs, filteredData.closures, leadMap, monthFilter, salesMetric]);
+  }, [sortedSalesUsers, callLogs, filteredData.closures, leadMap, monthFilter, salesMetric, activeTab]);
 
   const bdChartData = useMemo(() => {
+    if (activeTab !== 'analytics') return [];
     const callLogsMap = new Map<string, number>();
     if (callLogs) {
       callLogs.forEach(c => {
@@ -776,7 +794,7 @@ const AdminDashboard: React.FC = () => {
         value: bdMetric === 'calls' ? callsCount : leadsCount,
       };
     });
-  }, [sortedBdUsers, callLogs, filteredData.leads, monthFilter, bdMetric]);
+  }, [sortedBdUsers, callLogs, filteredData.leads, monthFilter, bdMetric, activeTab]);
 
   // Mutations
   const createUserMutation = useMutation({
@@ -822,64 +840,6 @@ const AdminDashboard: React.FC = () => {
     onSuccess: () => { toast.success('Reassigned'); queryClient.invalidateQueries({ queryKey: ['all-leads-admin'] }); },
     onError: (err: any) => toast.error(err.message)
   });
-
-  // Team snapshot members
-  const teamPerformance = useMemo(() => {
-    const teams = [{ name: 'Lead Gen Team', roles: ['LEAD_TL', 'LEAD_GEN'] }, { name: 'Sales Team', roles: ['SALES_TL', 'SALES_TM'] }];
-
-    const leadsGeneratedByUser = new Map<string, number>();
-    const leadsAssignedToUser = new Map<string, number>();
-    const callsByUser = new Map<string, number>();
-
-    if (leads) {
-      leads.forEach(l => {
-        if (l.lead_generated_by) {
-          leadsGeneratedByUser.set(l.lead_generated_by, (leadsGeneratedByUser.get(l.lead_generated_by) || 0) + 1);
-        }
-        if (l.assigned_to) {
-          leadsAssignedToUser.set(l.assigned_to, (leadsAssignedToUser.get(l.assigned_to) || 0) + 1);
-        }
-      });
-    }
-
-    if (callLogs) {
-      callLogs.forEach(c => {
-        callsByUser.set(c.user_id, (callsByUser.get(c.user_id) || 0) + (c.call_count || 0));
-      });
-    }
-
-    return teams.map(team => {
-      const teamUsers = allUsers.filter(u => team.roles.includes(u.role));
-      const teamUserIds = new Set(teamUsers.map(u => u.user_id));
-
-      const teamLeads = leads?.filter(l =>
-        (team.name === 'Lead Gen Team' && l.lead_generated_by && teamUserIds.has(l.lead_generated_by)) ||
-        (team.name === 'Sales Team' && l.assigned_to && teamUserIds.has(l.assigned_to))
-      ) || [];
-
-      let teamCalls = 0;
-      teamUsers.forEach(u => {
-        teamCalls += callsByUser.get(u.user_id) || 0;
-      });
-
-      return {
-        name: team.name,
-        leads: teamLeads.length,
-        closures: teamLeads.filter(l => l.lead_status === 'Closed').length,
-        calls: teamCalls,
-        members: teamUsers.map(u => ({
-          id: u.user_id,
-          name: u.full_name,
-          role: u.role,
-          leads: team.name === 'Lead Gen Team'
-            ? (leadsGeneratedByUser.get(u.user_id) || 0)
-            : (leadsAssignedToUser.get(u.user_id) || 0)
-        }))
-      };
-    });
-  }, [allUsers, leads, callLogs]);
-
-  const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
