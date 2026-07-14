@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, memo } from 'react';
 import { Outlet } from 'react-router-dom';
 import AppSidebar from '@/components/AppSidebar';
 import ISTClock from '@/components/ISTClock';
@@ -9,12 +9,14 @@ import { useSLA } from '@/hooks/useSLA';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
-const DashboardLayout: React.FC = () => {
+// Memoized layout shell — sidebar and header stay mounted on route changes.
+// Only the <Outlet /> content inside <main> swaps when navigating.
+const DashboardLayout: React.FC = memo(() => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Run SLA checks on every session (de-duped internally)
+  // Run SLA checks on every session (de-duped internally with a 3s delay)
   useSLA();
 
   // Unread notification count for bell badge
@@ -32,14 +34,18 @@ const DashboardLayout: React.FC = () => {
     refetchInterval: 30000, // refresh every 30s
   });
 
+  // Stable callbacks — identity never changes so AppSidebar stays memoized
+  const handleSidebarClose = useCallback(() => setSidebarOpen(false), []);
+  const handleSidebarOpen = useCallback(() => setSidebarOpen(true), []);
+
   return (
     <div className="flex min-h-screen bg-background">
-      <AppSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <AppSidebar isOpen={sidebarOpen} onClose={handleSidebarClose} />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="h-14 border-b border-border flex items-center justify-between px-4 sm:px-6 bg-card/50 backdrop-blur-sm sticky top-0 z-30">
           <div className="flex items-center gap-3 min-w-0">
             <button
-              onClick={() => setSidebarOpen(true)}
+              onClick={handleSidebarOpen}
               className="p-2 -ml-2 rounded-lg hover:bg-accent transition-colors md:hidden shrink-0"
               aria-label="Open menu"
             >
@@ -72,6 +78,7 @@ const DashboardLayout: React.FC = () => {
       </div>
     </div>
   );
-};
+});
+DashboardLayout.displayName = 'DashboardLayout';
 
 export default DashboardLayout;

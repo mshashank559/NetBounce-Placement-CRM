@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -6,7 +6,6 @@ import {
   LayoutDashboard, Users, Plus, BarChart3, Bell, LogOut, Sun, Moon, UserCog, Phone,
   DollarSign, AlertCircle, UsersRound, Shield, Activity, PieChart
 } from 'lucide-react';
-import logo from '@/assets/logo.png';
 import logoDark from '@/assets/logo-dark.png';
 
 type AppRole = 'ADMIN' | 'PROCESS_ANALYST' | 'LEAD_TL' | 'LEAD_GEN' | 'SALES_TL' | 'SALES_TM' | 'ACCOUNTANT';
@@ -18,6 +17,7 @@ interface NavItem {
   roles: AppRole[];
 }
 
+// Static nav items defined outside the component — never recreated on re-render
 const navItems: NavItem[] = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', roles: ['ADMIN', 'PROCESS_ANALYST', 'LEAD_TL', 'LEAD_GEN', 'SALES_TL', 'SALES_TM', 'ACCOUNTANT'] },
   { label: 'Leads View', icon: Users, path: '/leads-view', roles: ['ACCOUNTANT'] },
@@ -36,18 +36,56 @@ const navItems: NavItem[] = [
   { label: 'Login Activity', icon: Activity, path: '/login-activity', roles: ['ADMIN'] },
 ];
 
+// Memoized individual nav button
+// Only re-renders when its own isActive flag changes — other buttons stay frozen
+const NavButton = memo(({
+  item,
+  isActive,
+  onClick,
+}: {
+  item: NavItem;
+  isActive: boolean;
+  onClick: (path: string) => void;
+}) => (
+  <button
+    onClick={() => onClick(item.path)}
+    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${
+      isActive
+        ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
+        : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+    }`}
+  >
+    <item.icon className="h-4 w-4" />
+    {item.label}
+  </button>
+));
+NavButton.displayName = 'NavButton';
+
 interface AppSidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
 }
 
-const AppSidebar: React.FC<AppSidebarProps> = ({ isOpen = false, onClose }) => {
+// Memoized sidebar — does NOT re-render on every route change.
+// Only the NavButton whose isActive state flipped will update.
+const AppSidebar: React.FC<AppSidebarProps> = memo(({ isOpen = false, onClose }) => {
   const { role, signOut, profile } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const filteredItems = navItems.filter(item => role && item.roles.includes(role));
+  const filteredItems = navItems.filter(item => role && item.roles.includes(role as AppRole));
+
+  // Stable callback — does not change identity on re-render so NavButtons stay memoized
+  const handleNavigate = useCallback((path: string) => {
+    navigate(path);
+    if (onClose) onClose();
+  }, [navigate, onClose]);
+
+  const handleSignOut = useCallback(() => {
+    signOut();
+    if (onClose) onClose();
+  }, [signOut, onClose]);
 
   return (
     <>
@@ -59,40 +97,28 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ isOpen = false, onClose }) => {
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 h-screen bg-sidebar flex flex-col border-r border-sidebar-border transition-transform duration-300 md:sticky md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
+        className={`fixed inset-y-0 left-0 z-50 w-64 h-screen bg-sidebar flex flex-col border-r border-sidebar-border transition-transform duration-300 md:sticky md:translate-x-0 ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
       >
         <div className="px-4 py-4 flex items-center gap-3 border-b border-sidebar-border">
           <img
             src={logoDark}
             alt="NetBounce Placement"
             className="h-11 w-auto object-contain max-w-[210px]"
-            style={{
-              filter: 'drop-shadow(0 0 10px rgba(67,97,238,0.25))'
-            }}
+            style={{ filter: 'drop-shadow(0 0 10px rgba(67,97,238,0.25))' }}
           />
         </div>
 
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {filteredItems.map(item => {
-            const isActive = location.pathname === item.path;
-            return (
-              <button
-                key={item.path}
-                onClick={() => {
-                  navigate(item.path);
-                  if (onClose) onClose();
-                }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${isActive
-                    ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
-                    : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                  }`}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </button>
-            );
-          })}
+          {filteredItems.map(item => (
+            <NavButton
+              key={item.path}
+              item={item}
+              isActive={location.pathname === item.path}
+              onClick={handleNavigate}
+            />
+          ))}
         </nav>
 
         <div className="p-3 border-t border-sidebar-border space-y-2">
@@ -108,10 +134,7 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ isOpen = false, onClose }) => {
             {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
           </button>
           <button
-            onClick={() => {
-              signOut();
-              if (onClose) onClose();
-            }}
+            onClick={handleSignOut}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-destructive hover:bg-sidebar-accent transition-all"
           >
             <LogOut className="h-4 w-4" />
@@ -121,6 +144,7 @@ const AppSidebar: React.FC<AppSidebarProps> = ({ isOpen = false, onClose }) => {
       </aside>
     </>
   );
-};
+});
+AppSidebar.displayName = 'AppSidebar';
 
 export default AppSidebar;
