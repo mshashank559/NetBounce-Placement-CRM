@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Phone, User, Calendar, MessageSquare, Search } from 'lucide-react';
-import { isInCurrentShift } from '@/lib/dateUtils';
+import { getISTDateString } from '@/lib/dateUtils';
 
 const CallTrackerPage: React.FC = () => {
   const { user, role } = useAuth();
@@ -117,12 +117,12 @@ const CallTrackerPage: React.FC = () => {
     let todayCalls = 0;
     let totalCalls = 0;
 
+    const today = getISTDateString(new Date());
     filteredFollowups.forEach((item: any) => {
       const isCall = !item.way_of_contact || item.way_of_contact.trim().toUpperCase() === 'CALL';
       if (isCall) {
         totalCalls++;
-        // Use shift-window boundary (7:30 PM IST rollover) instead of midnight
-        if (isInCurrentShift(item.created_at)) {
+        if (getISTDateString(item.created_at) === today) {
           todayCalls++;
         }
       }
@@ -197,7 +197,7 @@ const CallTrackerPage: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="text-4xl font-display font-bold">{stats.todayCalls}</div>
-              <p className="text-xs text-muted-foreground mt-1.5">Resets at 7:30 PM IST (shift boundary)</p>
+              <p className="text-xs text-muted-foreground mt-1.5">Resets at midnight IST</p>
             </CardContent>
           </Card>
         </motion.div>
