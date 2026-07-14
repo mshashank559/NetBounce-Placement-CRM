@@ -33,6 +33,20 @@ export const useSLA = () => {
         return data?.map(r => r.user_id) || [];
       };
 
+      // ── Batch Query: Fetch all notifications created today ──
+      // This allows us to perform O(1) in-memory de-duplication instead of running individual select queries inside loops.
+      const { data: todayNotifications } = await supabase
+        .from('notifications')
+        .select('lead_id, type')
+        .gte('created_at', todayStart);
+
+      const existingNotifsSet = new Set<string>();
+      todayNotifications?.forEach(n => {
+        if (n.lead_id && n.type) {
+          existingNotifsSet.add(`${n.lead_id}_${n.type}`);
+        }
+      });
+
       // ── Rule 1: Unassigned Lead (5 Working Days) Rule ──
       const fiveDaysAgo = getWorkingDaysAgo(5);
       const { data: unassignedLeads } = (await supabase
@@ -47,16 +61,8 @@ export const useSLA = () => {
         const salesTLs = await getRoleUserIds(['SALES_TL']);
 
         for (const lead of unassignedLeads) {
-          // De-dup: check if SLA same-day notification already sent today
-          const { data: existing } = await supabase
-            .from('notifications')
-            .select('id')
-            .eq('lead_id', lead.unique_id)
-            .eq('type', 'sla_sales_update_missed')
-            .gte('created_at', todayStart)
-            .limit(1);
-
-          if (!existing || existing.length === 0) {
+          const key = `${lead.unique_id}_sla_sales_update_missed`;
+          if (!existingNotifsSet.has(key)) {
             const targets = new Set<string>([...admins]);
             if (lead.team_lead_id) {
               targets.add(lead.team_lead_id);
@@ -73,6 +79,7 @@ export const useSLA = () => {
                 lead_id: lead.unique_id,
               }));
               await supabase.from('notifications').insert(notifs);
+              targets.forEach(() => existingNotifsSet.add(key));
             }
           }
         }
@@ -90,38 +97,40 @@ export const useSLA = () => {
         const analysts = await getRoleUserIds(['PROCESS_ANALYST']);
         const dispatchTargets = Array.from(new Set([...admins, ...accountants, ...analysts]));
 
-        for (const lead of closures) {
-          // Find closures submitted more than 24 hours ago
-          const { data: closureDetail } = await supabase
-            .from('lead_closures')
-            .select('created_at')
-            .eq('lead_id', lead.unique_id)
-            .lt('created_at', twentyFourHoursAgo)
-            .maybeSingle();
+        const closedLeadIds = closures.map(l => l.unique_id);
 
-          if (closureDetail) {
+        // Batch fetch all lead closures for these closed leads
+        const { data: allLeadClosures } = await supabase
+          .from('lead_closures')
+          .select('lead_id, created_at')
+          .in('lead_id', closedLeadIds)
+          .lt('created_at', twentyFourHoursAgo);
+
+        const closureCreatedMap = new Map<string, string>();
+        allLeadClosures?.forEach(c => {
+          closureCreatedMap.set(c.lead_id, c.created_at);
+        });
+
+        // Batch fetch all performas for these closed leads
+        const { data: allPerformas } = await supabase
+          .from('performas')
+          .select('lead_id')
+          .in('lead_id', closedLeadIds);
+        
+        const performasLeadIdSet = new Set(allPerformas?.map(p => p.lead_id) || []);
+
+        for (const lead of closures) {
+          const closureCreatedAt = closureCreatedMap.get(lead.unique_id);
+
+          if (closureCreatedAt) {
             // Check if review document has NOT been sent
             const isDocSentInLeads = lead.agreement_status === 'Review Doc Sent' || lead.agreement_status === 'Final Agreement Sent' || lead.agreement_sent_at !== null;
             
-            const { data: performas } = await supabase
-              .from('performas')
-              .select('id')
-              .eq('lead_id', lead.unique_id)
-              .limit(1);
-
-            const isDocSentInPerformas = performas && performas.length > 0;
+            const isDocSentInPerformas = performasLeadIdSet.has(lead.unique_id);
 
             if (!isDocSentInLeads && !isDocSentInPerformas) {
-              // De-dup: check if dispatch notification already sent today
-              const { data: existing } = await supabase
-                .from('notifications')
-                .select('id')
-                .eq('lead_id', lead.unique_id)
-                .eq('type', 'sla_document_pending')
-                .gte('created_at', todayStart)
-                .limit(1);
-
-              if ((!existing || existing.length === 0) && dispatchTargets.length > 0) {
+              const key = `${lead.unique_id}_sla_document_pending`;
+              if (!existingNotifsSet.has(key) && dispatchTargets.length > 0) {
                 const notifs = dispatchTargets.map(userId => ({
                   user_id: userId,
                   title: '🚨 SLA Alert: Review Document Pending',
@@ -130,6 +139,7 @@ export const useSLA = () => {
                   lead_id: lead.unique_id,
                 }));
                 await supabase.from('notifications').insert(notifs);
+                existingNotifsSet.add(key);
               }
             }
           }
@@ -148,15 +158,8 @@ export const useSLA = () => {
         const paymentTargets = Array.from(new Set([...admins, ...accountants]));
 
         for (const ledger of dueToday) {
-          const { data: existingDue } = await supabase
-            .from('notifications')
-            .select('id')
-            .eq('lead_id', ledger.lead_id)
-            .eq('type', 'payment_due')
-            .gte('created_at', todayStart)
-            .limit(1);
-
-          if ((!existingDue || existingDue.length === 0) && paymentTargets.length > 0) {
+          const key = `${ledger.lead_id}_payment_due`;
+          if (!existingNotifsSet.has(key) && paymentTargets.length > 0) {
             await supabase.from('notifications').insert(
               paymentTargets.map(userId => ({
                 user_id: userId,
@@ -166,6 +169,7 @@ export const useSLA = () => {
                 lead_id: ledger.lead_id,
               }))
             );
+            existingNotifsSet.add(key);
           }
         }
       }
@@ -181,15 +185,8 @@ export const useSLA = () => {
         const admins = await getRoleUserIds(['ADMIN']);
 
         for (const ledger of overdueLeads) {
-          const { data: existingEsc } = await supabase
-            .from('notifications')
-            .select('id')
-            .eq('lead_id', ledger.lead_id)
-            .eq('type', 'payment_overdue_escalation')
-            .gte('created_at', todayStart)
-            .limit(1);
-
-          if ((!existingEsc || existingEsc.length === 0) && admins.length > 0) {
+          const key = `${ledger.lead_id}_payment_overdue_escalation`;
+          if (!existingNotifsSet.has(key) && admins.length > 0) {
             await supabase.from('notifications').insert(
               admins.map(userId => ({
                 user_id: userId,
@@ -199,6 +196,7 @@ export const useSLA = () => {
                 lead_id: ledger.lead_id,
               }))
             );
+            existingNotifsSet.add(key);
           }
         }
       }
@@ -248,16 +246,8 @@ export const useSLA = () => {
             const workingDaysElapsed = getWorkingDaysDifference(baseDateObj, new Date());
 
             if (workingDaysElapsed === delayDays) {
-              // De-dup check
-              const { data: existing } = await supabase
-                .from('notifications')
-                .select('id')
-                .eq('lead_id', lead.unique_id)
-                .eq('type', 'sla_followup_reminder')
-                .gte('created_at', todayStart)
-                .limit(1);
-
-              if (!existing || existing.length === 0) {
+              const key = `${lead.unique_id}_sla_followup_reminder`;
+              if (!existingNotifsSet.has(key)) {
                 const recipients = new Set<string>();
 
                 // 1. Assigned Salesperson
@@ -297,6 +287,7 @@ export const useSLA = () => {
                     lead_id: lead.unique_id,
                   }));
                   await supabase.from('notifications').insert(notificationsToInsert);
+                  existingNotifsSet.add(key);
                 }
               }
             }

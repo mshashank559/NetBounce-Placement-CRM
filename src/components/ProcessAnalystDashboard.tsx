@@ -189,7 +189,7 @@ const ProcessAnalystDashboard: React.FC = () => {
   const { data: notifications } = useQuery({
     queryKey: ['all-notifications-pa'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('notifications').select('*').order('created_at', { ascending: false });
+      const { data, error } = await supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(50);
       if (error) throw error;
       return data || [];
     },
