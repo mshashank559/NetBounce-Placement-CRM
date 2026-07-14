@@ -25,9 +25,8 @@ import AssignmentAnalysisPage from "@/pages/AssignmentAnalysisPage";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5,   // 5 minutes — data is fresh, no background refetch
-      gcTime: Infinity,            // NEVER evict cached data during the session — remounting is instant
-      refetchOnMount: false,       // Don't refetch when a component remounts with cached data
+      staleTime: 1000 * 60 * 2,   // 2 minutes — fresh enough to show new leads quickly
+      gcTime: Infinity,            // Keep data in memory all session — remounting is instant
       refetchOnWindowFocus: false, // Don't refetch when window gains focus
     },
   },

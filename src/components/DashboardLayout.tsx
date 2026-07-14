@@ -6,6 +6,7 @@ import { Bell, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSLA } from '@/hooks/useSLA';
+import { useLeadsRealtime } from '@/hooks/useLeadsRealtime';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -18,6 +19,10 @@ const DashboardLayout: React.FC = memo(() => {
 
   // Run SLA checks on every session (de-duped internally with a 3s delay)
   useSLA();
+
+  // Subscribe to Supabase Realtime — auto-updates Leads panel and KPIs
+  // when any team member adds, edits, or deletes a lead
+  useLeadsRealtime();
 
   // Unread notification count for bell badge
   const { data: unreadCount } = useQuery({

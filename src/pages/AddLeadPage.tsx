@@ -247,8 +247,11 @@ const AddLeadPage: React.FC = () => {
     },
     onSuccess: () => {
       toast.success('Lead added successfully!');
+      // Invalidate all lead-related caches so every view (Leads page, Admin Dashboard, KPIs) updates immediately
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['all-leads-admin'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-dashboard-stats'] });
       navigate('/leads');
     },
     onError: (err: Error) => {
