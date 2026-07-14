@@ -98,7 +98,8 @@ const StatCard: React.FC<{
   icon: React.ElementType;
   delay?: number;
   trend?: { value: string; positive: boolean };
-}> = ({ title, value, icon: Icon, delay = 0, trend }) => (
+  isLoading?: boolean;
+}> = ({ title, value, icon: Icon, delay = 0, trend, isLoading }) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
@@ -115,12 +116,18 @@ const StatCard: React.FC<{
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-display font-bold">{value}</div>
-        {trend && (
-          <div className={`flex items-center gap-1 text-xs mt-1 ${trend.positive ? 'text-green-500' : 'text-red-500'}`}>
-            {trend.positive ? <ArrowUpRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            {trend.value}
-          </div>
+        {isLoading ? (
+          <div className="h-8 w-24 bg-muted animate-pulse rounded" />
+        ) : (
+          <>
+            <div className="text-2xl font-display font-bold">{value}</div>
+            {trend && (
+              <div className={`flex items-center gap-1 text-xs mt-1 ${trend.positive ? 'text-green-500' : 'text-red-500'}`}>
+                {trend.positive ? <ArrowUpRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                {trend.value}
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
@@ -138,6 +145,13 @@ const statusColors: Record<string, string> = {
   'Closed': 'bg-green-500/10 text-green-600',
   'Non Interested': 'bg-destructive/10 text-destructive',
 };
+
+const ViewSkeleton = () => (
+  <div className="flex flex-col items-center justify-center p-12 w-full space-y-3">
+    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+    <span className="text-xs text-muted-foreground animate-pulse">Loading view...</span>
+  </div>
+);
 
 const HIGHLIGHT_COLORS = [
   { label: 'None', value: '' },
@@ -177,6 +191,16 @@ const AdminDashboard: React.FC = () => {
   const PAGE_SIZE = 50;
   const [notifPage, setNotifPage] = useState(1);
   const NOTIF_PAGE_SIZE = 10;
+
+  const [renderDeferred, setRenderDeferred] = React.useState(false);
+
+  React.useEffect(() => {
+    setRenderDeferred(false);
+    const timer = setTimeout(() => {
+      setRenderDeferred(true);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [activeTab]);
 
   React.useEffect(() => {
     setGlobalPage(1);
@@ -357,6 +381,8 @@ const AdminDashboard: React.FC = () => {
       return data || [];
     },
   });
+
+  const isLoadingData = !leads || !leadClosures;
 
   const { data: notificationsData } = useQuery({
     queryKey: ['all-notifications-admin', notifPage],
@@ -770,10 +796,10 @@ const AdminDashboard: React.FC = () => {
         {activeTab === 'control' && (
           <motion.div key="control" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard title="Total Leads" value={filteredData.leads.length} icon={Users} delay={0} />
-              <StatCard title="Pipeline" value={filteredData.leads.filter(l => !['Closed', 'Non Interested'].includes(l.lead_status || '')).length} icon={TrendingUp} delay={0.1} />
-              <StatCard title="Closures" value={filteredData.leads.filter(l => l.lead_status === 'Closed').length} icon={CheckCircle} delay={0.2} />
-              <StatCard title="Revenue" value={`$${revenueStats.total.toLocaleString()}`} icon={DollarSign} delay={0.3} />
+              <StatCard title="Total Leads" value={filteredData.leads.length} icon={Users} delay={0} isLoading={isLoadingData} />
+              <StatCard title="Pipeline" value={filteredData.leads.filter(l => !['Closed', 'Non Interested'].includes(l.lead_status || '')).length} icon={TrendingUp} delay={0.1} isLoading={isLoadingData} />
+              <StatCard title="Closures" value={filteredData.leads.filter(l => l.lead_status === 'Closed').length} icon={CheckCircle} delay={0.2} isLoading={isLoadingData} />
+              <StatCard title="Revenue" value={`$${revenueStats.total.toLocaleString()}`} icon={DollarSign} delay={0.3} isLoading={isLoadingData} />
             </div>
             {isAdmin && (
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -826,7 +852,61 @@ const AdminDashboard: React.FC = () => {
                     </CardContent>
                   </form>
                 </Card>
-                <Card className="glass-card xl:col-span-2 overflow-hidden"><CardHeader className="pb-2"><CardTitle className="text-xl font-display">Active Directory</CardTitle></CardHeader><CardContent className="p-0"><div className="max-h-[300px] overflow-y-auto"><Table><TableHeader className="bg-accent/50 sticky top-0"><TableRow><TableHead className="text-xs">User</TableHead><TableHead className="text-xs">Role</TableHead><TableHead className="text-xs text-right">Action</TableHead></TableRow></TableHeader><TableBody>{allUsers.map(u => (<TableRow key={u.user_id}><TableCell className="text-xs font-medium">{u.full_name}</TableCell><TableCell><Badge variant="outline" className="text-[10px]">{u.role}</Badge></TableCell><TableCell className="text-right"><Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { if(confirm('Delete user?')) supabase.from('profiles').delete().eq('user_id', u.user_id).then(() => queryClient.invalidateQueries({queryKey:['all-profiles-admin']})) }}><Trash2 className="h-3.5 w-3.5" /></Button></TableCell></TableRow>))}</TableBody></Table></div></CardContent></Card>
+                <Card className="glass-card xl:col-span-2 overflow-hidden">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-xl font-display">Active Directory</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {renderDeferred ? (
+                      <div className="max-h-[300px] overflow-y-auto">
+                        <Table>
+                          <TableHeader className="bg-accent/50 sticky top-0">
+                            <TableRow>
+                              <TableHead className="text-xs">User</TableHead>
+                              <TableHead className="text-xs">Role</TableHead>
+                              <TableHead className="text-xs text-right">Action</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {allUsers.map(u => (
+                              <TableRow key={u.user_id}>
+                                <TableCell className="text-xs font-medium">{u.full_name}</TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className="text-[10px]">
+                                    {u.role}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-destructive"
+                                    onClick={() => {
+                                      if (confirm('Delete user?'))
+                                        supabase
+                                          .from('profiles')
+                                          .delete()
+                                          .eq('user_id', u.user_id)
+                                          .then(() =>
+                                            queryClient.invalidateQueries({
+                                              queryKey: ['all-profiles-admin'],
+                                            })
+                                          );
+                                    }}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ) : (
+                      <ViewSkeleton />
+                    )}
+                  </CardContent>
+                </Card>
               </div>
             )}
             {/* Lead View with Personal/Team/Global toggle */}
@@ -853,54 +933,58 @@ const AdminDashboard: React.FC = () => {
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="max-h-[520px] overflow-y-auto">
-                  <Table>
-                    <TableHeader className="bg-accent/50 sticky top-0">
-                      <TableRow>
-                        <TableHead className="text-xs">ID</TableHead>
-                        <TableHead className="text-xs">Date</TableHead>
-                        <TableHead className="text-xs">Candidate</TableHead>
-                        <TableHead className="text-xs">Status</TableHead>
-                        <TableHead className="text-xs">Assigned To</TableHead>
-                        <TableHead className="text-xs">Generated By</TableHead>
-                        <TableHead className="text-xs text-right">Reassign</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {adminViewLeads.slice(0, 30).map(lead => (
-                        <TableRow key={lead.unique_id} className={lead.lead_status === 'Hot Prospect' ? 'bg-red-500/10' : ''}>
-                          <TableCell className="text-[10px] text-muted-foreground font-mono">{lead.display_id || lead.unique_id?.slice(0,8)}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground">{formatDate(lead.created_at)}</TableCell>
-                          <TableCell>
-                            <div className="text-xs font-bold">{lead.name}</div>
-                            <div className="text-[10px] text-muted-foreground">{lead.email}</div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className="text-[10px]" variant={lead.lead_status === 'Closed' ? 'default' : 'outline'}>{lead.lead_status}</Badge>
-                          </TableCell>
-                          <TableCell className="text-xs">{allUsers.find(u => u.user_id === lead.assigned_to)?.full_name || <span className="text-muted-foreground italic">Unassigned</span>}</TableCell>
-                          <TableCell className="text-xs">{allUsers.find(u => u.user_id === lead.lead_generated_by)?.full_name || '—'}</TableCell>
-                          <TableCell className="text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8"><RefreshCw className="h-3.5 w-3.5" /></Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-48">
-                                <div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground uppercase border-b mb-1">Reassign To</div>
-                                {allUsers.filter(u => u.team === 'Sales').map(u => (
-                                  <DropdownMenuItem key={u.user_id} className="text-xs" onClick={() => reassignLeadMutation.mutate({ leadId: lead.unique_id, userId: u.user_id })}>{u.full_name}</DropdownMenuItem>
-                                ))}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
+                {renderDeferred ? (
+                  <div className="max-h-[520px] overflow-y-auto">
+                    <Table>
+                      <TableHeader className="bg-accent/50 sticky top-0">
+                        <TableRow>
+                          <TableHead className="text-xs">ID</TableHead>
+                          <TableHead className="text-xs">Date</TableHead>
+                          <TableHead className="text-xs">Candidate</TableHead>
+                          <TableHead className="text-xs">Status</TableHead>
+                          <TableHead className="text-xs">Assigned To</TableHead>
+                          <TableHead className="text-xs">Generated By</TableHead>
+                          <TableHead className="text-xs text-right">Reassign</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                  {adminViewLeads.length === 0 && (
-                    <div className="text-center py-10 text-muted-foreground text-sm">No leads in this view</div>
-                  )}
-                </div>
+                      </TableHeader>
+                      <TableBody>
+                        {adminViewLeads.slice(0, 30).map(lead => (
+                          <TableRow key={lead.unique_id} className={lead.lead_status === 'Hot Prospect' ? 'bg-red-500/10' : ''}>
+                            <TableCell className="text-[10px] text-muted-foreground font-mono">{lead.display_id || lead.unique_id?.slice(0,8)}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{formatDate(lead.created_at)}</TableCell>
+                            <TableCell>
+                              <div className="text-xs font-bold">{lead.name}</div>
+                              <div className="text-[10px] text-muted-foreground">{lead.email}</div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className="text-[10px]" variant={lead.lead_status === 'Closed' ? 'default' : 'outline'}>{lead.lead_status}</Badge>
+                            </TableCell>
+                            <TableCell className="text-xs">{allUsers.find(u => u.user_id === lead.assigned_to)?.full_name || <span className="text-muted-foreground italic">Unassigned</span>}</TableCell>
+                            <TableCell className="text-xs">{allUsers.find(u => u.user_id === lead.lead_generated_by)?.full_name || '—'}</TableCell>
+                            <TableCell className="text-right">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8"><RefreshCw className="h-3.5 w-3.5" /></Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-48">
+                                  <div className="px-2 py-1.5 text-[10px] font-bold text-muted-foreground uppercase border-b mb-1">Reassign To</div>
+                                  {allUsers.filter(u => u.team === 'Sales').map(u => (
+                                    <DropdownMenuItem key={u.user_id} className="text-xs" onClick={() => reassignLeadMutation.mutate({ leadId: lead.unique_id, userId: u.user_id })}>{u.full_name}</DropdownMenuItem>
+                                  ))}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    {adminViewLeads.length === 0 && (
+                      <div className="text-center py-10 text-muted-foreground text-sm">No leads in this view</div>
+                    )}
+                  </div>
+                ) : (
+                  <ViewSkeleton />
+                )}
               </CardContent>
             </Card>
           </motion.div>
@@ -908,189 +992,201 @@ const AdminDashboard: React.FC = () => {
 
         {activeTab === 'analytics' && (
           <motion.div key="analytics" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
-            {/* Daily Inflow — full width */}
-            <Card className="glass-card"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><Activity className="h-5 w-5 text-primary" /> Daily Inflow</CardTitle></CardHeader><CardContent className="h-[250px]"><ResponsiveContainer width="100%" height="100%"><AreaChart data={analyticsData.inflow}><defs><linearGradient id="colorInflow" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient></defs><XAxis dataKey="name" tick={{fontSize: 10}} /><YAxis tick={{fontSize: 10}} /><Tooltip /><Area type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorInflow)" /></AreaChart></ResponsiveContainer></CardContent></Card>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Sales Team Performance Chart */}
-              <Card className="glass-card">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <CardTitle className="text-lg font-display flex items-center gap-2">
-                      <BarChart3 className="h-5 w-5 text-blue-500" /> Sales Team Performance
-                    </CardTitle>
-                    <div className="flex items-center gap-1 bg-accent/40 rounded-lg p-1">
-                      {(['calls', 'revenue', 'closures'] as const).map(m => (
-                        <button
-                          key={m}
-                          onClick={() => setSalesMetric(m)}
-                          className={`px-3 py-1 rounded-md text-xs font-medium transition-all duration-200 ${
-                            salesMetric === m
-                              ? 'bg-blue-500 text-white shadow-sm'
-                              : 'text-muted-foreground hover:text-foreground'
-                          }`}
-                        >
-                          {m.charAt(0).toUpperCase() + m.slice(1)}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    <span className="inline-flex items-center gap-1 mr-3"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" /> TL</span>
-                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-400 inline-block" /> Member</span>
-                  </p>
-                </CardHeader>
-                <CardContent className="h-[280px]">
-                  {salesChartData.length === 0 ? (
-                    <div className="flex items-center justify-center h-full text-muted-foreground text-sm">No sales team data</div>
-                  ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={salesChartData} margin={{ top: 4, right: 8, left: 0, bottom: 40 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                        <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
-                        <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip
-                          formatter={(value: any) => [
-                            salesMetric === 'revenue' ? `$${Number(value).toLocaleString()}` : value,
-                            salesMetric.charAt(0).toUpperCase() + salesMetric.slice(1)
-                          ]}
-                          labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
-                        />
-                        <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                          {salesChartData.map((entry, idx) => (
-                            <Cell key={idx} fill={entry.role === 'TL' ? '#3b82f6' : '#38bdf8'} />
+            {renderDeferred ? (
+              <>
+                {/* Daily Inflow — full width */}
+                <Card className="glass-card"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><Activity className="h-5 w-5 text-primary" /> Daily Inflow</CardTitle></CardHeader><CardContent className="h-[250px]"><ResponsiveContainer width="100%" height="100%"><AreaChart data={analyticsData.inflow}><defs><linearGradient id="colorInflow" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient></defs><XAxis dataKey="name" tick={{fontSize: 10}} /><YAxis tick={{fontSize: 10}} /><Tooltip /><Area type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorInflow)" /></AreaChart></ResponsiveContainer></CardContent></Card>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Sales Team Performance Chart */}
+                  <Card className="glass-card">
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <CardTitle className="text-lg font-display flex items-center gap-2">
+                          <BarChart3 className="h-5 w-5 text-blue-500" /> Sales Team Performance
+                        </CardTitle>
+                        <div className="flex items-center gap-1 bg-accent/40 rounded-lg p-1">
+                          {(['calls', 'revenue', 'closures'] as const).map(m => (
+                            <button
+                              key={m}
+                              onClick={() => setSalesMetric(m)}
+                              className={`px-3 py-1 rounded-md text-xs font-medium transition-all duration-200 ${
+                                salesMetric === m
+                                  ? 'bg-blue-500 text-white shadow-sm'
+                                  : 'text-muted-foreground hover:text-foreground'
+                              }`}
+                            >
+                              {m.charAt(0).toUpperCase() + m.slice(1)}
+                            </button>
                           ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  )}
-                </CardContent>
-              </Card>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        <span className="inline-flex items-center gap-1 mr-3"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" /> TL</span>
+                        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-400 inline-block" /> Member</span>
+                      </p>
+                    </CardHeader>
+                    <CardContent className="h-[280px]">
+                      {salesChartData.length === 0 ? (
+                        <div className="flex items-center justify-center h-full text-muted-foreground text-sm">No sales team data</div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={salesChartData} margin={{ top: 4, right: 8, left: 0, bottom: 40 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                            <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
+                            <YAxis tick={{ fontSize: 10 }} />
+                            <Tooltip
+                              formatter={(value: any) => [
+                                salesMetric === 'revenue' ? `$${Number(value).toLocaleString()}` : value,
+                                salesMetric.charAt(0).toUpperCase() + salesMetric.slice(1)
+                              ]}
+                              labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
+                            />
+                            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                              {salesChartData.map((entry, idx) => (
+                                <Cell key={idx} fill={entry.role === 'TL' ? '#3b82f6' : '#38bdf8'} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      )}
+                    </CardContent>
+                  </Card>
 
-              {/* BD Team Performance Chart */}
-              <Card className="glass-card">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <CardTitle className="text-lg font-display flex items-center gap-2">
-                      <BarChart3 className="h-5 w-5 text-emerald-500" /> BD Team Performance
-                    </CardTitle>
-                    <div className="flex items-center gap-1 bg-accent/40 rounded-lg p-1">
-                      {(['calls', 'leads'] as const).map(m => (
-                        <button
-                          key={m}
-                          onClick={() => setBdMetric(m)}
-                          className={`px-3 py-1 rounded-md text-xs font-medium transition-all duration-200 ${
-                            bdMetric === m
-                              ? 'bg-emerald-500 text-white shadow-sm'
-                              : 'text-muted-foreground hover:text-foreground'
-                          }`}
-                        >
-                          {m.charAt(0).toUpperCase() + m.slice(1)}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    <span className="inline-flex items-center gap-1 mr-3"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> TL</span>
-                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-teal-400 inline-block" /> Member</span>
-                  </p>
-                </CardHeader>
-                <CardContent className="h-[280px]">
-                  {bdChartData.length === 0 ? (
-                    <div className="flex items-center justify-center h-full text-muted-foreground text-sm">No BD team data</div>
-                  ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={bdChartData} margin={{ top: 4, right: 8, left: 0, bottom: 40 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                        <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
-                        <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip
-                          formatter={(value: any) => [value, bdMetric === 'calls' ? 'Calls' : 'Leads Generated']}
-                          labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
-                        />
-                        <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                          {bdChartData.map((entry, idx) => (
-                            <Cell key={idx} fill={entry.role === 'TL' ? '#10b981' : '#2dd4bf'} />
+                  {/* BD Team Performance Chart */}
+                  <Card className="glass-card">
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <CardTitle className="text-lg font-display flex items-center gap-2">
+                          <BarChart3 className="h-5 w-5 text-emerald-500" /> BD Team Performance
+                        </CardTitle>
+                        <div className="flex items-center gap-1 bg-accent/40 rounded-lg p-1">
+                          {(['calls', 'leads'] as const).map(m => (
+                            <button
+                              key={m}
+                              onClick={() => setBdMetric(m)}
+                              className={`px-3 py-1 rounded-md text-xs font-medium transition-all duration-200 ${
+                                bdMetric === m
+                                  ? 'bg-emerald-500 text-white shadow-sm'
+                                  : 'text-muted-foreground hover:text-foreground'
+                              }`}
+                            >
+                              {m.charAt(0).toUpperCase() + m.slice(1)}
+                            </button>
                           ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        <span className="inline-flex items-center gap-1 mr-3"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> TL</span>
+                        <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-teal-400 inline-block" /> Member</span>
+                      </p>
+                    </CardHeader>
+                    <CardContent className="h-[280px]">
+                      {bdChartData.length === 0 ? (
+                        <div className="flex items-center justify-center h-full text-muted-foreground text-sm">No BD team data</div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={bdChartData} margin={{ top: 4, right: 8, left: 0, bottom: 40 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                            <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
+                            <YAxis tick={{ fontSize: 10 }} />
+                            <Tooltip
+                              formatter={(value: any) => [value, bdMetric === 'calls' ? 'Calls' : 'Leads Generated']}
+                              labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
+                            />
+                            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                              {bdChartData.map((entry, idx) => (
+                                <Cell key={idx} fill={entry.role === 'TL' ? '#10b981' : '#2dd4bf'} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
 
-            {/* Distribution chart row — no inline labels to prevent overlap */}
-            <div className="grid grid-cols-1 gap-6">
-              <Card className="glass-card"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><PieChartIcon className="h-5 w-5 text-purple-500" /> Lead Status Distribution</CardTitle></CardHeader><CardContent className="h-[320px]"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={analyticsData.status} dataKey="value" nameKey="name" cx="50%" cy="45%" outerRadius={100} innerRadius={40}>{analyticsData.status.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><Tooltip formatter={(value: any, name: any) => [value, name]} /><Legend verticalAlign="bottom" height={36} /></PieChart></ResponsiveContainer></CardContent></Card>
-            </div>
+                {/* Distribution chart row — no inline labels to prevent overlap */}
+                <div className="grid grid-cols-1 gap-6">
+                  <Card className="glass-card"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><PieChartIcon className="h-5 w-5 text-purple-500" /> Lead Status Distribution</CardTitle></CardHeader><CardContent className="h-[320px]"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={analyticsData.status} dataKey="value" nameKey="name" cx="50%" cy="45%" outerRadius={100} innerRadius={40}>{analyticsData.status.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><Tooltip formatter={(value: any, name: any) => [value, name]} /><Legend verticalAlign="bottom" height={36} /></PieChart></ResponsiveContainer></CardContent></Card>
+                </div>
+              </>
+            ) : (
+              <ViewSkeleton />
+            )}
           </motion.div>
         )}
 
         {activeTab === 'monitoring' && (
           <motion.div key="monitoring" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              <Card className="glass-card border-red-500/20 bg-red-500/5"><CardHeader className="pb-2 text-red-500 flex flex-row items-center justify-between"><CardTitle className="text-lg font-display flex items-center gap-2"><Clock className="h-5 w-5" /> SLA Breaches</CardTitle><Badge variant="destructive" className="animate-pulse">{slaAlerts.length} Alerts</Badge></CardHeader><CardContent className="p-0"><div className="max-h-[350px] overflow-y-auto"><Table><TableHeader className="bg-red-500/10"><TableRow><TableHead className="text-xs">Lead</TableHead><TableHead className="text-xs">Assigned</TableHead><TableHead className="text-xs text-right">Action</TableHead></TableRow></TableHeader><TableBody>{slaAlerts.slice(0, 10).map(l => (<TableRow key={l.unique_id} className="border-red-500/10"><TableCell className="text-xs font-bold">{l.name}</TableCell><TableCell className="text-xs">{allUsers.find(u => u.user_id === l.assigned_to)?.full_name || 'Unassigned'}</TableCell><TableCell className="text-right"><Button variant="ghost" size="sm" className="h-7 text-[10px] text-red-500" onClick={() => setActiveTab('control')}>Reassign</Button></TableCell></TableRow>))}</TableBody></Table></div></CardContent></Card>
-              <Card className="glass-card border-amber-500/20 bg-amber-500/5"><CardHeader className="pb-2 text-amber-500"><CardTitle className="text-lg font-display flex items-center gap-2"><AlertTriangle className="h-5 w-5" /> Concern Center</CardTitle></CardHeader><CardContent className="p-0"><div className="max-h-[350px] overflow-y-auto"><Table><TableHeader className="bg-amber-500/10"><TableRow><TableHead className="text-xs">Lead</TableHead><TableHead className="text-xs">Issue</TableHead><TableHead className="text-xs text-right">Action</TableHead></TableRow></TableHeader><TableBody>{concerns?.slice(0, 10).map(c => (<TableRow key={c.id} className="border-amber-500/10"><TableCell className="text-xs font-bold">{leads?.find(l => l.unique_id === c.lead_id)?.name || 'Unknown'}</TableCell><TableCell className="text-xs italic">"{c.description}"</TableCell><TableCell className="text-right"><Button variant="ghost" size="sm" className="h-7 text-[10px] text-amber-500 hover:bg-amber-500/10" onClick={() => resolveConcernMutation.mutate({ concernId: c.id, leadId: c.lead_id, raisedBy: c.raised_by })} disabled={resolveConcernMutation.isPending}>Resolve</Button></TableCell></TableRow>))}</TableBody></Table></div></CardContent></Card>
-            </div>
-            <Card className="glass-card">
-              <CardHeader>
-                <CardTitle className="text-lg font-display flex items-center gap-2">
-                  <Bell className="h-5 w-5 text-primary animate-bell-shake" /> Notification Hub
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0 flex flex-col">
-                <div className="max-h-[400px] overflow-y-auto divide-y divide-border/50 flex-1">
-                  {notifications.length === 0 ? (
-                    <div className="p-8 text-center text-xs text-muted-foreground">No notifications</div>
-                  ) : (
-                    notifications.map(n => (
-                      <div key={n.id} className="p-4 hover:bg-accent/20 flex items-start gap-4">
-                        <div className="p-2 rounded-full bg-primary/10 text-primary">
-                          <Activity className="h-4 w-4" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-bold">{n.title}</p>
-                          <p className="text-xs text-muted-foreground">{n.message}</p>
-                          <p className="text-[9px] text-muted-foreground mt-1 font-mono uppercase">
-                            {format(parseISO(n.created_at), 'PPPP p')}
-                          </p>
+            {renderDeferred ? (
+              <>
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                  <Card className="glass-card border-red-500/20 bg-red-500/5"><CardHeader className="pb-2 text-red-500 flex flex-row items-center justify-between"><CardTitle className="text-lg font-display flex items-center gap-2"><Clock className="h-5 w-5" /> SLA Breaches</CardTitle><Badge variant="destructive" className="animate-pulse">{slaAlerts.length} Alerts</Badge></CardHeader><CardContent className="p-0"><div className="max-h-[350px] overflow-y-auto"><Table><TableHeader className="bg-red-500/10"><TableRow><TableHead className="text-xs">Lead</TableHead><TableHead className="text-xs">Assigned</TableHead><TableHead className="text-xs text-right">Action</TableHead></TableRow></TableHeader><TableBody>{slaAlerts.slice(0, 10).map(l => (<TableRow key={l.unique_id} className="border-red-500/10"><TableCell className="text-xs font-bold">{l.name}</TableCell><TableCell className="text-xs">{allUsers.find(u => u.user_id === l.assigned_to)?.full_name || 'Unassigned'}</TableCell><TableCell className="text-right"><Button variant="ghost" size="sm" className="h-7 text-[10px] text-red-500" onClick={() => setActiveTab('control')}>Reassign</Button></TableCell></TableRow>))}</TableBody></Table></div></CardContent></Card>
+                  <Card className="glass-card border-amber-500/20 bg-amber-500/5"><CardHeader className="pb-2 text-amber-500"><CardTitle className="text-lg font-display flex items-center gap-2"><AlertTriangle className="h-5 w-5" /> Concern Center</CardTitle></CardHeader><CardContent className="p-0"><div className="max-h-[350px] overflow-y-auto"><Table><TableHeader className="bg-amber-500/10"><TableRow><TableHead className="text-xs">Lead</TableHead><TableHead className="text-xs">Issue</TableHead><TableHead className="text-xs text-right">Action</TableHead></TableRow></TableHeader><TableBody>{concerns?.slice(0, 10).map(c => (<TableRow key={c.id} className="border-amber-500/10"><TableCell className="text-xs font-bold">{leads?.find(l => l.unique_id === c.lead_id)?.name || 'Unknown'}</TableCell><TableCell className="text-xs italic">"{c.description}"</TableCell><TableCell className="text-right"><Button variant="ghost" size="sm" className="h-7 text-[10px] text-amber-500 hover:bg-amber-500/10" onClick={() => resolveConcernMutation.mutate({ concernId: c.id, leadId: c.lead_id, raisedBy: c.raised_by })} disabled={resolveConcernMutation.isPending}>Resolve</Button></TableCell></TableRow>))}</TableBody></Table></div></CardContent></Card>
+                </div>
+                <Card className="glass-card">
+                  <CardHeader>
+                    <CardTitle className="text-lg font-display flex items-center gap-2">
+                      <Bell className="h-5 w-5 text-primary animate-bell-shake" /> Notification Hub
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0 flex flex-col">
+                    <div className="max-h-[400px] overflow-y-auto divide-y divide-border/50 flex-1">
+                      {notifications.length === 0 ? (
+                        <div className="p-8 text-center text-xs text-muted-foreground">No notifications</div>
+                      ) : (
+                        notifications.map(n => (
+                          <div key={n.id} className="p-4 hover:bg-accent/20 flex items-start gap-4">
+                            <div className="p-2 rounded-full bg-primary/10 text-primary">
+                              <Activity className="h-4 w-4" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-sm font-bold">{n.title}</p>
+                              <p className="text-xs text-muted-foreground">{n.message}</p>
+                              <p className="text-[9px] text-muted-foreground mt-1 font-mono uppercase">
+                                {format(parseISO(n.created_at), 'PPPP p')}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    {notificationsTotalCount > NOTIF_PAGE_SIZE && (
+                      <div className="flex justify-between items-center p-3 border-t border-border flex-wrap gap-2 bg-accent/5">
+                        <span className="text-[10px] text-muted-foreground">
+                          Showing {Math.min(notificationsTotalCount, (notifPage - 1) * NOTIF_PAGE_SIZE + 1)} to {Math.min(notificationsTotalCount, notifPage * NOTIF_PAGE_SIZE)} of {notificationsTotalCount}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs px-2"
+                            disabled={notifPage === 1}
+                            onClick={() => setNotifPage(p => Math.max(1, p - 1))}
+                          >
+                            Prev
+                          </Button>
+                          <span className="text-[10px] font-medium px-1">
+                            Page {notifPage} of {Math.ceil(notificationsTotalCount / NOTIF_PAGE_SIZE)}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs px-2"
+                            disabled={notifPage * NOTIF_PAGE_SIZE >= notificationsTotalCount}
+                            onClick={() => setNotifPage(p => p + 1)}
+                          >
+                            Next
+                          </Button>
                         </div>
                       </div>
-                    ))
-                  )}
-                </div>
-                {notificationsTotalCount > NOTIF_PAGE_SIZE && (
-                  <div className="flex justify-between items-center p-3 border-t border-border flex-wrap gap-2 bg-accent/5">
-                    <span className="text-[10px] text-muted-foreground">
-                      Showing {Math.min(notificationsTotalCount, (notifPage - 1) * NOTIF_PAGE_SIZE + 1)} to {Math.min(notificationsTotalCount, notifPage * NOTIF_PAGE_SIZE)} of {notificationsTotalCount}
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs px-2"
-                        disabled={notifPage === 1}
-                        onClick={() => setNotifPage(p => Math.max(1, p - 1))}
-                      >
-                        Prev
-                      </Button>
-                      <span className="text-[10px] font-medium px-1">
-                        Page {notifPage} of {Math.ceil(notificationsTotalCount / NOTIF_PAGE_SIZE)}
-                      </span>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs px-2"
-                        disabled={notifPage * NOTIF_PAGE_SIZE >= notificationsTotalCount}
-                        onClick={() => setNotifPage(p => p + 1)}
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              <ViewSkeleton />
+            )}
           </motion.div>
         )}
 
@@ -1148,80 +1244,84 @@ const AdminDashboard: React.FC = () => {
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-                  <Table>
-                    <TableHeader className="bg-accent/50 sticky top-0">
-                      <TableRow>
-                        <TableHead className="text-xs w-10">#</TableHead>
-                        <TableHead className="text-xs">ID</TableHead>
-                        <TableHead className="text-xs">Date</TableHead>
-                        <TableHead className="text-xs">Name</TableHead>
-                        <TableHead className="text-xs">Email</TableHead>
-                        <TableHead className="text-xs">Phone</TableHead>
-                        <TableHead className="text-xs">LinkedIn</TableHead>
-                        <TableHead className="text-xs">Tech</TableHead>
-                        <TableHead className="text-xs">Status</TableHead>
-                        <TableHead className="text-xs">Generated By</TableHead>
-                        <TableHead className="text-xs">Assigned To</TableHead>
-                        <TableHead className="text-xs">Source</TableHead>
-                        <TableHead className="text-xs">Last Activity</TableHead>
-                        <TableHead className="text-xs text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {globalLeads.length === 0 ? (
+                {renderDeferred ? (
+                  <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+                    <Table>
+                      <TableHeader className="bg-accent/50 sticky top-0">
                         <TableRow>
-                          <TableCell colSpan={13} className="text-center py-10 text-muted-foreground text-sm">No leads found</TableCell>
+                          <TableHead className="text-xs w-10">#</TableHead>
+                          <TableHead className="text-xs">ID</TableHead>
+                          <TableHead className="text-xs">Date</TableHead>
+                          <TableHead className="text-xs">Name</TableHead>
+                          <TableHead className="text-xs">Email</TableHead>
+                          <TableHead className="text-xs">Phone</TableHead>
+                          <TableHead className="text-xs">LinkedIn</TableHead>
+                          <TableHead className="text-xs">Tech</TableHead>
+                          <TableHead className="text-xs">Status</TableHead>
+                          <TableHead className="text-xs">Generated By</TableHead>
+                          <TableHead className="text-xs">Assigned To</TableHead>
+                          <TableHead className="text-xs">Source</TableHead>
+                          <TableHead className="text-xs">Last Activity</TableHead>
+                          <TableHead className="text-xs text-right">Actions</TableHead>
                         </TableRow>
-                      ) : (
-                        globalLeads.slice((globalPage - 1) * PAGE_SIZE, globalPage * PAGE_SIZE).map((lead, idx) => (
-                          <TableRow key={lead.unique_id} className="hover:bg-accent/20 border-border/50">
-                            <TableCell className="text-xs text-muted-foreground font-medium w-10">{(globalPage - 1) * PAGE_SIZE + idx + 1}</TableCell>
-                            <TableCell className="text-xs font-mono text-primary font-bold">{(lead as any).display_id || '—'}</TableCell>
-                            <TableCell className="text-xs text-muted-foreground">{formatDate(lead.created_at)}</TableCell>
-                            <TableCell className="text-xs font-medium">{lead.name}</TableCell>
-                            <TableCell className="text-xs text-muted-foreground">{lead.email}</TableCell>
-                            <TableCell className="text-xs">{lead.phone || '—'}</TableCell>
-                            <TableCell className="text-xs">
-                              {lead.linkedin_url ? (
-                                <a 
-                                  href={lead.linkedin_url.trim().startsWith('http') || lead.linkedin_url.trim().startsWith('//') ? lead.linkedin_url.trim() : `https://${lead.linkedin_url.trim()}`} 
-                                  target="_blank" 
-                                  rel="noreferrer" 
-                                  className="text-primary underline"
-                                >
-                                  View
-                                </a>
-                              ) : '—'}
-                            </TableCell>
-                            <TableCell className="text-xs">{lead.technology || '—'}</TableCell>
-                            <TableCell>
-                              <Badge className={`text-[10px] ${statusColors[lead.lead_status || ''] || 'bg-secondary/10 text-secondary-foreground'}`}>
-                                {lead.lead_status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-xs">{lead.lead_generated_by ? (allUsers.find(u => u.user_id === lead.lead_generated_by)?.full_name || 'System') : 'System'}</TableCell>
-                            <TableCell className="text-xs">{allUsers.find(u => u.user_id === lead.assigned_to)?.full_name || <span className="italic text-muted-foreground">Unassigned</span>}</TableCell>
-                            <TableCell className="text-xs">{lead.lead_source || '—'}</TableCell>
-                            <TableCell className="text-xs">{new Date(lead.updated_at).toLocaleDateString()}</TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex justify-end gap-1">
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedLead(lead)} title="View Details">
-                                  <Eye className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10" onClick={() => setEditLead(lead)} title="Edit Lead">
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
-                            </TableCell>
+                      </TableHeader>
+                      <TableBody>
+                        {globalLeads.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={13} className="text-center py-10 text-muted-foreground text-sm">No leads found</TableCell>
                           </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
+                        ) : (
+                          globalLeads.slice((globalPage - 1) * PAGE_SIZE, globalPage * PAGE_SIZE).map((lead, idx) => (
+                            <TableRow key={lead.unique_id} className="hover:bg-accent/20 border-border/50">
+                              <TableCell className="text-xs text-muted-foreground font-medium w-10">{(globalPage - 1) * PAGE_SIZE + idx + 1}</TableCell>
+                              <TableCell className="text-xs font-mono text-primary font-bold">{(lead as any).display_id || '—'}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{formatDate(lead.created_at)}</TableCell>
+                              <TableCell className="text-xs font-medium">{lead.name}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{lead.email}</TableCell>
+                              <TableCell className="text-xs">{lead.phone || '—'}</TableCell>
+                              <TableCell className="text-xs">
+                                {lead.linkedin_url ? (
+                                  <a 
+                                    href={lead.linkedin_url.trim().startsWith('http') || lead.linkedin_url.trim().startsWith('//') ? lead.linkedin_url.trim() : `https://${lead.linkedin_url.trim()}`} 
+                                    target="_blank" 
+                                    rel="noreferrer" 
+                                    className="text-primary underline"
+                                  >
+                                    View
+                                  </a>
+                                ) : '—'}
+                              </TableCell>
+                              <TableCell className="text-xs">{lead.technology || '—'}</TableCell>
+                              <TableCell>
+                                <Badge className={`text-[10px] ${statusColors[lead.lead_status || ''] || 'bg-secondary/10 text-secondary-foreground'}`}>
+                                  {lead.lead_status}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-xs">{lead.lead_generated_by ? (allUsers.find(u => u.user_id === lead.lead_generated_by)?.full_name || 'System') : 'System'}</TableCell>
+                              <TableCell className="text-xs">{allUsers.find(u => u.user_id === lead.assigned_to)?.full_name || <span className="italic text-muted-foreground">Unassigned</span>}</TableCell>
+                              <TableCell className="text-xs">{lead.lead_source || '—'}</TableCell>
+                              <TableCell className="text-xs">{new Date(lead.updated_at).toLocaleDateString()}</TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-1">
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedLead(lead)} title="View Details">
+                                    <Eye className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-500/10" onClick={() => setEditLead(lead)} title="Edit Lead">
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <ViewSkeleton />
+                )}
               </CardContent>
-              {globalLeads.length > 0 && (
+              {renderDeferred && globalLeads.length > 0 && (
                 <div className="flex justify-between items-center p-4 border-t border-border flex-wrap gap-2 bg-accent/5">
                   <span className="text-xs text-muted-foreground">
                     Showing {Math.min(globalLeads.length, (globalPage - 1) * PAGE_SIZE + 1)} to {Math.min(globalLeads.length, globalPage * PAGE_SIZE)} of {globalLeads.length} leads

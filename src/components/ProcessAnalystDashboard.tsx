@@ -101,7 +101,8 @@ const StatCard: React.FC<{
   value: string | number;
   icon: React.ElementType;
   delay?: number;
-}> = ({ title, value, icon: Icon, delay = 0 }) => (
+  isLoading?: boolean;
+}> = ({ title, value, icon: Icon, delay = 0, isLoading }) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
@@ -118,10 +119,21 @@ const StatCard: React.FC<{
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-display font-bold">{value}</div>
+        {isLoading ? (
+          <div className="h-8 w-24 bg-muted animate-pulse rounded" />
+        ) : (
+          <div className="text-2xl font-display font-bold">{value}</div>
+        )}
       </CardContent>
     </Card>
   </motion.div>
+);
+
+const ViewSkeleton = () => (
+  <div className="flex flex-col items-center justify-center p-12 w-full space-y-3">
+    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+    <span className="text-xs text-muted-foreground animate-pulse">Loading view...</span>
+  </div>
 );
 
 const ProcessAnalystDashboard: React.FC = () => {
@@ -141,6 +153,16 @@ const ProcessAnalystDashboard: React.FC = () => {
   const PAGE_SIZE = 50;
   const [notifPage, setNotifPage] = useState(1);
   const NOTIF_PAGE_SIZE = 10;
+
+  const [renderDeferred, setRenderDeferred] = React.useState(false);
+
+  React.useEffect(() => {
+    setRenderDeferred(false);
+    const timer = setTimeout(() => {
+      setRenderDeferred(true);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [activeTab]);
 
   React.useEffect(() => {
     setLeadsPage(1);
@@ -188,6 +210,8 @@ const ProcessAnalystDashboard: React.FC = () => {
       return data || [];
     },
   });
+
+  const isLoadingData = !leads || !leadClosures;
 
   const { data: notificationsData } = useQuery({
     queryKey: ['all-notifications-pa', notifPage],
@@ -385,24 +409,30 @@ const ProcessAnalystDashboard: React.FC = () => {
         {activeTab === 'analytics' && (
           <motion.div key="analytics" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              <StatCard title="Total Leads" value={filteredData.leads.length} icon={Users} delay={0} />
-              <StatCard title="Active Leads" value={filteredData.leads.filter(l => !['Closed', 'Non Interested'].includes(l.lead_status || '')).length} icon={TrendingUp} delay={0.1} />
-              <StatCard title="Closures" value={filteredData.leads.filter(l => l.lead_status === 'Closed').length} icon={CheckCircle} delay={0.2} />
-              <StatCard title="Total Calls" value={callLogs?.reduce((sum, c) => sum + (c.call_count || 0), 0) || 0} icon={Phone} delay={0.3} />
-              <StatCard title="Revenue" value={`$${revenueStats.total.toLocaleString()}`} icon={DollarSign} delay={0.4} />
+              <StatCard title="Total Leads" value={filteredData.leads.length} icon={Users} delay={0} isLoading={isLoadingData} />
+              <StatCard title="Active Leads" value={filteredData.leads.filter(l => !['Closed', 'Non Interested'].includes(l.lead_status || '')).length} icon={TrendingUp} delay={0.1} isLoading={isLoadingData} />
+              <StatCard title="Closures" value={filteredData.leads.filter(l => l.lead_status === 'Closed').length} icon={CheckCircle} delay={0.2} isLoading={isLoadingData} />
+              <StatCard title="Total Calls" value={callLogs?.reduce((sum, c) => sum + (c.call_count || 0), 0) || 0} icon={Phone} delay={0.3} isLoading={isLoadingData} />
+              <StatCard title="Revenue" value={`$${revenueStats.total.toLocaleString()}`} icon={DollarSign} delay={0.4} isLoading={isLoadingData} />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <Card className="glass-card"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><DollarSign className="h-5 w-5 text-green-500" /> Revenue Analytics</CardTitle></CardHeader><CardContent className="h-[250px]"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={[{ name: 'Sales', value: revenueStats.team.Sales }, { name: 'Lead Gen', value: revenueStats.team.LeadGen }]} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value"><Cell fill={COLORS[0]} /><Cell fill={COLORS[1]} /></Pie><Tooltip formatter={(v: number) => `$${v.toLocaleString()}`} /><Legend verticalAlign="bottom" /></PieChart></ResponsiveContainer></CardContent></Card>
-              <Card className="glass-card lg:col-span-2"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><Activity className="h-5 w-5 text-primary" /> Daily Activity Flow</CardTitle></CardHeader><CardContent className="h-[250px]"><ResponsiveContainer width="100%" height="100%"><AreaChart data={analyticsData.inflow}><defs><linearGradient id="colorInflow" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient></defs><XAxis dataKey="name" tick={{fontSize: 10}} /><YAxis tick={{fontSize: 10}} /><Tooltip /><Area type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorInflow)" /></AreaChart></ResponsiveContainer></CardContent></Card>
-            </div>
+            {renderDeferred ? (
+              <>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <Card className="glass-card"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><DollarSign className="h-5 w-5 text-green-500" /> Revenue Analytics</CardTitle></CardHeader><CardContent className="h-[250px]"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={[{ name: 'Sales', value: revenueStats.team.Sales }, { name: 'Lead Gen', value: revenueStats.team.LeadGen }]} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value"><Cell fill={COLORS[0]} /><Cell fill={COLORS[1]} /></Pie><Tooltip formatter={(v: number) => `$${v.toLocaleString()}`} /><Legend verticalAlign="bottom" /></PieChart></ResponsiveContainer></CardContent></Card>
+                  <Card className="glass-card lg:col-span-2"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><Activity className="h-5 w-5 text-primary" /> Daily Activity Flow</CardTitle></CardHeader><CardContent className="h-[250px]"><ResponsiveContainer width="100%" height="100%"><AreaChart data={analyticsData.inflow}><defs><linearGradient id="colorInflow" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient></defs><XAxis dataKey="name" tick={{fontSize: 10}} /><YAxis tick={{fontSize: 10}} /><Tooltip /><Area type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorInflow)" /></AreaChart></ResponsiveContainer></CardContent></Card>
+                </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card className="glass-card"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><BarChart3 className="h-5 w-5 text-amber-500" /> Lead Funnel</CardTitle></CardHeader><CardContent className="h-[300px]"><ResponsiveContainer width="100%" height="100%"><BarChart layout="vertical" data={analyticsData.funnel}><XAxis type="number" hide /><YAxis dataKey="name" type="category" tick={{fontSize: 12}} /><Tooltip /><Bar dataKey="value" radius={[0, 4, 4, 0]}>{analyticsData.funnel.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></CardContent></Card>
-              <Card className="glass-card"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><PieChartIcon className="h-5 w-5 text-purple-500" /> Status Distribution</CardTitle></CardHeader><CardContent className="h-[300px]"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={analyticsData.status} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({name}) => name}>{analyticsData.status.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></CardContent></Card>
-            </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <Card className="glass-card"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><BarChart3 className="h-5 w-5 text-amber-500" /> Lead Funnel</CardTitle></CardHeader><CardContent className="h-[300px]"><ResponsiveContainer width="100%" height="100%"><BarChart layout="vertical" data={analyticsData.funnel}><XAxis type="number" hide /><YAxis dataKey="name" type="category" tick={{fontSize: 12}} /><Tooltip /><Bar dataKey="value" radius={[0, 4, 4, 0]}>{analyticsData.funnel.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Bar></BarChart></ResponsiveContainer></CardContent></Card>
+                  <Card className="glass-card"><CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><PieChartIcon className="h-5 w-5 text-purple-500" /> Status Distribution</CardTitle></CardHeader><CardContent className="h-[300px]"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={analyticsData.status} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({name}) => name}>{analyticsData.status.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer></CardContent></Card>
+                </div>
 
-            <Card className="glass-card"><CardHeader><CardTitle className="text-xl font-display">Team Contribution Analysis</CardTitle></CardHeader><CardContent className="space-y-4">{teamPerformance.map(team => (<div key={team.name} className="border border-border/50 rounded-xl overflow-hidden bg-accent/5"><div className="flex items-center justify-between p-4 cursor-pointer hover:bg-accent/20 transition-colors" onClick={() => setExpandedTeam(expandedTeam === team.name ? null : team.name)}><div className="flex items-center gap-3">{expandedTeam === team.name ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}<span className="font-bold">{team.name}</span></div><div className="flex gap-10"><div className="text-center"><p className="text-[10px] uppercase text-muted-foreground">Generated</p><p className="font-bold">{team.leads}</p></div><div className="text-center"><p className="text-[10px] uppercase text-muted-foreground">Closures</p><p className="font-bold text-green-500">{team.closures}</p></div><div className="text-center"><p className="text-[10px] uppercase text-muted-foreground">Calls</p><p className="font-bold text-blue-500">{team.calls}</p></div></div></div>{expandedTeam === team.name && (<div className="p-4 border-t border-border/50 bg-background/50"><Table><TableHeader><TableRow><TableHead>Member</TableHead><TableHead className="text-center">Leads</TableHead></TableRow></TableHeader><TableBody>{team.members.map(m => (<TableRow key={m.id}><TableCell className="text-xs font-medium">{m.name}</TableCell><TableCell className="text-center text-xs font-bold">{m.leads}</TableCell></TableRow>))}</TableBody></Table></div>)}</div>))}</CardContent></Card>
+                <Card className="glass-card"><CardHeader><CardTitle className="text-xl font-display">Team Contribution Analysis</CardTitle></CardHeader><CardContent className="space-y-4">{teamPerformance.map(team => (<div key={team.name} className="border border-border/50 rounded-xl overflow-hidden bg-accent/5"><div className="flex items-center justify-between p-4 cursor-pointer hover:bg-accent/20 transition-colors" onClick={() => setExpandedTeam(expandedTeam === team.name ? null : team.name)}><div className="flex items-center gap-3">{expandedTeam === team.name ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}<span className="font-bold">{team.name}</span></div><div className="flex gap-10"><div className="text-center"><p className="text-[10px] uppercase text-muted-foreground">Generated</p><p className="font-bold">{team.leads}</p></div><div className="text-center"><p className="text-[10px] uppercase text-muted-foreground">Closures</p><p className="font-bold text-green-500">{team.closures}</p></div><div className="text-center"><p className="text-[10px] uppercase text-muted-foreground">Calls</p><p className="font-bold text-blue-500">{team.calls}</p></div></div></div>{expandedTeam === team.name && (<div className="p-4 border-t border-border/50 bg-background/50"><Table><TableHeader><TableRow><TableHead>Member</TableHead><TableHead className="text-center">Leads</TableHead></TableRow></TableHeader><TableBody>{team.members.map(m => (<TableRow key={m.id}><TableCell className="text-xs font-medium">{m.name}</TableCell><TableCell className="text-center text-xs font-bold">{m.leads}</TableCell></TableRow>))}</TableBody></Table></div>)}</div>))}</CardContent></Card>
+              </>
+            ) : (
+              <ViewSkeleton />
+            )}
           </motion.div>
         )}
 
@@ -449,53 +479,57 @@ const ProcessAnalystDashboard: React.FC = () => {
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader className="bg-accent/50">
-                      <TableRow>
-                        <TableHead className="text-xs w-10">#</TableHead>
-                        <TableHead className="text-xs">Date</TableHead>
-                        <TableHead className="text-xs">Candidate</TableHead>
-                        <TableHead className="text-xs">Assigned To</TableHead>
-                        <TableHead className="text-xs">Status</TableHead>
-                        <TableHead className="text-xs">Activity</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {paGlobalLeads.length === 0 ? (
+                {renderDeferred ? (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader className="bg-accent/50">
                         <TableRow>
-                          <TableCell colSpan={6} className="text-center py-10 text-muted-foreground text-sm">No leads found</TableCell>
+                          <TableHead className="text-xs w-10">#</TableHead>
+                          <TableHead className="text-xs">Date</TableHead>
+                          <TableHead className="text-xs">Candidate</TableHead>
+                          <TableHead className="text-xs">Assigned To</TableHead>
+                          <TableHead className="text-xs">Status</TableHead>
+                          <TableHead className="text-xs">Activity</TableHead>
                         </TableRow>
-                      ) : (
-                        paGlobalLeads.slice((leadsPage - 1) * 50, leadsPage * 50).map((lead, idx) => (
-                          <TableRow key={lead.unique_id}>
-                            <TableCell className="text-xs text-muted-foreground font-medium w-10">
-                              {(leadsPage - 1) * 50 + idx + 1}
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground">
-                              {formatDate(lead.created_at)}
-                            </TableCell>
-                            <TableCell className="text-xs font-bold">
-                              {lead.name}
-                              <p className="text-[10px] font-normal text-muted-foreground">{lead.email}</p>
-                            </TableCell>
-                            <TableCell className="text-xs">
-                              {allUsers.find(u => u.user_id === lead.assigned_to)?.full_name || 'Unassigned'}
-                            </TableCell>
-                            <TableCell>
-                              {getStatusBadge(lead.lead_status || '')}
-                            </TableCell>
-                            <TableCell className="text-[10px] text-muted-foreground font-mono">
-                              {formatISTShort(lead.updated_at)}
-                            </TableCell>
+                      </TableHeader>
+                      <TableBody>
+                        {paGlobalLeads.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={6} className="text-center py-10 text-muted-foreground text-sm">No leads found</TableCell>
                           </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
+                        ) : (
+                          paGlobalLeads.slice((leadsPage - 1) * 50, leadsPage * 50).map((lead, idx) => (
+                            <TableRow key={lead.unique_id}>
+                              <TableCell className="text-xs text-muted-foreground font-medium w-10">
+                                {(leadsPage - 1) * 50 + idx + 1}
+                              </TableCell>
+                              <TableCell className="text-xs text-muted-foreground">
+                                {formatDate(lead.created_at)}
+                              </TableCell>
+                              <TableCell className="text-xs font-bold">
+                                {lead.name}
+                                <p className="text-[10px] font-normal text-muted-foreground">{lead.email}</p>
+                              </TableCell>
+                              <TableCell className="text-xs">
+                                {allUsers.find(u => u.user_id === lead.assigned_to)?.full_name || 'Unassigned'}
+                              </TableCell>
+                              <TableCell>
+                                {getStatusBadge(lead.lead_status || '')}
+                              </TableCell>
+                              <TableCell className="text-[10px] text-muted-foreground font-mono">
+                                {formatISTShort(lead.updated_at)}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <ViewSkeleton />
+                )}
               </CardContent>
-              {paGlobalLeads.length > 0 && (
+              {renderDeferred && paGlobalLeads.length > 0 && (
                 <div className="flex justify-between items-center p-4 border-t border-border flex-wrap gap-2 bg-accent/5">
                   <span className="text-xs text-muted-foreground">
                     Showing {Math.min(paGlobalLeads.length, (leadsPage - 1) * 50 + 1)} to {Math.min(paGlobalLeads.length, leadsPage * 50)} of {paGlobalLeads.length} leads
@@ -529,69 +563,75 @@ const ProcessAnalystDashboard: React.FC = () => {
 
         {activeTab === 'monitoring' && (
           <motion.div key="monitoring" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-6">
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              <Card className="glass-card border-red-500/20 bg-red-500/5"><CardHeader className="pb-2 text-red-500 flex flex-row items-center justify-between"><CardTitle className="text-lg font-display flex items-center gap-2"><Clock className="h-5 w-5" /> SLA Monitoring</CardTitle><Badge variant="destructive" className="animate-pulse">{slaAlerts.length} Alerts</Badge></CardHeader><CardContent className="p-0"><div className="max-h-[350px] overflow-y-auto"><Table><TableHeader className="bg-red-500/10"><TableRow><TableHead className="text-xs">Lead</TableHead><TableHead className="text-xs">Assigned</TableHead><TableHead className="text-xs text-right">Status</TableHead></TableRow></TableHeader><TableBody>{slaAlerts.slice(0, 10).map(l => (<TableRow key={l.unique_id} className="border-red-500/10"><TableCell className="text-xs font-bold">{l.name}</TableCell><TableCell className="text-xs">{allUsers.find(u => u.user_id === l.assigned_to)?.full_name || 'Unassigned'}</TableCell><TableCell className="text-right text-[10px] font-bold text-red-500">INACTIVE</TableCell></TableRow>))}</TableBody></Table></div></CardContent></Card>
-              <Card className="glass-card border-amber-500/20 bg-amber-500/5"><CardHeader className="pb-2 text-amber-500"><CardTitle className="text-lg font-display flex items-center gap-2"><AlertTriangle className="h-5 w-5" /> Concern Center</CardTitle></CardHeader><CardContent className="p-0"><div className="max-h-[350px] overflow-y-auto"><Table><TableHeader className="bg-amber-500/10"><TableRow><TableHead className="text-xs">Lead</TableHead><TableHead className="text-xs">Issue</TableHead></TableRow></TableHeader><TableBody>{concerns?.slice(0, 10).map(c => (<TableRow key={c.id} className="border-amber-500/10"><TableCell className="text-xs font-bold">{leads?.find(l => l.unique_id === c.lead_id)?.name || 'Unknown'}</TableCell><TableCell className="text-xs italic">"{c.description}"</TableCell></TableRow>))}</TableBody></Table></div></CardContent></Card>
-            </div>
-            <Card className="glass-card">
-              <CardHeader>
-                <CardTitle className="text-lg font-display flex items-center gap-2">
-                  <Bell className="h-5 w-5 text-primary animate-bell-shake" /> Notification Monitoring
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0 flex flex-col">
-                <div className="max-h-[400px] overflow-y-auto divide-y divide-border/50 flex-1">
-                  {notifications.length === 0 ? (
-                    <div className="p-8 text-center text-xs text-muted-foreground">No notifications</div>
-                  ) : (
-                    notifications.map(n => (
-                      <div key={n.id} className="p-4 hover:bg-accent/20 flex items-start gap-4">
-                        <div className="p-2 rounded-full bg-primary/10 text-primary">
-                          <Activity className="h-4 w-4" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-bold">{n.title}</p>
-                          <p className="text-xs text-muted-foreground">{n.message}</p>
-                          <p className="text-[9px] text-muted-foreground mt-1 font-mono uppercase">
-                            {formatISTLong(n.created_at)}
-                          </p>
+            {renderDeferred ? (
+              <>
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                  <Card className="glass-card border-red-500/20 bg-red-500/5"><CardHeader className="pb-2 text-red-500 flex flex-row items-center justify-between"><CardTitle className="text-lg font-display flex items-center gap-2"><Clock className="h-5 w-5" /> SLA Monitoring</CardTitle><Badge variant="destructive" className="animate-pulse">{slaAlerts.length} Alerts</Badge></CardHeader><CardContent className="p-0"><div className="max-h-[350px] overflow-y-auto"><Table><TableHeader className="bg-red-500/10"><TableRow><TableHead className="text-xs">Lead</TableHead><TableHead className="text-xs">Assigned</TableHead><TableHead className="text-xs text-right">Status</TableHead></TableRow></TableHeader><TableBody>{slaAlerts.slice(0, 10).map(l => (<TableRow key={l.unique_id} className="border-red-500/10"><TableCell className="text-xs font-bold">{l.name}</TableCell><TableCell className="text-xs">{allUsers.find(u => u.user_id === l.assigned_to)?.full_name || 'Unassigned'}</TableCell><TableCell className="text-right text-[10px] font-bold text-red-500">INACTIVE</TableCell></TableRow>))}</TableBody></Table></div></CardContent></Card>
+                  <Card className="glass-card border-amber-500/20 bg-amber-500/5"><CardHeader className="pb-2 text-amber-500"><CardTitle className="text-lg font-display flex items-center gap-2"><AlertTriangle className="h-5 w-5" /> Concern Center</CardTitle></CardHeader><CardContent className="p-0"><div className="max-h-[350px] overflow-y-auto"><Table><TableHeader className="bg-amber-500/10"><TableRow><TableHead className="text-xs">Lead</TableHead><TableHead className="text-xs">Issue</TableHead></TableRow></TableHeader><TableBody>{concerns?.slice(0, 10).map(c => (<TableRow key={c.id} className="border-amber-500/10"><TableCell className="text-xs font-bold">{leads?.find(l => l.unique_id === c.lead_id)?.name || 'Unknown'}</TableCell><TableCell className="text-xs italic">"{c.description}"</TableCell></TableRow>))}</TableBody></Table></div></CardContent></Card>
+                </div>
+                <Card className="glass-card">
+                  <CardHeader>
+                    <CardTitle className="text-lg font-display flex items-center gap-2">
+                      <Bell className="h-5 w-5 text-primary animate-bell-shake" /> Notification Monitoring
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0 flex flex-col">
+                    <div className="max-h-[400px] overflow-y-auto divide-y divide-border/50 flex-1">
+                      {notifications.length === 0 ? (
+                        <div className="p-8 text-center text-xs text-muted-foreground">No notifications</div>
+                      ) : (
+                        notifications.map(n => (
+                          <div key={n.id} className="p-4 hover:bg-accent/20 flex items-start gap-4">
+                            <div className="p-2 rounded-full bg-primary/10 text-primary">
+                              <Activity className="h-4 w-4" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-sm font-bold">{n.title}</p>
+                              <p className="text-xs text-muted-foreground">{n.message}</p>
+                              <p className="text-[9px] text-muted-foreground mt-1 font-mono uppercase">
+                                {formatISTLong(n.created_at)}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    {notificationsTotalCount > NOTIF_PAGE_SIZE && (
+                      <div className="flex justify-between items-center p-3 border-t border-border flex-wrap gap-2 bg-accent/5">
+                        <span className="text-[10px] text-muted-foreground">
+                          Showing {Math.min(notificationsTotalCount, (notifPage - 1) * NOTIF_PAGE_SIZE + 1)} to {Math.min(notificationsTotalCount, notifPage * NOTIF_PAGE_SIZE)} of {notificationsTotalCount}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs px-2"
+                            disabled={notifPage === 1}
+                            onClick={() => setNotifPage(p => Math.max(1, p - 1))}
+                          >
+                            Prev
+                          </Button>
+                          <span className="text-[10px] font-medium px-1">
+                            Page {notifPage} of {Math.ceil(notificationsTotalCount / NOTIF_PAGE_SIZE)}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs px-2"
+                            disabled={notifPage * NOTIF_PAGE_SIZE >= notificationsTotalCount}
+                            onClick={() => setNotifPage(p => p + 1)}
+                          >
+                            Next
+                          </Button>
                         </div>
                       </div>
-                    ))
-                  )}
-                </div>
-                {notificationsTotalCount > NOTIF_PAGE_SIZE && (
-                  <div className="flex justify-between items-center p-3 border-t border-border flex-wrap gap-2 bg-accent/5">
-                    <span className="text-[10px] text-muted-foreground">
-                      Showing {Math.min(notificationsTotalCount, (notifPage - 1) * NOTIF_PAGE_SIZE + 1)} to {Math.min(notificationsTotalCount, notifPage * NOTIF_PAGE_SIZE)} of {notificationsTotalCount}
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs px-2"
-                        disabled={notifPage === 1}
-                        onClick={() => setNotifPage(p => Math.max(1, p - 1))}
-                      >
-                        Prev
-                      </Button>
-                      <span className="text-[10px] font-medium px-1">
-                        Page {notifPage} of {Math.ceil(notificationsTotalCount / NOTIF_PAGE_SIZE)}
-                      </span>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs px-2"
-                        disabled={notifPage * NOTIF_PAGE_SIZE >= notificationsTotalCount}
-                        onClick={() => setNotifPage(p => p + 1)}
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              <ViewSkeleton />
+            )}
           </motion.div>
         )}
       </AnimatePresence>
