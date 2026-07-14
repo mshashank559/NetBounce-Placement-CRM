@@ -346,6 +346,18 @@ const AdminDashboard: React.FC = () => {
   });
 
   // Queries
+
+  // ── Server-side KPI stats (lightweight — returns only 4 numbers) ──────────
+  const { data: dashboardStats, isLoading: isLoadingStats } = useQuery({
+    queryKey: ['admin-dashboard-stats'],
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc as any)('get_admin_dashboard_stats');
+      if (error) throw error;
+      return data as { totalLeads: number; pipeline: number; closures: number; revenue: number };
+    },
+    staleTime: 60000, // 1 minute staleTime
+  });
+
   const { data: leads } = useQuery({
     queryKey: ['all-leads-admin'],
     queryFn: fetchAllLeads,
@@ -883,6 +895,7 @@ const AdminDashboard: React.FC = () => {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['admin-dashboard-stats'] }),
       queryClient.invalidateQueries({ queryKey: ['all-leads-admin'] }),
       queryClient.invalidateQueries({ queryKey: ['leads'] }),
       queryClient.invalidateQueries({ queryKey: ['all-profiles-admin'] }),
@@ -936,10 +949,10 @@ const AdminDashboard: React.FC = () => {
         {activeTab === 'control' && (
           <motion.div key="control" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard title="Total Leads" value={filteredData.leads.length} icon={Users} delay={0} isLoading={isLoadingData} />
-              <StatCard title="Pipeline" value={filteredData.leads.filter(l => !['Closed', 'Non Interested'].includes(l.lead_status || '')).length} icon={TrendingUp} delay={0.1} isLoading={isLoadingData} />
-              <StatCard title="Closures" value={filteredData.leads.filter(l => l.lead_status === 'Closed').length} icon={CheckCircle} delay={0.2} isLoading={isLoadingData} />
-              <StatCard title="Revenue" value={`$${revenueStats.total.toLocaleString()}`} icon={DollarSign} delay={0.3} isLoading={isLoadingData} />
+              <StatCard title="Total Leads" value={dashboardStats?.totalLeads ?? filteredData.leads.length} icon={Users} delay={0} isLoading={isLoadingStats} />
+              <StatCard title="Pipeline" value={dashboardStats?.pipeline ?? filteredData.leads.filter(l => !['Closed', 'Non Interested'].includes(l.lead_status || '')).length} icon={TrendingUp} delay={0.1} isLoading={isLoadingStats} />
+              <StatCard title="Closures" value={dashboardStats?.closures ?? filteredData.leads.filter(l => l.lead_status === 'Closed').length} icon={CheckCircle} delay={0.2} isLoading={isLoadingStats} />
+              <StatCard title="Revenue" value={`$${(dashboardStats?.revenue ?? revenueStats.total).toLocaleString()}`} icon={DollarSign} delay={0.3} isLoading={isLoadingStats} />
             </div>
             {isAdmin && (
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
