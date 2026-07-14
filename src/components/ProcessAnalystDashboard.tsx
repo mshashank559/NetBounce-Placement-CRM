@@ -172,6 +172,7 @@ const ProcessAnalystDashboard: React.FC = () => {
   const { data: leads } = useQuery({
     queryKey: ['all-leads-pa'],
     queryFn: fetchAllLeads,
+    staleTime: 60000, // 1 minute staleTime
   });
 
   const { data: profiles } = useQuery({
@@ -181,6 +182,7 @@ const ProcessAnalystDashboard: React.FC = () => {
       if (error) throw error;
       return data || [];
     },
+    staleTime: 300000, // 5 minutes staleTime
   });
 
   const { data: userRoles } = useQuery({
@@ -190,6 +192,7 @@ const ProcessAnalystDashboard: React.FC = () => {
       if (error) throw error;
       return data || [];
     },
+    staleTime: 300000, // 5 minutes staleTime
   });
 
   const { data: callLogs } = useQuery({
@@ -200,6 +203,7 @@ const ProcessAnalystDashboard: React.FC = () => {
       return data || [];
     },
     enabled: activeTab === 'analytics',
+    staleTime: 120000, // 2 minutes staleTime
   });
 
   const { data: leadClosures } = useQuery({
@@ -209,6 +213,7 @@ const ProcessAnalystDashboard: React.FC = () => {
       if (error) throw error;
       return data || [];
     },
+    staleTime: 60000, // 1 minute staleTime
   });
 
   const isLoadingData = !leads || !leadClosures;
@@ -251,6 +256,22 @@ const ProcessAnalystDashboard: React.FC = () => {
       team: roleMap[p.user_id]?.startsWith('SALES') ? 'Sales' : roleMap[p.user_id]?.startsWith('LEAD') ? 'Lead Gen' : 'Admin'
     }));
   }, [profiles, userRoles]);
+
+  // Index users by ID for O(1) lookups
+  const userMap = useMemo(() => {
+    const map = new Map<string, typeof allUsers[number]>();
+    allUsers.forEach(u => map.set(u.user_id, u));
+    return map;
+  }, [allUsers]);
+
+  // Index leads by unique_id for O(1) lookups
+  const leadMap = useMemo(() => {
+    const map = new Map<string, any>();
+    if (leads) {
+      leads.forEach(l => map.set(l.unique_id, l));
+    }
+    return map;
+  }, [leads]);
 
   // Filtering Logic
   const filteredData = useMemo(() => {
@@ -302,16 +323,33 @@ const ProcessAnalystDashboard: React.FC = () => {
       return s1 + s2 + additional;
     };
     const total = filteredData.closures.reduce((sum, c) => sum + calcRevenue(c), 0);
-    const salesTeamIds = allUsers.filter(u => u.team === 'Sales').map(u => u.user_id);
-    const leadGenTeamIds = allUsers.filter(u => u.team === 'Lead Gen').map(u => u.user_id);
+    const salesTeamIds = new Set(allUsers.filter(u => u.team === 'Sales').map(u => u.user_id));
+    const leadGenTeamIds = new Set(allUsers.filter(u => u.team === 'Lead Gen').map(u => u.user_id));
+
+    let salesTotal = 0;
+    let leadGenTotal = 0;
+
+    filteredData.closures.forEach(c => {
+      const l = leadMap.get(c.lead_id);
+      if (l) {
+        const rev = calcRevenue(c);
+        if (salesTeamIds.has(l.assigned_to || '')) {
+          salesTotal += rev;
+        }
+        if (leadGenTeamIds.has(l.lead_generated_by || '')) {
+          leadGenTotal += rev;
+        }
+      }
+    });
+
     return {
       total,
       team: {
-        Sales: filteredData.closures.filter(c => salesTeamIds.includes(leads?.find(l => l.unique_id === c.lead_id)?.assigned_to || '')).reduce((sum, c) => sum + calcRevenue(c), 0),
-        LeadGen: filteredData.closures.filter(c => leadGenTeamIds.includes(leads?.find(l => l.unique_id === c.lead_id)?.lead_generated_by || '')).reduce((sum, c) => sum + calcRevenue(c), 0)
+        Sales: salesTotal,
+        LeadGen: leadGenTotal
       }
     };
-  }, [filteredData.closures, allUsers, leads]);
+  }, [filteredData.closures, allUsers, leadMap]);
 
   const analyticsData = useMemo(() => {
     const last15Days = Array.from({ length: 15 }).map((_, i) => {
@@ -349,16 +387,55 @@ const ProcessAnalystDashboard: React.FC = () => {
 
   const teamPerformance = useMemo(() => {
     const teams = [{ name: 'Lead Gen Team', roles: ['LEAD_TL', 'LEAD_GEN'] }, { name: 'Sales Team', roles: ['SALES_TL', 'SALES_TM'] }];
+
+    const leadsGeneratedByUser = new Map<string, number>();
+    const leadsAssignedToUser = new Map<string, number>();
+    const callsByUser = new Map<string, number>();
+
+    if (leads) {
+      leads.forEach(l => {
+        if (l.lead_generated_by) {
+          leadsGeneratedByUser.set(l.lead_generated_by, (leadsGeneratedByUser.get(l.lead_generated_by) || 0) + 1);
+        }
+        if (l.assigned_to) {
+          leadsAssignedToUser.set(l.assigned_to, (leadsAssignedToUser.get(l.assigned_to) || 0) + 1);
+        }
+      });
+    }
+
+    if (callLogs) {
+      callLogs.forEach(c => {
+        callsByUser.set(c.user_id, (callsByUser.get(c.user_id) || 0) + (c.call_count || 0));
+      });
+    }
+
     return teams.map(team => {
       const teamUsers = allUsers.filter(u => team.roles.includes(u.role));
-      const teamUserIds = teamUsers.map(u => u.user_id);
-      const teamLeads = leads?.filter(l => (team.name === 'Lead Gen Team' && teamUserIds.includes(l.lead_generated_by || '')) || (team.name === 'Sales Team' && teamUserIds.includes(l.assigned_to || ''))) || [];
+      const teamUserIds = new Set(teamUsers.map(u => u.user_id));
+
+      const teamLeads = leads?.filter(l =>
+        (team.name === 'Lead Gen Team' && l.lead_generated_by && teamUserIds.has(l.lead_generated_by)) ||
+        (team.name === 'Sales Team' && l.assigned_to && teamUserIds.has(l.assigned_to))
+      ) || [];
+
+      let teamCalls = 0;
+      teamUsers.forEach(u => {
+        teamCalls += callsByUser.get(u.user_id) || 0;
+      });
+
       return {
         name: team.name,
         leads: teamLeads.length,
         closures: teamLeads.filter(l => l.lead_status === 'Closed').length,
-        calls: callLogs?.filter(c => teamUserIds.includes(c.user_id)).reduce((sum, c) => sum + (c.call_count || 0), 0) || 0,
-        members: teamUsers.map(u => ({ id: u.user_id, name: u.full_name, role: u.role, leads: (leads?.filter(l => (team.name === 'Lead Gen Team' && l.lead_generated_by === u.user_id) || (team.name === 'Sales Team' && l.assigned_to === u.user_id)) || []).length }))
+        calls: teamCalls,
+        members: teamUsers.map(u => ({
+          id: u.user_id,
+          name: u.full_name,
+          role: u.role,
+          leads: team.name === 'Lead Gen Team'
+            ? (leadsGeneratedByUser.get(u.user_id) || 0)
+            : (leadsAssignedToUser.get(u.user_id) || 0)
+        }))
       };
     });
   }, [allUsers, leads, callLogs]);
@@ -392,6 +469,24 @@ const ProcessAnalystDashboard: React.FC = () => {
     }
   };
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['all-leads-pa'] }),
+      queryClient.invalidateQueries({ queryKey: ['all-profiles-pa'] }),
+      queryClient.invalidateQueries({ queryKey: ['all-user-roles-pa'] }),
+      queryClient.invalidateQueries({ queryKey: ['all-call-logs-pa'] }),
+      queryClient.invalidateQueries({ queryKey: ['all-closures-pa'] }),
+      queryClient.invalidateQueries({ queryKey: ['all-notifications-pa'] }),
+      queryClient.invalidateQueries({ queryKey: ['all-concerns-pa'] }),
+    ]);
+    setTimeout(() => {
+      setIsRefreshing(false);
+      toast.success('Dashboard data refreshed');
+    }, 500);
+  };
+
   return (
     <div className="space-y-6 pb-12">
       <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-6 bg-background/50 backdrop-blur-xl p-6 rounded-2xl border border-primary/10 shadow-2xl sticky top-0 z-30">
@@ -402,6 +497,16 @@ const ProcessAnalystDashboard: React.FC = () => {
           <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); localStorage.setItem('netbounce_crm_month_filter_yyyy_mm', v); }}><SelectTrigger className="w-36 h-9 bg-accent/30 border-border/50 text-xs"><SelectValue placeholder="Month" /></SelectTrigger><SelectContent><SelectItem value="all">All Time</SelectItem>{["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m, i) => { const val = `${new Date().getFullYear()}-${String(i + 1).padStart(2, '0')}`; return <SelectItem key={val} value={val}>{m}</SelectItem>; })}</SelectContent></Select>
           <Select value={teamFilter} onValueChange={setTeamFilter}><SelectTrigger className="w-32 h-9 bg-accent/30 border-border/50 text-xs"><SelectValue placeholder="Team" /></SelectTrigger><SelectContent><SelectItem value="all">All Teams</SelectItem><SelectItem value="Lead Gen">Lead Gen</SelectItem><SelectItem value="Sales">Sales</SelectItem></SelectContent></Select>
           <div className="relative w-48 h-9"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" /><Input placeholder="Search name, id, email, phone..." className="pl-9 h-full bg-accent/30 border-border/50 focus-visible:ring-primary/30 text-xs" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div>
+          <Button
+            size="icon"
+            variant="outline"
+            className="h-9 w-9 bg-accent/30 border-border/50 hover:bg-accent/50 text-foreground"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            title="Refresh Dashboard Data"
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </Button>
         </div>
       </div>
 
@@ -511,7 +616,7 @@ const ProcessAnalystDashboard: React.FC = () => {
                                 <p className="text-[10px] font-normal text-muted-foreground">{lead.email}</p>
                               </TableCell>
                               <TableCell className="text-xs">
-                                {allUsers.find(u => u.user_id === lead.assigned_to)?.full_name || 'Unassigned'}
+                                {lead.assigned_to ? (userMap.get(lead.assigned_to)?.full_name || 'Unassigned') : 'Unassigned'}
                               </TableCell>
                               <TableCell>
                                 {getStatusBadge(lead.lead_status || '')}
@@ -566,8 +671,8 @@ const ProcessAnalystDashboard: React.FC = () => {
             {renderDeferred ? (
               <>
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                  <Card className="glass-card border-red-500/20 bg-red-500/5"><CardHeader className="pb-2 text-red-500 flex flex-row items-center justify-between"><CardTitle className="text-lg font-display flex items-center gap-2"><Clock className="h-5 w-5" /> SLA Monitoring</CardTitle><Badge variant="destructive" className="animate-pulse">{slaAlerts.length} Alerts</Badge></CardHeader><CardContent className="p-0"><div className="max-h-[350px] overflow-y-auto"><Table><TableHeader className="bg-red-500/10"><TableRow><TableHead className="text-xs">Lead</TableHead><TableHead className="text-xs">Assigned</TableHead><TableHead className="text-xs text-right">Status</TableHead></TableRow></TableHeader><TableBody>{slaAlerts.slice(0, 10).map(l => (<TableRow key={l.unique_id} className="border-red-500/10"><TableCell className="text-xs font-bold">{l.name}</TableCell><TableCell className="text-xs">{allUsers.find(u => u.user_id === l.assigned_to)?.full_name || 'Unassigned'}</TableCell><TableCell className="text-right text-[10px] font-bold text-red-500">INACTIVE</TableCell></TableRow>))}</TableBody></Table></div></CardContent></Card>
-                  <Card className="glass-card border-amber-500/20 bg-amber-500/5"><CardHeader className="pb-2 text-amber-500"><CardTitle className="text-lg font-display flex items-center gap-2"><AlertTriangle className="h-5 w-5" /> Concern Center</CardTitle></CardHeader><CardContent className="p-0"><div className="max-h-[350px] overflow-y-auto"><Table><TableHeader className="bg-amber-500/10"><TableRow><TableHead className="text-xs">Lead</TableHead><TableHead className="text-xs">Issue</TableHead></TableRow></TableHeader><TableBody>{concerns?.slice(0, 10).map(c => (<TableRow key={c.id} className="border-amber-500/10"><TableCell className="text-xs font-bold">{leads?.find(l => l.unique_id === c.lead_id)?.name || 'Unknown'}</TableCell><TableCell className="text-xs italic">"{c.description}"</TableCell></TableRow>))}</TableBody></Table></div></CardContent></Card>
+                  <Card className="glass-card border-red-500/20 bg-red-500/5"><CardHeader className="pb-2 text-red-500 flex flex-row items-center justify-between"><CardTitle className="text-lg font-display flex items-center gap-2"><Clock className="h-5 w-5" /> SLA Monitoring</CardTitle><Badge variant="destructive" className="animate-pulse">{slaAlerts.length} Alerts</Badge></CardHeader><CardContent className="p-0"><div className="max-h-[350px] overflow-y-auto"><Table><TableHeader className="bg-red-500/10"><TableRow><TableHead className="text-xs">Lead</TableHead><TableHead className="text-xs">Assigned</TableHead><TableHead className="text-xs text-right">Status</TableHead></TableRow></TableHeader><TableBody>{slaAlerts.slice(0, 10).map(l => (<TableRow key={l.unique_id} className="border-red-500/10"><TableCell className="text-xs font-bold">{l.name}</TableCell><TableCell className="text-xs">{l.assigned_to ? (userMap.get(l.assigned_to)?.full_name || 'Unassigned') : 'Unassigned'}</TableCell><TableCell className="text-right text-[10px] font-bold text-red-500">INACTIVE</TableCell></TableRow>))}</TableBody></Table></div></CardContent></Card>
+                  <Card className="glass-card border-amber-500/20 bg-amber-500/5"><CardHeader className="pb-2 text-amber-500"><CardTitle className="text-lg font-display flex items-center gap-2"><AlertTriangle className="h-5 w-5" /> Concern Center</CardTitle></CardHeader><CardContent className="p-0"><div className="max-h-[350px] overflow-y-auto"><Table><TableHeader className="bg-amber-500/10"><TableRow><TableHead className="text-xs">Lead</TableHead><TableHead className="text-xs">Issue</TableHead></TableRow></TableHeader><TableBody>{concerns?.slice(0, 10).map(c => (<TableRow key={c.id} className="border-amber-500/10"><TableCell className="text-xs font-bold">{leadMap.get(c.lead_id)?.name || 'Unknown'}</TableCell><TableCell className="text-xs italic">"{c.description}"</TableCell></TableRow>))}</TableBody></Table></div></CardContent></Card>
                 </div>
                 <Card className="glass-card">
                   <CardHeader>

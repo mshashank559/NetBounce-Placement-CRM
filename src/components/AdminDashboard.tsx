@@ -206,6 +206,12 @@ const AdminDashboard: React.FC = () => {
     setGlobalPage(1);
   }, [globalDateFrom, globalDateTo, globalSearch, globalSalesMemberFilter, selectedGenerator]);
 
+  const [controlPage, setControlPage] = useState(1);
+
+  React.useEffect(() => {
+    setControlPage(1);
+  }, [adminViewMode, monthFilter, statusFilter, teamFilter, searchQuery]);
+
   // Dialog state
   const [selectedLead, setSelectedLead] = useState<any>(null);
   const [closureLead, setClosureLead] = useState<any>(null);
@@ -222,7 +228,7 @@ const AdminDashboard: React.FC = () => {
   const [concernRecipient, setConcernRecipient] = useState('');
 
   // Helper to resolve profile name
-  const getName = (id: string | null) => allUsers.find(u => u.user_id === id)?.full_name || '—';
+  const getName = (id: string | null) => id ? (userMap.get(id)?.full_name || '—') : '—';
 
   // ── Fetch Concern Recipients ──────────────────────────────────
   const { data: concernRecipients = [] } = useQuery({
@@ -343,6 +349,7 @@ const AdminDashboard: React.FC = () => {
   const { data: leads } = useQuery({
     queryKey: ['all-leads-admin'],
     queryFn: fetchAllLeads,
+    staleTime: 60000, // 1 minute staleTime
   });
 
   const { data: profiles } = useQuery({
@@ -352,6 +359,7 @@ const AdminDashboard: React.FC = () => {
       if (error) throw error;
       return data || [];
     },
+    staleTime: 300000, // 5 minutes staleTime
   });
 
   const { data: userRoles } = useQuery({
@@ -361,6 +369,7 @@ const AdminDashboard: React.FC = () => {
       if (error) throw error;
       return data || [];
     },
+    staleTime: 300000, // 5 minutes staleTime
   });
 
   const { data: callLogs } = useQuery({
@@ -371,6 +380,7 @@ const AdminDashboard: React.FC = () => {
       return data || [];
     },
     enabled: activeTab === 'analytics',
+    staleTime: 120000, // 2 minutes staleTime
   });
 
   const { data: leadClosures } = useQuery({
@@ -380,6 +390,7 @@ const AdminDashboard: React.FC = () => {
       if (error) throw error;
       return data || [];
     },
+    staleTime: 60000, // 1 minute staleTime
   });
 
   const isLoadingData = !leads || !leadClosures;
@@ -455,6 +466,22 @@ const AdminDashboard: React.FC = () => {
       team: roleMap[p.user_id]?.startsWith('SALES') ? 'Sales' : roleMap[p.user_id]?.startsWith('LEAD') ? 'Lead Gen' : 'Admin'
     }));
   }, [profiles, userRoles]);
+
+  // Index users by ID for O(1) lookups
+  const userMap = useMemo(() => {
+    const map = new Map<string, typeof allUsers[number]>();
+    allUsers.forEach(u => map.set(u.user_id, u));
+    return map;
+  }, [allUsers]);
+
+  // Index leads by unique_id for O(1) lookups
+  const leadMap = useMemo(() => {
+    const map = new Map<string, any>();
+    if (leads) {
+      leads.forEach(l => map.set(l.unique_id, l));
+    }
+    return map;
+  }, [leads]);
 
   // SLA Monitoring Logic
   const slaAlerts = useMemo(() => {
@@ -569,16 +596,33 @@ const AdminDashboard: React.FC = () => {
       return s1 + s2 + additional;
     };
     const total = filteredData.closures.reduce((sum, c) => sum + calcRevenue(c), 0);
-    const salesTeamIds = allUsers.filter(u => u.team === 'Sales').map(u => u.user_id);
-    const leadGenTeamIds = allUsers.filter(u => u.team === 'Lead Gen').map(u => u.user_id);
+    const salesTeamIds = new Set(allUsers.filter(u => u.team === 'Sales').map(u => u.user_id));
+    const leadGenTeamIds = new Set(allUsers.filter(u => u.team === 'Lead Gen').map(u => u.user_id));
+
+    let salesTotal = 0;
+    let leadGenTotal = 0;
+
+    filteredData.closures.forEach(c => {
+      const l = leadMap.get(c.lead_id);
+      if (l) {
+        const rev = calcRevenue(c);
+        if (salesTeamIds.has(l.assigned_to || '')) {
+          salesTotal += rev;
+        }
+        if (leadGenTeamIds.has(l.lead_generated_by || '')) {
+          leadGenTotal += rev;
+        }
+      }
+    });
+
     return {
       total,
       team: {
-        Sales: filteredData.closures.filter(c => salesTeamIds.includes(leads?.find(l => l.unique_id === c.lead_id)?.assigned_to || '')).reduce((sum, c) => sum + calcRevenue(c), 0),
-        LeadGen: filteredData.closures.filter(c => leadGenTeamIds.includes(leads?.find(l => l.unique_id === c.lead_id)?.lead_generated_by || '')).reduce((sum, c) => sum + calcRevenue(c), 0)
+        Sales: salesTotal,
+        LeadGen: leadGenTotal
       }
     };
-  }, [filteredData.closures, allUsers, leads]);
+  }, [filteredData.closures, allUsers, leadMap]);
 
   // Charts
   const analyticsData = useMemo(() => {
@@ -643,22 +687,36 @@ const AdminDashboard: React.FC = () => {
   };
 
   const salesChartData = useMemo(() => {
-    return sortedSalesUsers.map(u => {
-      const callsCount = (callLogs || []).filter(c => {
-        if (c.user_id !== u.user_id) return false;
+    const callLogsMap = new Map<string, number>();
+    if (callLogs) {
+      callLogs.forEach(c => {
+        let isMatch = true;
         if (monthFilter && monthFilter !== 'all') {
           const [yr, mo] = monthFilter.split('-').map(Number);
           const d = new Date(c.call_date);
-          return d.getFullYear() === yr && d.getMonth() + 1 === mo;
+          isMatch = d.getFullYear() === yr && (d.getMonth() + 1) === mo;
         }
-        return true;
-      }).reduce((sum, c) => sum + (c.call_count || 0), 0);
-
-      const userClosures = filteredData.closures.filter(c => {
-        const lead = (leads || []).find(l => l.unique_id === c.lead_id);
-        return lead?.assigned_to === u.user_id;
+        if (isMatch) {
+          callLogsMap.set(c.user_id, (callLogsMap.get(c.user_id) || 0) + (c.call_count || 0));
+        }
       });
+    }
 
+    const closuresByUser = new Map<string, any[]>();
+    filteredData.closures.forEach(c => {
+      const lead = leadMap.get(c.lead_id);
+      const userId = lead?.assigned_to;
+      if (userId) {
+        if (!closuresByUser.has(userId)) {
+          closuresByUser.set(userId, []);
+        }
+        closuresByUser.get(userId)!.push(c);
+      }
+    });
+
+    return sortedSalesUsers.map(u => {
+      const callsCount = callLogsMap.get(u.user_id) || 0;
+      const userClosures = closuresByUser.get(u.user_id) || [];
       const revenueSum = userClosures.reduce((sum, c) => sum + calcRevenueLocal(c), 0);
       const closuresCount = userClosures.length;
 
@@ -669,21 +727,35 @@ const AdminDashboard: React.FC = () => {
         value: salesMetric === 'calls' ? callsCount : salesMetric === 'revenue' ? revenueSum : closuresCount,
       };
     });
-  }, [sortedSalesUsers, callLogs, filteredData.closures, leads, monthFilter, salesMetric]);
+  }, [sortedSalesUsers, callLogs, filteredData.closures, leadMap, monthFilter, salesMetric]);
 
   const bdChartData = useMemo(() => {
-    return sortedBdUsers.map(u => {
-      const callsCount = (callLogs || []).filter(c => {
-        if (c.user_id !== u.user_id) return false;
+    const callLogsMap = new Map<string, number>();
+    if (callLogs) {
+      callLogs.forEach(c => {
+        let isMatch = true;
         if (monthFilter && monthFilter !== 'all') {
           const [yr, mo] = monthFilter.split('-').map(Number);
           const d = new Date(c.call_date);
-          return d.getFullYear() === yr && d.getMonth() + 1 === mo;
+          isMatch = d.getFullYear() === yr && (d.getMonth() + 1) === mo;
         }
-        return true;
-      }).reduce((sum, c) => sum + (c.call_count || 0), 0);
+        if (isMatch) {
+          callLogsMap.set(c.user_id, (callLogsMap.get(c.user_id) || 0) + (c.call_count || 0));
+        }
+      });
+    }
 
-      const leadsCount = filteredData.leads.filter(l => l.lead_generated_by === u.user_id).length;
+    const leadsByUser = new Map<string, number>();
+    filteredData.leads.forEach(l => {
+      const userId = l.lead_generated_by;
+      if (userId) {
+        leadsByUser.set(userId, (leadsByUser.get(userId) || 0) + 1);
+      }
+    });
+
+    return sortedBdUsers.map(u => {
+      const callsCount = callLogsMap.get(u.user_id) || 0;
+      const leadsCount = leadsByUser.get(u.user_id) || 0;
 
       return {
         name: u.full_name?.split(' ')[0] || u.full_name,
@@ -742,16 +814,55 @@ const AdminDashboard: React.FC = () => {
   // Team snapshot members
   const teamPerformance = useMemo(() => {
     const teams = [{ name: 'Lead Gen Team', roles: ['LEAD_TL', 'LEAD_GEN'] }, { name: 'Sales Team', roles: ['SALES_TL', 'SALES_TM'] }];
+
+    const leadsGeneratedByUser = new Map<string, number>();
+    const leadsAssignedToUser = new Map<string, number>();
+    const callsByUser = new Map<string, number>();
+
+    if (leads) {
+      leads.forEach(l => {
+        if (l.lead_generated_by) {
+          leadsGeneratedByUser.set(l.lead_generated_by, (leadsGeneratedByUser.get(l.lead_generated_by) || 0) + 1);
+        }
+        if (l.assigned_to) {
+          leadsAssignedToUser.set(l.assigned_to, (leadsAssignedToUser.get(l.assigned_to) || 0) + 1);
+        }
+      });
+    }
+
+    if (callLogs) {
+      callLogs.forEach(c => {
+        callsByUser.set(c.user_id, (callsByUser.get(c.user_id) || 0) + (c.call_count || 0));
+      });
+    }
+
     return teams.map(team => {
       const teamUsers = allUsers.filter(u => team.roles.includes(u.role));
-      const teamUserIds = teamUsers.map(u => u.user_id);
-      const teamLeads = leads?.filter(l => (team.name === 'Lead Gen Team' && teamUserIds.includes(l.lead_generated_by || '')) || (team.name === 'Sales Team' && teamUserIds.includes(l.assigned_to || ''))) || [];
+      const teamUserIds = new Set(teamUsers.map(u => u.user_id));
+
+      const teamLeads = leads?.filter(l =>
+        (team.name === 'Lead Gen Team' && l.lead_generated_by && teamUserIds.has(l.lead_generated_by)) ||
+        (team.name === 'Sales Team' && l.assigned_to && teamUserIds.has(l.assigned_to))
+      ) || [];
+
+      let teamCalls = 0;
+      teamUsers.forEach(u => {
+        teamCalls += callsByUser.get(u.user_id) || 0;
+      });
+
       return {
         name: team.name,
         leads: teamLeads.length,
         closures: teamLeads.filter(l => l.lead_status === 'Closed').length,
-        calls: callLogs?.filter(c => teamUserIds.includes(c.user_id)).reduce((sum, c) => sum + (c.call_count || 0), 0) || 0,
-        members: teamUsers.map(u => ({ id: u.user_id, name: u.full_name, role: u.role, leads: (leads?.filter(l => (team.name === 'Lead Gen Team' && l.lead_generated_by === u.user_id) || (team.name === 'Sales Team' && l.assigned_to === u.user_id)) || []).length }))
+        calls: teamCalls,
+        members: teamUsers.map(u => ({
+          id: u.user_id,
+          name: u.full_name,
+          role: u.role,
+          leads: team.name === 'Lead Gen Team'
+            ? (leadsGeneratedByUser.get(u.user_id) || 0)
+            : (leadsAssignedToUser.get(u.user_id) || 0)
+        }))
       };
     });
   }, [allUsers, leads, callLogs]);
@@ -766,6 +877,25 @@ const AdminDashboard: React.FC = () => {
       case 'Non Interested': return <Badge className="bg-slate-500/10 text-slate-500 border-slate-500/20">Non Interested</Badge>;
       default: return <Badge variant="outline">{status}</Badge>;
     }
+  };
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['all-leads-admin'] }),
+      queryClient.invalidateQueries({ queryKey: ['leads'] }),
+      queryClient.invalidateQueries({ queryKey: ['all-profiles-admin'] }),
+      queryClient.invalidateQueries({ queryKey: ['all-user-roles-admin'] }),
+      queryClient.invalidateQueries({ queryKey: ['all-call-logs-admin'] }),
+      queryClient.invalidateQueries({ queryKey: ['all-closures-admin'] }),
+      queryClient.invalidateQueries({ queryKey: ['all-concerns-admin'] }),
+      queryClient.invalidateQueries({ queryKey: ['all-notifications-admin'] }),
+    ]);
+    setTimeout(() => {
+      setIsRefreshing(false);
+      toast.success('Dashboard data refreshed');
+    }, 500);
   };
 
   return (
@@ -789,6 +919,16 @@ const AdminDashboard: React.FC = () => {
           </Select>
           <Select value={teamFilter} onValueChange={setTeamFilter}><SelectTrigger className="w-32 h-9 bg-accent/30 border-border/50 text-xs"><SelectValue placeholder="Team" /></SelectTrigger><SelectContent><SelectItem value="all">All Teams</SelectItem><SelectItem value="Lead Gen">Lead Gen</SelectItem><SelectItem value="Sales">Sales</SelectItem></SelectContent></Select>
           <div className="relative w-48 h-9"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" /><Input type="search" autoComplete="off" placeholder="Search name, id, email, phone..." className="pl-9 h-full bg-accent/30 border-border/50 focus-visible:ring-primary/30 text-xs" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} /></div>
+          <Button
+            size="icon"
+            variant="outline"
+            className="h-9 w-9 bg-accent/30 border-border/50 hover:bg-accent/50 text-foreground"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            title="Refresh Dashboard Data"
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </Button>
         </div>
       </div>
 
@@ -948,7 +1088,7 @@ const AdminDashboard: React.FC = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {adminViewLeads.slice(0, 30).map(lead => (
+                        {adminViewLeads.slice((controlPage - 1) * 30, controlPage * 30).map(lead => (
                           <TableRow key={lead.unique_id} className={lead.lead_status === 'Hot Prospect' ? 'bg-red-500/10' : ''}>
                             <TableCell className="text-[10px] text-muted-foreground font-mono">{lead.display_id || lead.unique_id?.slice(0,8)}</TableCell>
                             <TableCell className="text-xs text-muted-foreground">{formatDate(lead.created_at)}</TableCell>
@@ -959,8 +1099,8 @@ const AdminDashboard: React.FC = () => {
                             <TableCell>
                               <Badge className="text-[10px]" variant={lead.lead_status === 'Closed' ? 'default' : 'outline'}>{lead.lead_status}</Badge>
                             </TableCell>
-                            <TableCell className="text-xs">{allUsers.find(u => u.user_id === lead.assigned_to)?.full_name || <span className="text-muted-foreground italic">Unassigned</span>}</TableCell>
-                            <TableCell className="text-xs">{allUsers.find(u => u.user_id === lead.lead_generated_by)?.full_name || '—'}</TableCell>
+                            <TableCell className="text-xs">{lead.assigned_to ? (userMap.get(lead.assigned_to)?.full_name || <span className="text-muted-foreground italic">Unassigned</span>) : <span className="text-muted-foreground italic">Unassigned</span>}</TableCell>
+                            <TableCell className="text-xs">{lead.lead_generated_by ? (userMap.get(lead.lead_generated_by)?.full_name || '—') : '—'}</TableCell>
                             <TableCell className="text-right">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -986,6 +1126,34 @@ const AdminDashboard: React.FC = () => {
                   <ViewSkeleton />
                 )}
               </CardContent>
+              {renderDeferred && adminViewLeads.length > 0 && (
+                <div className="flex justify-between items-center p-4 border-t border-border flex-wrap gap-2 bg-accent/5">
+                  <span className="text-xs text-muted-foreground">
+                    Showing {Math.min(adminViewLeads.length, (controlPage - 1) * 30 + 1)} to {Math.min(adminViewLeads.length, controlPage * 30)} of {adminViewLeads.length} leads
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={controlPage === 1}
+                      onClick={() => setControlPage(p => Math.max(1, p - 1))}
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-xs font-medium">
+                      Page {controlPage} of {Math.ceil(adminViewLeads.length / 30) || 1}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={controlPage * 30 >= adminViewLeads.length}
+                      onClick={() => setControlPage(p => p + 1)}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
             </Card>
           </motion.div>
         )}
