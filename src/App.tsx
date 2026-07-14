@@ -22,7 +22,14 @@ import UserManagementPage from "@/pages/UserManagementPage";
 import LoginActivityPage from "@/pages/LoginActivityPage";
 import AssignmentAnalysisPage from "@/pages/AssignmentAnalysisPage";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes cache stale duration
+      refetchOnWindowFocus: false, // Prevent refetching when window gains focus
+    },
+  },
+});
 
 const ProtectedRoute = () => {
   const { user, loading } = useAuth();
