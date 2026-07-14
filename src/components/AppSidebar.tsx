@@ -1,4 +1,4 @@
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useTransition } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -76,11 +76,18 @@ const AppSidebar: React.FC<AppSidebarProps> = memo(({ isOpen = false, onClose })
 
   const filteredItems = navItems.filter(item => role && item.roles.includes(role as AppRole));
 
+  // useTransition: navigation is a low-priority background task.
+  // Clicking the sidebar responds instantly; React prepares the new page in the background.
+  const [, startTransition] = useTransition();
+
   // Stable callback — does not change identity on re-render so NavButtons stay memoized
   const handleNavigate = useCallback((path: string) => {
-    navigate(path);
     if (onClose) onClose();
+    startTransition(() => {
+      navigate(path);
+    });
   }, [navigate, onClose]);
+
 
   const handleSignOut = useCallback(() => {
     signOut();
