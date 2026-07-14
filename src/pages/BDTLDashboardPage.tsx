@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Users, Plus } from 'lucide-react';
 
-import { getISTYearAndMonth, isInCurrentShift } from '@/lib/dateUtils';
+import { getISTYearAndMonth, isInCurrentShift, getBDBusinessDate } from '@/lib/dateUtils';
 
 const BDTLDashboardPage: React.FC = () => {
   const { user, role } = useAuth();
@@ -52,8 +52,9 @@ const BDTLDashboardPage: React.FC = () => {
       // Use shift-window boundary (7:30 PM IST rollover) instead of calendar midnight
       const leadsToday = memberLeads.filter(l => isInCurrentShift(l.created_at)).length;
       const leadsMonth = memberLeads.filter(l => {
-        const ist = getISTYearAndMonth(l.created_at);
-        return ist.year === filterYear && ist.month === filterMonth;
+        const bdDate = getBDBusinessDate(l.created_at);
+        const [y, m] = bdDate.split('-').map(Number);
+        return y === filterYear && m === filterMonth;
       }).length;
 
       return {

@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { Users, TrendingUp, CheckCircle, Plus, AlertTriangle, UserPlus, Shuffle, Clock, Eye } from 'lucide-react';
 import LeadDetailDialog from './LeadDetailDialog';
-import { getISTYearAndMonth, getISTDateString, formatToISTDateString, isInCurrentShift } from '@/lib/dateUtils';
+import { getISTYearAndMonth, getISTDateString, formatToISTDateString, isInCurrentShift, getBDBusinessDate, getNextDayString } from '@/lib/dateUtils';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
@@ -123,13 +123,15 @@ const BDDashboard: React.FC = () => {
       
       // 2. Month Filter
       if (monthFilter !== 'all') {
-        if (getISTYearAndMonth(l.created_at).month !== parseInt(monthFilter)) return false;
+        const bdDate = getBDBusinessDate(l.created_at);
+        const m = parseInt(bdDate.split('-')[1], 10);
+        if (m !== parseInt(monthFilter)) return false;
       }
 
       // 3. Date Range Filter
-      const istDateStr = getISTDateString(l.created_at);
-      if (dateFrom && istDateStr < dateFrom) return false;
-      if (dateTo && istDateStr > dateTo) return false;
+      const bdDate = getBDBusinessDate(l.created_at);
+      if (dateFrom && bdDate < dateFrom) return false;
+      if (dateTo && bdDate > dateTo) return false;
 
       // 4. Status Filter
       if (statusFilter !== 'all' && l.lead_status !== statusFilter) return false;
@@ -204,8 +206,12 @@ const BDDashboard: React.FC = () => {
     return bdUsers.map(p => {
       const pLeads = leads.filter(l => l.lead_generated_by === p.user_id);
       const dailyAdded = pLeads.filter(l => isInCurrentShift(l.created_at)).length;
-      const targetMonth = monthFilter === 'all' ? getISTYearAndMonth(new Date()).month : parseInt(monthFilter);
-      const monthlyAdded = pLeads.filter(l => getISTYearAndMonth(l.created_at).month === targetMonth).length;
+      const targetMonth = monthFilter === 'all' ? parseInt(getBDBusinessDate(new Date()).split('-')[1], 10) : parseInt(monthFilter);
+      const monthlyAdded = pLeads.filter(l => {
+        const bdDate = getBDBusinessDate(l.created_at);
+        const m = parseInt(bdDate.split('-')[1], 10);
+        return m === targetMonth;
+      }).length;
       const converted = pLeads.filter(l => l.lead_status === 'Closed').length;
 
       return { ...p, dailyAdded, monthlyAdded, converted, total: pLeads.length };
@@ -222,7 +228,7 @@ const BDDashboard: React.FC = () => {
     let hot = 0, cold = 0;
 
     filteredLeads.forEach(l => {
-      const date = l.date || l.created_at.split('T')[0];
+      const date = getBDBusinessDate(l.created_at);
       dailyMap[date] = (dailyMap[date] || 0) + 1;
       
       const src = normalizeSource(l.lead_source);

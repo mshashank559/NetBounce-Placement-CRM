@@ -16,7 +16,7 @@ import { Users, Plus, CheckCircle, UserPlus, AlertTriangle, CheckCircle2, Clock,
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import LeadDetailDialog from './LeadDetailDialog';
 import { normalizeSource } from '@/lib/leads';
-import { getISTYearAndMonth, getISTDateString, formatToISTDateString, isInCurrentShift } from '@/lib/dateUtils';
+import { getISTYearAndMonth, getISTDateString, formatToISTDateString, isInCurrentShift, getBDBusinessDate, getNextDayString } from '@/lib/dateUtils';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend
@@ -86,18 +86,18 @@ const BDMemberDashboard: React.FC = () => {
       if (monthFilter !== 'all') {
         const year = getISTYearAndMonth(new Date()).year;
         const monthNum = parseInt(monthFilter);
-        const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01T00:00:00+05:30`;
+        const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01T04:30:00+05:30`;
         const lastDay = new Date(year, monthNum, 0).getDate();
-        const endDate = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}T23:59:59+05:30`;
+        const endDate = `${getNextDayString(`${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`)}T04:30:00+05:30`;
         query = query.gte('created_at', startDate).lte('created_at', endDate);
       }
 
       // Apply date range filters
       if (dateFrom) {
-        query = query.gte('created_at', `${dateFrom}T00:00:00+05:30`);
+        query = query.gte('created_at', `${dateFrom}T04:30:00+05:30`);
       }
       if (dateTo) {
-        query = query.lte('created_at', `${dateTo}T23:59:59+05:30`);
+        query = query.lte('created_at', `${getNextDayString(dateTo)}T04:30:00+05:30`);
       }
 
       const from = (page - 1) * PAGE_SIZE;
@@ -143,18 +143,18 @@ const BDMemberDashboard: React.FC = () => {
       if (monthFilter !== 'all') {
         const year = getISTYearAndMonth(new Date()).year;
         const monthNum = parseInt(monthFilter);
-        const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01T00:00:00+05:30`;
+        const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01T04:30:00+05:30`;
         const lastDay = new Date(year, monthNum, 0).getDate();
-        const endDate = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}T23:59:59+05:30`;
+        const endDate = `${getNextDayString(`${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`)}T04:30:00+05:30`;
         query = query.gte('created_at', startDate).lte('created_at', endDate);
       }
 
       // Apply date range filters
       if (dateFrom) {
-        query = query.gte('created_at', `${dateFrom}T00:00:00+05:30`);
+        query = query.gte('created_at', `${dateFrom}T04:30:00+05:30`);
       }
       if (dateTo) {
-        query = query.lte('created_at', `${dateTo}T23:59:59+05:30`);
+        query = query.lte('created_at', `${getNextDayString(dateTo)}T04:30:00+05:30`);
       }
 
       const { data, error } = await query;
@@ -200,7 +200,7 @@ const BDMemberDashboard: React.FC = () => {
     let hot = 0, cold = 0;
 
     statsLeads.forEach(l => {
-      const date = getISTDateString(l.created_at);
+      const date = getBDBusinessDate(l.created_at);
       dailyMap[date] = (dailyMap[date] || 0) + 1;
       const src = normalizeSource(l.lead_source);
       sourceMap[src] = (sourceMap[src] || 0) + 1;

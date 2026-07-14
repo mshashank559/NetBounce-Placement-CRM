@@ -146,14 +146,51 @@ export const getShiftStart = (): Date => {
 };
 
 /**
+ * Returns the Business Date (YYYY-MM-DD) for a given timestamp in IST, where:
+ *   - From 00:00 to 04:30 AM IST, the Business Date is the PREVIOUS calendar date.
+ *   - After 04:30 AM IST, the Business Date is the CURRENT calendar date.
+ */
+export const getBDBusinessDate = (dateInput: Date | string | number): string => {
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  
+  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+  const istDate = new Date(d.getTime() + IST_OFFSET_MS);
+  
+  const hours = istDate.getUTCHours();
+  const minutes = istDate.getUTCMinutes();
+  
+  const isBeforeShiftEnd = hours < 4 || (hours === 4 && minutes <= 30);
+  
+  if (isBeforeShiftEnd) {
+    istDate.setUTCDate(istDate.getUTCDate() - 1);
+  }
+  
+  const year = istDate.getUTCFullYear();
+  const month = istDate.getUTCMonth() + 1;
+  const day = istDate.getUTCDate();
+  
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+};
+
+/**
+ * Returns the calendar date string for the day after the given YYYY-MM-DD date string
+ */
+export const getNextDayString = (dateStr: string): string => {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  date.setUTCDate(date.getUTCDate() + 1);
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+};
+
+/**
  * Returns true if the given ISO date string falls inside the current operational shift.
- * Use this everywhere "+ Today" is computed, instead of comparing YYYY-MM-DD strings.
+ * Refactored to match the Business Date logic.
  *
- * @param isoDate - Any ISO 8601 string (created_at, updated_at, call_date + 'T00:00:00', …)
+ * @param isoDate - Any ISO 8601 string
  */
 export const isInCurrentShift = (isoDate: string | null | undefined): boolean => {
   if (!isoDate) return false;
-  const d = new Date(isoDate);
-  if (isNaN(d.getTime())) return false;
-  return d >= getShiftStart();
+  return getBDBusinessDate(isoDate) === getBDBusinessDate(new Date());
 };
