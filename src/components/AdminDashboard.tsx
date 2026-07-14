@@ -346,6 +346,7 @@ const AdminDashboard: React.FC = () => {
       if (error) throw error;
       return data || [];
     },
+    enabled: activeTab === 'analytics',
   });
 
   const { data: leadClosures } = useQuery({
@@ -386,6 +387,7 @@ const AdminDashboard: React.FC = () => {
       if (error) throw error;
       return data || [];
     },
+    enabled: activeTab === 'monitoring',
   });
 
   const resolveConcernMutation = useMutation({

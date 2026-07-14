@@ -177,6 +177,7 @@ const ProcessAnalystDashboard: React.FC = () => {
       if (error) throw error;
       return data || [];
     },
+    enabled: activeTab === 'analytics',
   });
 
   const { data: leadClosures } = useQuery({
@@ -213,6 +214,7 @@ const ProcessAnalystDashboard: React.FC = () => {
       if (error) throw error;
       return data || [];
     },
+    enabled: activeTab === 'monitoring',
   });
 
   const allUsers = useMemo(() => {
