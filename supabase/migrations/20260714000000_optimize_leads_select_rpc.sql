@@ -20,7 +20,7 @@ BEGIN
   LIMIT 1;
 
   -- Return rows based on role (evaluates criteria once, not per row)
-  IF current_user_role = 'ADMIN' OR current_user_role = 'PROCESS_ANALYST' OR current_user_role = 'LEAD_TL' OR current_user_role = 'SALES_TL' THEN
+  IF current_user_role = 'ADMIN' OR current_user_role = 'PROCESS_ANALYST' OR current_user_role = 'LEAD_TL' OR current_user_role = 'SALES_TL' OR current_user_role = 'ACCOUNTANT' THEN
     RETURN QUERY 
     SELECT *
     FROM public.leads;
