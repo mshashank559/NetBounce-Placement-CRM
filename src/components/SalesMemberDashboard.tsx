@@ -33,8 +33,8 @@ const STATUS_FLOW: Record<string, string[]> = {
   'Connected':    ALL_STATUSES,
   'Qualified':    ALL_STATUSES,
   'Hot Prospect': ALL_STATUSES,
-  'Closed':       [],
-  'Non Interested': [],
+  'Closed':       ALL_STATUSES,
+  'Non Interested': ALL_STATUSES,
 };
 
 const statusColors: Record<string, string> = {

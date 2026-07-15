@@ -32,8 +32,8 @@ const STATUS_FLOW: Record<string, string[]> = {
   'Qualified':    ALL_STATUSES,
   'Hot Prospect': ALL_STATUSES,
   'Stagnant':     ALL_STATUSES,
-  'Closed':       [],
-  'Non Interested': [],
+  'Closed':       ALL_STATUSES,
+  'Non Interested': ALL_STATUSES,
 };
 
 const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onClose, initialStatus }) => {

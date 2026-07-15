@@ -39,16 +39,16 @@ const allStatuses = ['New', 'DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', 'H
 
 // ── Ordered status flow (Sales role only) ───────────────────────────────────
 const STATUS_FLOW: Record<string, string[]> = {
-  'New':          ['DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', 'Hot Prospect', 'Closed', 'Non Interested'],
-  'DNR1':         ['DNR2', 'DNR3', 'Connected', 'Qualified', 'Hot Prospect', 'Closed', 'Non Interested'],
-  'DNR2':         ['DNR3', 'Connected', 'Qualified', 'Hot Prospect', 'Closed', 'Non Interested'],
-  'DNR3':         ['Connected', 'Qualified', 'Hot Prospect', 'Closed', 'Non Interested'],
-  'Connected':    ['Qualified', 'Hot Prospect', 'Closed', 'Non Interested'],
-  'Qualified':    ['Hot Prospect', 'Closed', 'Non Interested'],
-  'Hot Prospect': ['Closed', 'Non Interested'],
-  'Stagnant':     ['New', 'DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', 'Hot Prospect', 'Closed', 'Non Interested'],
-  'Closed':       [],
-  'Non Interested': [],
+  'New':          allStatuses,
+  'DNR1':         allStatuses,
+  'DNR2':         allStatuses,
+  'DNR3':         allStatuses,
+  'Connected':    allStatuses,
+  'Qualified':    allStatuses,
+  'Hot Prospect': allStatuses,
+  'Stagnant':     allStatuses,
+  'Closed':       allStatuses,
+  'Non Interested': allStatuses,
 };
 
 const getNextStatuses = (current: string, role: string | null): string[] => {
