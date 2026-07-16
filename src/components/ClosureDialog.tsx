@@ -108,9 +108,10 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
 
   const mutation = useMutation({
     mutationFn: async () => {
-      if (!form.candidate_email.trim()) throw new Error('Candidate Email ID is required');
+      const cleanedCandidateEmail = form.candidate_email.replace(/['"]/g, '').trim();
+      if (!cleanedCandidateEmail) throw new Error('Candidate Email ID is required');
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(form.candidate_email.trim())) throw new Error('Candidate Email ID must be a valid email address');
+      if (!emailRegex.test(cleanedCandidateEmail)) throw new Error('Candidate Email ID must be a valid email address');
       if (!form.plan || !form.payment_mode) throw new Error('Plan and Payment Mode are required');
       if (!form.movement.trim()) throw new Error('Comment is required');
       if (form.plan === 'Custom' && !form.custom_plan_note.trim()) throw new Error('Please describe your Custom Plan');
@@ -119,7 +120,7 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
       if (form.percentage === '' || parseFloat(form.percentage) < 0) throw new Error('Percentage is required');
 
       // Update lead status to Closed and sync email
-      await supabase.from('leads').update({ lead_status: 'Closed' as any, email: form.candidate_email.trim() }).eq('unique_id', lead.unique_id);
+      await supabase.from('leads').update({ lead_status: 'Closed' as any, email: cleanedCandidateEmail }).eq('unique_id', lead.unique_id);
 
       await supabase.from('lead_history_logs').insert({
         lead_id: lead.unique_id,
@@ -154,7 +155,7 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
         })),
         final_payment_conditions: form.final_payment_conditions,
         current_agreed_payment_conditions: form.current_agreed_payment_conditions,
-        candidate_email: form.candidate_email.trim()
+        candidate_email: cleanedCandidateEmail
       };
 
       // Try inserting/updating with the new columns; fallback if columns don't exist yet
@@ -169,7 +170,7 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
 
       if (!error) {
         await supabase.from('leads')
-          .update({ email: form.candidate_email.trim() } as any)
+          .update({ email: cleanedCandidateEmail } as any)
           .eq('unique_id', lead.unique_id);
       }
 
@@ -192,7 +193,7 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
             next_slot_due_date: form.next_slot_due_date || null,
             final_payment_conditions: form.final_payment_conditions,
             current_agreed_payment_conditions: form.current_agreed_payment_conditions,
-            candidate_email: form.candidate_email.trim(),
+            candidate_email: cleanedCandidateEmail,
             interviews_guaranteed: form.interviews_guaranteed ? parseInt(form.interviews_guaranteed) || null : null,
           };
           let fallbackErr;
@@ -206,7 +207,7 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
           if (fallbackErr) throw fallbackErr;
 
           const paymentDetails = `[Closure Payment] Amount: $${form.amount}, Percentage: ${form.percentage}%, Slot1 Due: ${form.slot1_due_date || 'N/A'}, Next Slot Due: ${form.next_slot_due_date || 'N/A'}, Additional Slots: ${JSON.stringify(additionalSlots)}`;
-          await supabase.from('leads').update({ comment: paymentDetails, email: form.candidate_email.trim() } as any).eq('unique_id', lead.unique_id);
+          await supabase.from('leads').update({ comment: paymentDetails, email: cleanedCandidateEmail } as any).eq('unique_id', lead.unique_id);
         } else {
           throw error;
         }
@@ -299,7 +300,8 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
               id="candidate-email"
               type="email"
               value={form.candidate_email}
-              onChange={e => set('candidate_email', e.target.value.trim())}
+              onChange={e => set('candidate_email', e.target.value)}
+              onBlur={e => set('candidate_email', e.target.value.replace(/['"]/g, '').trim())}
               placeholder="candidate@example.com"
               required
             />

@@ -144,6 +144,8 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
 
   const mutation = useMutation({
     mutationFn: async () => {
+      const cleanedCandidateEmail = candidateEmail.replace(/['"]/g, '').trim();
+
       if (!notes.trim()) throw new Error('Follow-up notes are required');
 
       const isDateOptional = ['Closed', 'Non Interested', 'DNR1', 'DNR2', 'DNR3'].includes(newStatus || '');
@@ -154,9 +156,9 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
 
       // Validation for Closed status
       if (newStatus === 'Closed') {
-        if (!candidateEmail.trim()) throw new Error('Candidate Email ID is required');
+        if (!cleanedCandidateEmail) throw new Error('Candidate Email ID is required');
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(candidateEmail.trim())) throw new Error('Candidate Email ID must be a valid email address');
+        if (!emailRegex.test(cleanedCandidateEmail)) throw new Error('Candidate Email ID must be a valid email address');
         if (!plan || !paymentMode) throw new Error('Plan and Payment Mode are required');
         if (plan === 'Custom' && !customPlanNote.trim()) throw new Error('Please describe your Custom Plan');
         if (!upfrontAmount || parseFloat(upfrontAmount) <= 0) throw new Error('Upfront Amount is required');
@@ -212,7 +214,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
         leadUpdatePayload.lead_status = newStatus as any;
       }
       if (newStatus === 'Closed') {
-        leadUpdatePayload.email = candidateEmail.trim();
+        leadUpdatePayload.email = cleanedCandidateEmail;
       }
 
       const { error: updateLeadErr } = await supabase.from('leads')
@@ -332,7 +334,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
           })),
           final_payment_conditions: finalPaymentConditions,
           current_agreed_payment_conditions: currentAgreedPaymentConditions,
-          candidate_email: candidateEmail.trim()
+          candidate_email: cleanedCandidateEmail
         };
 
         // Try inserting/updating with the new columns; fallback if columns don't exist yet
@@ -347,7 +349,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
 
         if (!error) {
           await supabase.from('leads')
-            .update({ email: candidateEmail.trim() } as any)
+            .update({ email: cleanedCandidateEmail } as any)
             .eq('unique_id', lead.unique_id);
         }
 
@@ -369,7 +371,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
               next_slot_due_date: nextSlotDueDate || null,
               final_payment_conditions: finalPaymentConditions,
               current_agreed_payment_conditions: currentAgreedPaymentConditions,
-              candidate_email: candidateEmail.trim(),
+              candidate_email: cleanedCandidateEmail,
               interviews_guaranteed: interviewsGuaranteed ? parseInt(interviewsGuaranteed) || null : null,
             };
             let fallbackErr;
@@ -383,7 +385,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
             if (fallbackErr) throw fallbackErr;
 
             const paymentDetails = `[Closure Payment] Amount: $${amount}, Percentage: ${percentage}%, Slot1 Due: ${slot1DueDate || 'N/A'}, Next Slot Due: ${nextSlotDueDate || 'N/A'}, Additional Slots: ${JSON.stringify(additionalSlots)}`;
-            await supabase.from('leads').update({ comment: paymentDetails, email: candidateEmail.trim() } as any).eq('unique_id', lead.unique_id);
+            await supabase.from('leads').update({ comment: paymentDetails, email: cleanedCandidateEmail } as any).eq('unique_id', lead.unique_id);
           } else {
             throw error;
           }
@@ -640,7 +642,8 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
                   id="candidate-email"
                   type="email"
                   value={candidateEmail}
-                  onChange={e => setCandidateEmail(e.target.value.trim())}
+                  onChange={e => setCandidateEmail(e.target.value)}
+                  onBlur={e => setCandidateEmail(e.target.value.replace(/['"]/g, '').trim())}
                   placeholder="candidate@example.com"
                   className="mt-1"
                   required

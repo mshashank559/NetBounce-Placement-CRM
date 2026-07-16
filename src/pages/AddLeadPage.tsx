@@ -92,6 +92,8 @@ const AddLeadPage: React.FC = () => {
 
   const mutation = useMutation({
     mutationFn: async () => {
+      const cleanedEmail = form.email.replace(/['"]/g, '').trim();
+
       // ── Strict Mobile Number Validation ───────────────────────────
       if (/\s/.test(form.phone)) {
         throw new Error("Please remove spaces from the mobile number.");
@@ -101,7 +103,7 @@ const AddLeadPage: React.FC = () => {
       }
 
       // ── Duplicate check ──────────────────────────────────────
-      const { data: emailDup } = await supabase.from('leads').select('display_id').eq('email', form.email.trim()).maybeSingle();
+      const { data: emailDup } = await supabase.from('leads').select('display_id').eq('email', cleanedEmail).maybeSingle();
       const { data: phoneDup } = await supabase.from('leads').select('display_id').eq('phone', form.phone).maybeSingle();
 
       if (emailDup && phoneDup) {
@@ -129,7 +131,7 @@ const AddLeadPage: React.FC = () => {
 
       const leadData: any = {
         name: form.name,
-        email: form.email.trim(),
+        email: cleanedEmail,
         phone: form.phone,
         university: form.university || null,
         technology: form.technology,
@@ -300,7 +302,14 @@ const AddLeadPage: React.FC = () => {
               </div>
               <div>
                 <Label>Email *</Label>
-                <Input type="email" value={form.email} onChange={e => set('email', e.target.value.trim())} required placeholder="email@example.com" />
+                <Input
+                  type="email"
+                  value={form.email}
+                  onChange={e => set('email', e.target.value)}
+                  onBlur={e => set('email', e.target.value.replace(/['"]/g, '').trim())}
+                  required
+                  placeholder="email@example.com"
+                />
               </div>
               <div>
                 <Label>Phone *</Label>

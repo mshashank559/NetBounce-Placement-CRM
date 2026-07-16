@@ -312,6 +312,8 @@ const AuthPage: React.FC = () => {
     e.preventDefault();
     setLoading(true);
 
+    const cleanedEmail = form.email.replace(/['"]/g, '').trim();
+
     try {
       if (isSignUp) {
         if (!form.role) {
@@ -324,11 +326,11 @@ const AuthPage: React.FC = () => {
           setLoading(false);
           return;
         }
-        const { error } = await signUp(form.email, form.password, form.fullName, form.role as AppRole, form.department, form.reportsTo);
+        const { error } = await signUp(cleanedEmail, form.password, form.fullName, form.role as AppRole, form.department, form.reportsTo);
         if (error) throw error;
         toast.success('Account created! Check your email to verify.');
       } else {
-        const { error } = await signIn(form.email, form.password);
+        const { error } = await signIn(cleanedEmail, form.password);
         if (error) throw error;
         toast.success('Welcome back!');
       }
@@ -531,6 +533,7 @@ const AuthPage: React.FC = () => {
                 type="email"
                 value={form.email}
                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                onBlur={e => setForm(f => ({ ...f, email: e.target.value.replace(/['"]/g, '').trim() }))}
                 required
                 placeholder={isSignUp ? 'you@netbounceplacement.com' : 'shashank.m@netbounceplacement.com'}
                 className={inputClassName}

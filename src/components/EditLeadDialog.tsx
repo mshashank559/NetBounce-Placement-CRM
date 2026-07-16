@@ -82,7 +82,7 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
 
       // ── 1. Detect actual changes (null-safe) ─────────────────────
       const changes: string[] = [];
-      const trimmedEmail = updatedData.email.trim();
+      const trimmedEmail = updatedData.email.replace(/['"]/g, '').trim();
       if (norm(lead.name) !== updatedData.name)
         changes.push(`Name: "${norm(lead.name)}" → "${updatedData.name}"`);
       if (norm(lead.email) !== trimmedEmail)
@@ -326,7 +326,7 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
 
     updateLeadMutation.mutate({
       ...formData,
-      email: formData.email.trim()
+      email: formData.email.replace(/['"]/g, '').trim()
     });
   };
 
@@ -357,7 +357,8 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
                 id="edit-email"
                 type="email"
                 value={formData.email}
-                onChange={e => setFormData({ ...formData, email: e.target.value.trim() })}
+                onChange={e => setFormData({ ...formData, email: e.target.value })}
+                onBlur={e => setFormData({ ...formData, email: e.target.value.replace(/['"]/g, '').trim() })}
                 placeholder="Enter email address"
               />
             </div>

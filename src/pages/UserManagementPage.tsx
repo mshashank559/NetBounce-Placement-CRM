@@ -61,12 +61,13 @@ const UserManagementPage: React.FC = () => {
 
   const createUser = useMutation({
     mutationFn: async () => {
-      if (!form.email || !form.password || !form.full_name || !form.role) {
+      const cleanedEmail = form.email.replace(/['"]/g, '').trim();
+      if (!cleanedEmail || !form.password || !form.full_name || !form.role) {
         throw new Error('All fields are required');
       }
       // Use supabase auth signUp with metadata — the handle_new_user trigger will create profile + role
       const { error } = await supabase.auth.signUp({
-        email: form.email,
+        email: cleanedEmail,
         password: form.password,
         options: {
           data: {
@@ -108,7 +109,7 @@ const UserManagementPage: React.FC = () => {
       const { error } = await (supabase as any).rpc('update_user_by_admin', {
         target_user_id: editUser.user_id,
         new_full_name:  editForm.full_name.trim()  || null,
-        new_email:      editForm.email.trim()       || null,
+        new_email:      editForm.email.replace(/['"]/g, '').trim() || null,
         new_password:   editForm.password.trim()    || null,
       });
       if (error) throw new Error(error.message);
@@ -151,7 +152,13 @@ const UserManagementPage: React.FC = () => {
               </div>
               <div>
                 <Label>Email *</Label>
-                <Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required />
+                <Input
+                  type="email"
+                  value={form.email}
+                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  onBlur={e => setForm(f => ({ ...f, email: e.target.value.replace(/['"]/g, '').trim() }))}
+                  required
+                />
               </div>
               <div>
                 <Label>Password *</Label>
@@ -264,6 +271,7 @@ const UserManagementPage: React.FC = () => {
                 type="email"
                 value={editForm.email}
                 onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
+                onBlur={e => setEditForm(f => ({ ...f, email: e.target.value.replace(/['"]/g, '').trim() }))}
                 placeholder="Enter new email"
               />
               <p className="text-xs text-muted-foreground mt-1">This updates their login email. All existing data stays mapped automatically.</p>
