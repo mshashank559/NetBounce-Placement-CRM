@@ -312,6 +312,7 @@ const ProcessAnalystDashboard: React.FC = () => {
   // Revenue Calculations
   const revenueStats = useMemo(() => {
     const calcRevenue = (closure: any) => {
+      const upfront = Number(closure.upfront_amount) || 0;
       const s1 = closure.slot1 ? (Number(closure.slot1_amount) || 0) : 0;
       const s2 = closure.slot2 ? (Number(closure.slot2_amount) || 0) : 0;
       let additional = 0;
@@ -322,7 +323,7 @@ const ProcessAnalystDashboard: React.FC = () => {
           }
         });
       }
-      return s1 + s2 + additional;
+      return upfront + s1 + s2 + additional;
     };
     const total = filteredData.closures.reduce((sum, c) => sum + calcRevenue(c), 0);
     const salesTeamIds = new Set(allUsers.filter(u => u.team === 'Sales').map(u => u.user_id));

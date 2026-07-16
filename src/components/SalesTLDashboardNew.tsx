@@ -323,6 +323,7 @@ const SalesTLDashboard: React.FC = () => {
         return true;
       })
       .reduce((s, c) => {
+        const upfront = Number(c.upfront_amount) || 0;
         const s1 = c.slot1 ? (Number(c.slot1_amount) || 0) : 0;
         const s2 = c.slot2 ? (Number(c.slot2_amount) || 0) : 0;
         let additional = 0;
@@ -333,7 +334,7 @@ const SalesTLDashboard: React.FC = () => {
             }
           });
         }
-        return s + s1 + s2 + additional;
+        return s + upfront + s1 + s2 + additional;
       }, 0);
   }, [closureData, filteredLeadIds, role, leads, user?.id, myTeamIds]);
 

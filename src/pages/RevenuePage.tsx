@@ -109,6 +109,7 @@ const RevenuePage: React.FC = () => {
   });
 
   const calcRevenue = (closure: any) => {
+    const upfront = Number(closure.upfront_amount) || 0;
     const s1 = closure.slot1 ? (Number(closure.slot1_amount) || 0) : 0;
     const s2 = closure.slot2 ? (Number(closure.slot2_amount) || 0) : 0;
     let additional = 0;
@@ -119,7 +120,7 @@ const RevenuePage: React.FC = () => {
         }
       });
     }
-    return s1 + s2 + additional;
+    return upfront + s1 + s2 + additional;
   };
 
   const getISTYearAndMonth = (dateString: string) => {
@@ -134,15 +135,58 @@ const RevenuePage: React.FC = () => {
     };
   };
 
-  const monthlyRevenue = useMemo(() => {
+  // Helper to extract all individual paid payments from closures
+  const allPayments = useMemo(() => {
     if (!closures) return [];
-    const months: Record<string, number> = {};
+    const payments: { amount: number; date: string; closure: any }[] = [];
     closures.forEach(c => {
-      if (!c.created_at) return;
-      const { year, key } = getISTYearAndMonth(c.created_at);
+      // 1. Upfront (Always considered paid)
+      if (c.upfront_amount && Number(c.upfront_amount) > 0) {
+        payments.push({
+          amount: Number(c.upfront_amount),
+          date: c.created_at,
+          closure: c
+        });
+      }
+      // 2. Slot 1 (If slot1 is true/paid)
+      if (c.slot1 && Number(c.slot1_amount) > 0) {
+        payments.push({
+          amount: Number(c.slot1_amount),
+          date: c.slot1_due_date || c.created_at,
+          closure: c
+        });
+      }
+      // 3. Slot 2 (If slot2 is true/paid)
+      if (c.slot2 && Number(c.slot2_amount) > 0) {
+        payments.push({
+          amount: Number(c.slot2_amount),
+          date: c.next_slot_due_date || c.created_at,
+          closure: c
+        });
+      }
+      // 4. Additional Slots
+      if (Array.isArray(c.additional_slots)) {
+        c.additional_slots.forEach((slot: any) => {
+          if (slot.paid === true && Number(slot.amount) > 0) {
+            payments.push({
+              amount: Number(slot.amount),
+              date: slot.due_date || c.created_at,
+              closure: c
+            });
+          }
+        });
+      }
+    });
+    return payments;
+  }, [closures]);
+
+  const monthlyRevenue = useMemo(() => {
+    const months: Record<string, number> = {};
+    allPayments.forEach(p => {
+      if (!p.date) return;
+      const { year, key } = getISTYearAndMonth(p.date);
       if (year !== parseInt(yearFilter)) return;
-      const amount = calcRevenue(c);
-      months[key] = (months[key] || 0) + amount;
+      months[key] = (months[key] || 0) + p.amount;
     });
 
     const result = [];
@@ -155,7 +199,7 @@ const RevenuePage: React.FC = () => {
       });
     }
     return result;
-  }, [closures, yearFilter]);
+  }, [allPayments, yearFilter]);
 
   const totalYearRevenue = monthlyRevenue.reduce((s, m) => s + m.revenue, 0);
 
@@ -172,12 +216,40 @@ const RevenuePage: React.FC = () => {
 
   const currentMonthKey = currentIST.key;
 
-  const currentMonthRevenue = closures?.reduce((s, c) => {
-    if (!c.created_at) return s;
-    const { key } = getISTYearAndMonth(c.created_at);
-    if (key !== currentMonthKey) return s;
-    return s + calcRevenue(c);
-  }, 0) || 0;
+  const currentMonthRevenue = useMemo(() => {
+    return allPayments.reduce((s, p) => {
+      if (!p.date) return s;
+      const { key } = getISTYearAndMonth(p.date);
+      if (key !== currentMonthKey) return s;
+      return s + p.amount;
+    }, 0);
+  }, [allPayments, currentMonthKey]);
+
+  // Helper to find the latest payment date for a closure to sort by
+  const getLatestPaymentDate = (c: any) => {
+    const dates: string[] = [];
+    if (c.created_at) dates.push(c.created_at);
+    if (c.slot1 && c.slot1_due_date) dates.push(c.slot1_due_date);
+    if (c.slot2 && c.next_slot_due_date) dates.push(c.next_slot_due_date);
+    if (Array.isArray(c.additional_slots)) {
+      c.additional_slots.forEach((slot: any) => {
+        if (slot.paid && slot.due_date) {
+          dates.push(slot.due_date);
+        }
+      });
+    }
+    if (dates.length === 0) return '';
+    return dates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
+  };
+
+  const sortedClosures = useMemo(() => {
+    if (!closures) return [];
+    return [...closures].sort((a, b) => {
+      const dateA = getLatestPaymentDate(a);
+      const dateB = getLatestPaymentDate(b);
+      return new Date(dateB).getTime() - new Date(dateA).getTime();
+    });
+  }, [closures]);
 
   // Authorization check for the page
   if (role !== 'ADMIN' && role !== 'SALES_TL' && role !== 'ACCOUNTANT') {
@@ -185,7 +257,7 @@ const RevenuePage: React.FC = () => {
   }
 
   // Filter closures specifically for pagination in the data table
-  const paginatedClosures = closures ? closures.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) : [];
+  const paginatedClosures = sortedClosures.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const handleEditClick = (c: any) => {
     setEditingLead({
@@ -340,7 +412,7 @@ const RevenuePage: React.FC = () => {
                         <TableRow key={c.id} className="hover:bg-accent/20 border-border/50">
                           <TableCell className="text-xs font-medium">{c.candidate_name}</TableCell>
                           <TableCell className="text-xs">{c.sales_person_name || 'System'}</TableCell>
-                          <TableCell className="text-xs">{formatDate(c.created_at)}</TableCell>
+                          <TableCell className="text-xs">{formatDate(getLatestPaymentDate(c))}</TableCell>
                           
                           {/* Upfront Amount */}
                           <TableCell className="text-xs">

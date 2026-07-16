@@ -33,10 +33,16 @@ BEGIN
   SELECT COUNT(*) INTO v_closures
   FROM public.lead_closures;
 
-  -- Revenue: sum of slot1_amount + slot2_amount + additional_slots paid amounts
+  -- Revenue: sum of upfront_amount + slot1_amount + slot2_amount + additional_slots paid amounts
   SELECT COALESCE(SUM(
-    CASE WHEN slot1 = TRUE THEN COALESCE(slot1_amount, 0) ELSE 0 END
+    COALESCE(upfront_amount, 0)
+    + CASE WHEN slot1 = TRUE THEN COALESCE(slot1_amount, 0) ELSE 0 END
     + CASE WHEN slot2 = TRUE THEN COALESCE(slot2_amount, 0) ELSE 0 END
+    + COALESCE((
+        SELECT SUM((item->>'amount')::NUMERIC)
+        FROM jsonb_array_elements(COALESCE(additional_slots, '[]'::jsonb)) AS item
+        WHERE (item->>'paid')::BOOLEAN = TRUE
+      ), 0)
   ), 0) INTO v_revenue
   FROM public.lead_closures;
 
