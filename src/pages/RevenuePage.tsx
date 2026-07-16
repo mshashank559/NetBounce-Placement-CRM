@@ -15,6 +15,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from 'sonner';
 import ClosureDialog from '@/components/ClosureDialog';
 
+import { Input } from '@/components/ui/input';
+import { getISTDateString } from '@/lib/dateUtils';
+
 const formatDate = (dateString?: string) => {
   if (!dateString) return '—';
   const d = new Date(dateString);
@@ -32,6 +35,8 @@ const RevenuePage: React.FC = () => {
   const queryClient = useQueryClient();
   const currentYear = new Date().getFullYear();
   const [yearFilter, setYearFilter] = useState(String(currentYear));
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [activeView, setActiveView] = useState<'my_view' | 'team_view' | 'restricted_view'>('my_view');
 
   React.useEffect(() => {
@@ -171,26 +176,41 @@ const RevenuePage: React.FC = () => {
     return payments;
   }, [closures]);
 
+  const filteredPayments = useMemo(() => {
+    return allPayments.filter(p => {
+      if (!p.date) return false;
+      const paymentDateStr = getISTDateString(p.date);
+      if (dateFrom && paymentDateStr < dateFrom) return false;
+      if (dateTo && paymentDateStr > dateTo) return false;
+      if (!dateFrom && !dateTo) {
+        const { year } = getISTYearAndMonth(p.date);
+        if (year !== parseInt(yearFilter)) return false;
+      }
+      return true;
+    });
+  }, [allPayments, dateFrom, dateTo, yearFilter]);
+
   const monthlyRevenue = useMemo(() => {
     const months: Record<string, number> = {};
-    allPayments.forEach(p => {
+    filteredPayments.forEach(p => {
       if (!p.date) return;
       const { year, key } = getISTYearAndMonth(p.date);
-      if (year !== parseInt(yearFilter)) return;
+      if (!dateFrom && !dateTo && year !== parseInt(yearFilter)) return;
       months[key] = (months[key] || 0) + p.amount;
     });
 
     const result = [];
+    const targetYear = dateFrom ? new Date(dateFrom).getFullYear() : parseInt(yearFilter);
     for (let m = 1; m <= 12; m++) {
-      const key = `${yearFilter}-${String(m).padStart(2, '0')}`;
-      const date = new Date(parseInt(yearFilter), m - 1);
+      const key = `${targetYear}-${String(m).padStart(2, '0')}`;
+      const date = new Date(targetYear, m - 1);
       result.push({
         month: date.toLocaleDateString('en-US', { month: 'short' }),
         revenue: months[key] || 0,
       });
     }
     return result;
-  }, [allPayments, yearFilter]);
+  }, [filteredPayments, dateFrom, dateTo, yearFilter]);
 
   const totalYearRevenue = monthlyRevenue.reduce((s, m) => s + m.revenue, 0);
 
@@ -208,13 +228,16 @@ const RevenuePage: React.FC = () => {
   const currentMonthKey = currentIST.key;
 
   const currentMonthRevenue = useMemo(() => {
+    if (dateFrom || dateTo) {
+      return filteredPayments.reduce((s, p) => s + p.amount, 0);
+    }
     return allPayments.reduce((s, p) => {
       if (!p.date) return s;
       const { key } = getISTYearAndMonth(p.date);
       if (key !== currentMonthKey) return s;
       return s + p.amount;
     }, 0);
-  }, [allPayments, currentMonthKey]);
+  }, [allPayments, filteredPayments, dateFrom, dateTo, currentMonthKey]);
 
   // Helper to find the latest payment date for a closure to sort by
   const getLatestPaymentDate = (c: any) => {
@@ -241,13 +264,47 @@ const RevenuePage: React.FC = () => {
     });
   }, [closures]);
 
+  const filteredClosuresForGrid = useMemo(() => {
+    if (!sortedClosures) return [];
+    return sortedClosures.filter(c => {
+      let hasPaymentInFilter = false;
+      const checkPaymentDate = (dateVal: string) => {
+        const dStr = getISTDateString(dateVal);
+        if (dateFrom && dStr < dateFrom) return false;
+        if (dateTo && dStr > dateTo) return false;
+        if (!dateFrom && !dateTo) {
+          const { year } = getISTYearAndMonth(dateVal);
+          if (year !== parseInt(yearFilter)) return false;
+        }
+        return true;
+      };
+
+      if (c.slot1 && c.slot1_due_date && checkPaymentDate(c.slot1_due_date)) {
+        hasPaymentInFilter = true;
+      }
+      if (c.slot2 && c.next_slot_due_date && checkPaymentDate(c.next_slot_due_date)) {
+        hasPaymentInFilter = true;
+      }
+      if (Array.isArray(c.additional_slots)) {
+        c.additional_slots.forEach((slot: any) => {
+          if (slot.paid && slot.due_date && checkPaymentDate(slot.due_date)) {
+            hasPaymentInFilter = true;
+          }
+        });
+      }
+      return hasPaymentInFilter;
+    });
+  }, [sortedClosures, dateFrom, dateTo, yearFilter]);
+
   // Authorization check for the page
   if (role !== 'ADMIN' && role !== 'SALES_TL' && role !== 'ACCOUNTANT') {
     return <div className="text-center text-muted-foreground p-8">Access denied</div>;
   }
 
   // Filter closures specifically for pagination in the data table
-  const paginatedClosures = sortedClosures.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const paginatedClosures = useMemo(() => {
+    return filteredClosuresForGrid.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  }, [filteredClosuresForGrid, page]);
 
   const handleEditClick = (c: any) => {
     setEditingLead({
@@ -284,16 +341,30 @@ const RevenuePage: React.FC = () => {
             </Tabs>
           )}
         </div>
-        <Select value={yearFilter} onValueChange={setYearFilter}>
-          <SelectTrigger className="w-32">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {[currentYear, currentYear - 1, currentYear - 2].map(y => (
-              <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5 bg-background px-2.5 rounded-md border border-input h-10 shrink-0">
+            <span className="text-xs text-muted-foreground font-medium pr-1 select-none">Date:</span>
+            <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-[130px] h-8 text-xs border-0 bg-transparent pl-1.5 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm" />
+            <span className="text-muted-foreground text-xs px-0.5 select-none">—</span>
+            <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-[130px] h-8 text-xs border-0 bg-transparent pl-1.5 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm" />
+            {(dateFrom || dateTo) && (
+              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => { setDateFrom(''); setDateTo(''); }}>
+                <XCircle className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+
+          <Select value={yearFilter} onValueChange={setYearFilter} disabled={!!(dateFrom || dateTo)}>
+            <SelectTrigger className="w-24 h-10">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[currentYear, currentYear - 1, currentYear - 2].map(y => (
+                <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -301,7 +372,9 @@ const RevenuePage: React.FC = () => {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           <Card className="glass-card nb-glow">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Monthly Revenue</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {dateFrom || dateTo ? 'Selected Range Revenue' : 'Monthly Revenue'}
+              </CardTitle>
               <Calendar className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
@@ -314,7 +387,11 @@ const RevenuePage: React.FC = () => {
                   `$${currentMonthRevenue.toLocaleString()}`
                 )}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">Current month</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {dateFrom || dateTo
+                  ? `${dateFrom ? formatDate(dateFrom) : 'Start'} — ${dateTo ? formatDate(dateTo) : 'End'}`
+                  : 'Current month'}
+              </p>
             </CardContent>
           </Card>
         </motion.div>
@@ -334,7 +411,9 @@ const RevenuePage: React.FC = () => {
                   `$${totalYearRevenue.toLocaleString()}`
                 )}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">{yearFilter}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {dateFrom || dateTo ? 'Year of range' : yearFilter}
+              </p>
             </CardContent>
           </Card>
         </motion.div>
@@ -491,17 +570,17 @@ const RevenuePage: React.FC = () => {
           </CardContent>
           
           {/* Pagination Controls */}
-          {closures && closures.length > PAGE_SIZE && (
+          {filteredClosuresForGrid && filteredClosuresForGrid.length > PAGE_SIZE && (
             <div className="flex justify-between items-center p-4 border-t border-border flex-wrap gap-2 bg-accent/5">
               <span className="text-xs text-muted-foreground">
-                Showing {Math.min(closures.length, (page - 1) * PAGE_SIZE + 1)} to {Math.min(closures.length, page * PAGE_SIZE)} of {closures.length} transactions
+                Showing {Math.min(filteredClosuresForGrid.length, (page - 1) * PAGE_SIZE + 1)} to {Math.min(filteredClosuresForGrid.length, page * PAGE_SIZE)} of {filteredClosuresForGrid.length} transactions
               </span>
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))}>
                   Previous
                 </Button>
-                <span className="text-xs font-medium">Page {page} of {Math.ceil(closures.length / PAGE_SIZE)}</span>
-                <Button size="sm" variant="outline" disabled={page * PAGE_SIZE >= closures.length} onClick={() => setPage(p => p + 1)}>
+                <span className="text-xs font-medium">Page {page} of {Math.ceil(filteredClosuresForGrid.length / PAGE_SIZE)}</span>
+                <Button size="sm" variant="outline" disabled={page * PAGE_SIZE >= filteredClosuresForGrid.length} onClick={() => setPage(p => p + 1)}>
                   Next
                 </Button>
               </div>

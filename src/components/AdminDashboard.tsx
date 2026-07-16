@@ -34,7 +34,8 @@ import {
   Palette,
   FileSignature,
   FileText,
-  Pencil
+  Pencil,
+  XCircle
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -179,6 +180,8 @@ const AdminDashboard: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [teamFilter, setTeamFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [salesMetric, setSalesMetric] = useState<'calls' | 'revenue' | 'closures'>('revenue');
   const [bdMetric, setBdMetric] = useState<'calls' | 'leads'>('leads');
   const [adminViewMode, setAdminViewMode] = useState<'personal' | 'team' | 'global'>('global');
@@ -210,7 +213,7 @@ const AdminDashboard: React.FC = () => {
 
   React.useEffect(() => {
     setControlPage(1);
-  }, [adminViewMode, monthFilter, statusFilter, teamFilter, searchQuery]);
+  }, [adminViewMode, monthFilter, statusFilter, teamFilter, searchQuery, dateFrom, dateTo]);
 
   // Dialog state
   const [selectedLead, setSelectedLead] = useState<any>(null);
@@ -530,11 +533,43 @@ const AdminDashboard: React.FC = () => {
         const ist = getISTYearAndMonth(l.created_at);
         return ist.year === year && ist.month === month;
       });
+    }
+
+    if (dateFrom) {
+      fLeads = fLeads.filter(l => getISTDateString(l.created_at) >= dateFrom);
+    }
+    if (dateTo) {
+      fLeads = fLeads.filter(l => getISTDateString(l.created_at) <= dateTo);
+    }
+
+    const isFilterActive = (monthFilter && monthFilter !== 'all') || dateFrom || dateTo;
+    if (isFilterActive) {
       fClosures = fClosures.filter(c => {
-        const ist = getISTYearAndMonth(c.created_at);
-        return ist.year === year && ist.month === month;
+        let hasPaymentInFilter = false;
+        const checkPaymentDate = (dateVal: string) => {
+          const dStr = getISTDateString(dateVal);
+          if (dateFrom && dStr < dateFrom) return false;
+          if (dateTo && dStr > dateTo) return false;
+          if (monthFilter && monthFilter !== 'all') {
+            const [year, month] = monthFilter.split('-').map(Number);
+            const ist = getISTYearAndMonth(dateVal);
+            if (ist.year !== year || ist.month !== month) return false;
+          }
+          return true;
+        };
+        if (c.slot1 && c.slot1_due_date && checkPaymentDate(c.slot1_due_date)) hasPaymentInFilter = true;
+        if (c.slot2 && c.next_slot_due_date && checkPaymentDate(c.next_slot_due_date)) hasPaymentInFilter = true;
+        if (Array.isArray(c.additional_slots)) {
+          c.additional_slots.forEach((slot: any) => {
+            if (slot.paid && slot.due_date && checkPaymentDate(slot.due_date)) {
+              hasPaymentInFilter = true;
+            }
+          });
+        }
+        return hasPaymentInFilter;
       });
     }
+
     if (statusFilter !== 'all') fLeads = fLeads.filter(l => l.lead_status === statusFilter);
     if (teamFilter !== 'all') {
       const teamUserIds = allUsers.filter(u => u.team === teamFilter).map(u => u.user_id);
@@ -550,7 +585,7 @@ const AdminDashboard: React.FC = () => {
       );
     }
     return { leads: fLeads, closures: fClosures };
-  }, [leads, leadClosures, monthFilter, statusFilter, teamFilter, searchQuery, allUsers]);
+  }, [leads, leadClosures, monthFilter, statusFilter, teamFilter, searchQuery, allUsers, dateFrom, dateTo]);
 
   // Admin lead view filtered by viewMode
   const adminViewLeads = useMemo(() => {
@@ -596,8 +631,9 @@ const AdminDashboard: React.FC = () => {
 
   // Revenue
   const revenueStats = useMemo(() => {
-    // If server-side stats are already fetched, bypass calculations
-    if (dashboardStats) {
+    const isFilterActive = (monthFilter && monthFilter !== 'all') || dateFrom || dateTo;
+    // If server-side stats are already fetched and no filter is active, bypass calculations
+    if (dashboardStats && !isFilterActive) {
       return {
         total: dashboardStats.revenue,
         team: {
@@ -607,19 +643,51 @@ const AdminDashboard: React.FC = () => {
       };
     }
 
+    const checkDate = (dateVal: string) => {
+      const dStr = getISTDateString(dateVal);
+      if (dateFrom && dStr < dateFrom) return false;
+      if (dateTo && dStr > dateTo) return false;
+      if (monthFilter && monthFilter !== 'all') {
+        const [year, month] = monthFilter.split('-').map(Number);
+        const ist = getISTYearAndMonth(dateVal);
+        if (ist.year !== year || ist.month !== month) return false;
+      }
+      return true;
+    };
+
     const calcRevenue = (closure: any) => {
-      const s1 = closure.slot1 ? (Number(closure.slot1_amount) || 0) : 0;
-      const s2 = closure.slot2 ? (Number(closure.slot2_amount) || 0) : 0;
+      let s1 = 0;
+      let s2 = 0;
       let additional = 0;
+
+      if (closure.slot1 && Number(closure.slot1_amount) > 0) {
+        const d = closure.slot1_due_date || closure.created_at;
+        if (checkDate(d)) {
+          s1 = Number(closure.slot1_amount) || 0;
+        }
+      }
+
+      if (closure.slot2 && Number(closure.slot2_amount) > 0) {
+        const d = closure.next_slot_due_date || closure.created_at;
+        if (checkDate(d)) {
+          s2 = Number(closure.slot2_amount) || 0;
+        }
+      }
+
       if (Array.isArray(closure.additional_slots)) {
         closure.additional_slots.forEach((slot: any) => {
-          if (slot.paid === true) {
-            additional += Number(slot.amount) || 0;
+          if (slot.paid === true && Number(slot.amount) > 0) {
+            const d = slot.due_date || closure.created_at;
+            if (checkDate(d)) {
+              additional += Number(slot.amount) || 0;
+            }
           }
         });
       }
+
       return s1 + s2 + additional;
     };
+
     const total = filteredData.closures.reduce((sum, c) => sum + calcRevenue(c), 0);
     const salesTeamIds = new Set(allUsers.filter(u => u.team === 'Sales').map(u => u.user_id));
     const leadGenTeamIds = new Set(allUsers.filter(u => u.team === 'Lead Gen').map(u => u.user_id));
@@ -647,7 +715,7 @@ const AdminDashboard: React.FC = () => {
         LeadGen: leadGenTotal
       }
     };
-  }, [filteredData.closures, allUsers, leadMap, dashboardStats]);
+  }, [filteredData.closures, allUsers, leadMap, dashboardStats, dateFrom, dateTo, monthFilter]);
 
   // Charts
   const analyticsData = useMemo(() => {
@@ -701,16 +769,47 @@ const AdminDashboard: React.FC = () => {
   }, [allUsers]);
 
   const calcRevenueLocal = (closure: any) => {
-    const s1 = closure.slot1 ? (Number(closure.slot1_amount) || 0) : 0;
-    const s2 = closure.slot2 ? (Number(closure.slot2_amount) || 0) : 0;
+    const checkDate = (dateVal: string) => {
+      const dStr = getISTDateString(dateVal);
+      if (dateFrom && dStr < dateFrom) return false;
+      if (dateTo && dStr > dateTo) return false;
+      if (monthFilter && monthFilter !== 'all') {
+        const [year, month] = monthFilter.split('-').map(Number);
+        const ist = getISTYearAndMonth(dateVal);
+        if (ist.year !== year || ist.month !== month) return false;
+      }
+      return true;
+    };
+
+    let s1 = 0;
+    let s2 = 0;
     let additional = 0;
+
+    if (closure.slot1 && Number(closure.slot1_amount) > 0) {
+      const d = closure.slot1_due_date || closure.created_at;
+      if (checkDate(d)) {
+        s1 = Number(closure.slot1_amount) || 0;
+      }
+    }
+
+    if (closure.slot2 && Number(closure.slot2_amount) > 0) {
+      const d = closure.next_slot_due_date || closure.created_at;
+      if (checkDate(d)) {
+        s2 = Number(closure.slot2_amount) || 0;
+      }
+    }
+
     if (Array.isArray(closure.additional_slots)) {
       closure.additional_slots.forEach((slot: any) => {
-        if (slot.paid === true) {
-          additional += Number(slot.amount) || 0;
+        if (slot.paid === true && Number(slot.amount) > 0) {
+          const d = slot.due_date || closure.created_at;
+          if (checkDate(d)) {
+            additional += Number(slot.amount) || 0;
+          }
         }
       });
     }
+
     return s1 + s2 + additional;
   };
 
@@ -871,6 +970,8 @@ const AdminDashboard: React.FC = () => {
     }, 500);
   };
 
+  const isFilterActive = (monthFilter && monthFilter !== 'all') || dateFrom || dateTo;
+
   return (
     <div className="space-y-6 pb-12">
       <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-6 bg-background/50 backdrop-blur-xl p-6 rounded-2xl border border-primary/10 shadow-2xl sticky top-0 z-30">
@@ -878,8 +979,19 @@ const AdminDashboard: React.FC = () => {
         <div className="flex flex-wrap items-center gap-3">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="bg-accent/30 p-1 rounded-lg border border-border/50"><TabsList className="bg-transparent border-none"><TabsTrigger value="control" className="data-[state=active]:bg-background text-xs">Control</TabsTrigger><TabsTrigger value="analytics" className="data-[state=active]:bg-background text-xs">Analytics</TabsTrigger><TabsTrigger value="monitoring" className="data-[state=active]:bg-background text-xs">Monitoring</TabsTrigger><TabsTrigger value="global" className="data-[state=active]:bg-background text-xs">Global View</TabsTrigger></TabsList></Tabs>
           <div className="h-8 w-[1px] bg-border/50 mx-1" />
-          <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); localStorage.setItem('netbounce_crm_month_filter_yyyy_mm', v); }}>
-            <SelectTrigger className="w-36 h-9 bg-accent/30 border-border/50 text-xs">
+          <div className="flex items-center gap-1.5 bg-background/50 px-2.5 rounded-md border border-border/50 h-9 shrink-0">
+            <span className="text-[10px] text-muted-foreground font-medium pr-0.5 select-none">Date:</span>
+            <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-[120px] h-7 text-[11px] border-0 bg-transparent pl-1.5 pr-2 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm" />
+            <span className="text-muted-foreground text-[10px] px-0.5 select-none">—</span>
+            <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-[120px] h-7 text-[11px] border-0 bg-transparent pl-1.5 pr-2 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm" />
+            {(dateFrom || dateTo) && (
+              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => { setDateFrom(''); setDateTo(''); }}>
+                <XCircle className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+          <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); localStorage.setItem('netbounce_crm_month_filter_yyyy_mm', v); }} disabled={!!(dateFrom || dateTo)}>
+            <SelectTrigger className="w-28 h-9 bg-accent/30 border-border/50 text-xs">
               <SelectValue placeholder="Month" />
             </SelectTrigger>
             <SelectContent>
@@ -909,10 +1021,10 @@ const AdminDashboard: React.FC = () => {
         {activeTab === 'control' && (
           <motion.div key="control" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard title="Total Leads" value={dashboardStats?.totalLeads ?? filteredData.leads.length} icon={Users} delay={0} isLoading={isLoadingStats} />
-              <StatCard title="Pipeline" value={dashboardStats?.pipeline ?? filteredData.leads.filter(l => !['Closed', 'Non Interested'].includes(l.lead_status || '')).length} icon={TrendingUp} delay={0.1} isLoading={isLoadingStats} />
-              <StatCard title="Closures" value={dashboardStats?.closures ?? filteredData.leads.filter(l => l.lead_status === 'Closed').length} icon={CheckCircle} delay={0.2} isLoading={isLoadingStats} />
-              <StatCard title="Revenue" value={`$${(dashboardStats?.revenue ?? revenueStats.total).toLocaleString()}`} icon={DollarSign} delay={0.3} isLoading={isLoadingStats} />
+              <StatCard title="Total Leads" value={(dashboardStats && !isFilterActive) ? dashboardStats.totalLeads : filteredData.leads.length} icon={Users} delay={0} isLoading={isLoadingStats} />
+              <StatCard title="Pipeline" value={(dashboardStats && !isFilterActive) ? dashboardStats.pipeline : filteredData.leads.filter(l => !['Closed', 'Non Interested'].includes(l.lead_status || '')).length} icon={TrendingUp} delay={0.1} isLoading={isLoadingStats} />
+              <StatCard title="Closures" value={(dashboardStats && !isFilterActive) ? dashboardStats.closures : filteredData.leads.filter(l => l.lead_status === 'Closed').length} icon={CheckCircle} delay={0.2} isLoading={isLoadingStats} />
+              <StatCard title="Revenue" value={`$${((dashboardStats && !isFilterActive) ? dashboardStats.revenue : revenueStats.total).toLocaleString()}`} icon={DollarSign} delay={0.3} isLoading={isLoadingStats} />
             </div>
             {isAdmin && (
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">

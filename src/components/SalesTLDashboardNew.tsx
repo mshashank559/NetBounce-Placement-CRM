@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
-import { TrendingUp, CheckCircle, Phone, DollarSign, AlertTriangle, Clock, UserPlus, Eye, Search, RefreshCw } from 'lucide-react';
+import { TrendingUp, CheckCircle, Phone, DollarSign, AlertTriangle, Clock, UserPlus, Eye, Search, RefreshCw, XCircle } from 'lucide-react';
 import LeadDetailDialog from './LeadDetailDialog';
 import { getWorkingDaysDifference, getISTYearAndMonth, getISTDateString, formatToISTDateString } from '@/lib/dateUtils';
 import {
@@ -312,30 +312,68 @@ const SalesTLDashboard: React.FC = () => {
   }, [callLogs, today, filteredLeadIds]);
 
   const revenue = useMemo(() => {
+    const checkDate = (dateVal: string) => {
+      const dStr = getISTDateString(dateVal);
+      if (dateFrom && dStr < dateFrom) return false;
+      if (dateTo && dStr > dateTo) return false;
+      if (monthFilter && monthFilter !== 'all') {
+        const ist = getISTYearAndMonth(dateVal);
+        if (ist.month !== parseInt(monthFilter)) return false;
+      }
+      return true;
+    };
+
     return closureData
       .filter(c => {
-        if (!filteredLeadIds.has(c.lead_id)) return false;
         if (role === 'SALES_TL') {
           const lead = leads.find(l => l.unique_id === c.lead_id);
           if (!lead) return false;
+          if (viewMode === 'personal' && lead.assigned_to !== user?.id) return false;
+          if (viewMode === 'team') {
+            if (!lead.assigned_to || (!myTeamIds.has(lead.assigned_to) && lead.assigned_to !== user?.id)) return false;
+          }
+          if (viewMode === 'global') {
+            if (!lead.assigned_to) return false;
+          }
+          if (viewMode === 'global' && globalMemberFilter !== 'all' && lead.assigned_to !== globalMemberFilter) return false;
+          if (viewMode === 'global' && globalLeadGenFilter !== 'all' && lead.lead_generated_by !== globalLeadGenFilter) return false;
           return lead.assigned_to === user?.id || myTeamIds.has(lead.assigned_to);
         }
         return true;
       })
-      .reduce((s, c) => {
-        const s1 = c.slot1 ? (Number(c.slot1_amount) || 0) : 0;
-        const s2 = c.slot2 ? (Number(c.slot2_amount) || 0) : 0;
+      .reduce((sum, c) => {
+        let s1 = 0;
+        let s2 = 0;
         let additional = 0;
+
+        if (c.slot1 && Number(c.slot1_amount) > 0) {
+          const d = c.slot1_due_date || c.created_at;
+          if (checkDate(d)) {
+            s1 = Number(c.slot1_amount) || 0;
+          }
+        }
+
+        if (c.slot2 && Number(c.slot2_amount) > 0) {
+          const d = c.next_slot_due_date || c.created_at;
+          if (checkDate(d)) {
+            s2 = Number(c.slot2_amount) || 0;
+          }
+        }
+
         if (Array.isArray(c.additional_slots)) {
           c.additional_slots.forEach((slot: any) => {
-            if (slot.paid === true) {
-              additional += Number(slot.amount) || 0;
+            if (slot.paid === true && Number(slot.amount) > 0) {
+              const d = slot.due_date || c.created_at;
+              if (checkDate(d)) {
+                additional += Number(slot.amount) || 0;
+              }
             }
           });
         }
-        return s + s1 + s2 + additional;
+
+        return sum + s1 + s2 + additional;
       }, 0);
-  }, [closureData, filteredLeadIds, role, leads, user?.id, myTeamIds]);
+  }, [closureData, leads, role, user?.id, myTeamIds, dateFrom, dateTo, monthFilter, viewMode, globalMemberFilter, globalLeadGenFilter]);
 
   // ── SLA Alerts ──
   const staleLeads = useMemo(() => {
@@ -592,7 +630,7 @@ const SalesTLDashboard: React.FC = () => {
             </TabsList>
           </Tabs>
           <Input placeholder="Search name, id, email, phone..." value={nameSearch} onChange={e => setNameSearch(e.target.value)} className="w-56" />
-          <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); localStorage.setItem('netbounce_crm_month_filter_month_num', v); }}>
+          <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); localStorage.setItem('netbounce_crm_month_filter_month_num', v); }} disabled={!!(dateFrom || dateTo)}>
             <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All</SelectItem>
@@ -613,6 +651,11 @@ const SalesTLDashboard: React.FC = () => {
             <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-[130px] h-8 text-xs border-0 bg-transparent pl-1.5 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm" />
             <span className="text-muted-foreground text-xs px-0.5 select-none">—</span>
             <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-[130px] h-8 text-xs border-0 bg-transparent pl-1.5 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm" />
+            {(dateFrom || dateTo) && (
+              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground animate-in fade-in zoom-in duration-200" onClick={() => { setDateFrom(''); setDateTo(''); }}>
+                <XCircle className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
       </div>
