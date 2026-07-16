@@ -296,15 +296,15 @@ const RevenuePage: React.FC = () => {
     });
   }, [sortedClosures, dateFrom, dateTo, yearFilter]);
 
-  // Authorization check for the page
-  if (role !== 'ADMIN' && role !== 'SALES_TL' && role !== 'ACCOUNTANT') {
-    return <div className="text-center text-muted-foreground p-8">Access denied</div>;
-  }
-
   // Filter closures specifically for pagination in the data table
   const paginatedClosures = useMemo(() => {
     return filteredClosuresForGrid.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   }, [filteredClosuresForGrid, page]);
+
+  // Authorization check for the page
+  if (role !== 'ADMIN' && role !== 'SALES_TL' && role !== 'ACCOUNTANT') {
+    return <div className="text-center text-muted-foreground p-8">Access denied</div>;
+  }
 
   const handleEditClick = (c: any) => {
     setEditingLead({
