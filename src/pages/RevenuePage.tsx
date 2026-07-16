@@ -109,7 +109,6 @@ const RevenuePage: React.FC = () => {
   });
 
   const calcRevenue = (closure: any) => {
-    const upfront = Number(closure.upfront_amount) || 0;
     const s1 = closure.slot1 ? (Number(closure.slot1_amount) || 0) : 0;
     const s2 = closure.slot2 ? (Number(closure.slot2_amount) || 0) : 0;
     let additional = 0;
@@ -120,7 +119,7 @@ const RevenuePage: React.FC = () => {
         }
       });
     }
-    return upfront + s1 + s2 + additional;
+    return s1 + s2 + additional;
   };
 
   const getISTYearAndMonth = (dateString: string) => {
@@ -140,15 +139,7 @@ const RevenuePage: React.FC = () => {
     if (!closures) return [];
     const payments: { amount: number; date: string; closure: any }[] = [];
     closures.forEach(c => {
-      // 1. Upfront (Always considered paid)
-      if (c.upfront_amount && Number(c.upfront_amount) > 0) {
-        payments.push({
-          amount: Number(c.upfront_amount),
-          date: c.created_at,
-          closure: c
-        });
-      }
-      // 2. Slot 1 (If slot1 is true/paid)
+      // 1. Slot 1 (If slot1 is true/paid)
       if (c.slot1 && Number(c.slot1_amount) > 0) {
         payments.push({
           amount: Number(c.slot1_amount),
@@ -156,7 +147,7 @@ const RevenuePage: React.FC = () => {
           closure: c
         });
       }
-      // 3. Slot 2 (If slot2 is true/paid)
+      // 2. Slot 2 (If slot2 is true/paid)
       if (c.slot2 && Number(c.slot2_amount) > 0) {
         payments.push({
           amount: Number(c.slot2_amount),
@@ -164,7 +155,7 @@ const RevenuePage: React.FC = () => {
           closure: c
         });
       }
-      // 4. Additional Slots
+      // 3. Additional Slots
       if (Array.isArray(c.additional_slots)) {
         c.additional_slots.forEach((slot: any) => {
           if (slot.paid === true && Number(slot.amount) > 0) {
@@ -228,7 +219,6 @@ const RevenuePage: React.FC = () => {
   // Helper to find the latest payment date for a closure to sort by
   const getLatestPaymentDate = (c: any) => {
     const dates: string[] = [];
-    if (c.created_at) dates.push(c.created_at);
     if (c.slot1 && c.slot1_due_date) dates.push(c.slot1_due_date);
     if (c.slot2 && c.next_slot_due_date) dates.push(c.next_slot_due_date);
     if (Array.isArray(c.additional_slots)) {
@@ -238,7 +228,7 @@ const RevenuePage: React.FC = () => {
         }
       });
     }
-    if (dates.length === 0) return '';
+    if (dates.length === 0) return c.created_at || '';
     return dates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
   };
 
