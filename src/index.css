@@ -83,12 +83,15 @@
   * {
     @apply border-border;
   }
-  body {
+  body, input, button, select, textarea {
     @apply bg-background text-foreground font-sans antialiased;
-    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+  .font-display {
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
   .dark input[type="date"]::-webkit-calendar-picker-indicator {
     filter: invert(1);

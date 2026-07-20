@@ -13,8 +13,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Helvetica Neue", "Helvetica", "Arial", "sans-serif"],
-        display: ["Helvetica Neue", "Helvetica", "Arial", "sans-serif"],
+        sans: ["Inter", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "sans-serif"],
+        display: ["Inter", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
