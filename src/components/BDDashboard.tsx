@@ -14,6 +14,8 @@ import { motion } from 'framer-motion';
 import { Users, TrendingUp, CheckCircle, Plus, AlertTriangle, UserPlus, Shuffle, Clock, Eye } from 'lucide-react';
 import LeadDetailDialog from './LeadDetailDialog';
 import { getISTYearAndMonth, getISTDateString, formatToISTDateString, isInCurrentShift, getBDBusinessDate, getNextDayString } from '@/lib/dateUtils';
+import { useDeferredRender } from '@/hooks/useDeferredRender';
+import { DebouncedSearchInput } from '@/components/ui/DebouncedSearchInput';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
@@ -23,6 +25,7 @@ const formatDate = (dateString?: string) => formatToISTDateString(dateString);
 const BDDashboard: React.FC = () => {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
+  const renderDeferred = useDeferredRender(80);
 
   // ── Global Filters ──────────────────────────────────────
   const [viewMode, setViewMode] = useState('team'); // 'personal', 'team', or 'global'
@@ -365,7 +368,7 @@ const BDDashboard: React.FC = () => {
             </TabsList>
           </Tabs>
 
-          <Input placeholder="Search name, id, email, phone..." value={localSearch} onChange={e => setLocalSearch(e.target.value)} className="w-56" />
+          <DebouncedSearchInput value={nameSearch} onChange={setNameSearch} className="w-56" placeholder="Search name, id, email, phone..." />
 
           <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); localStorage.setItem('netbounce_crm_month_filter_month_num', v); }}>
             <SelectTrigger className="w-32"><SelectValue placeholder="Month" /></SelectTrigger>
@@ -464,30 +467,44 @@ const BDDashboard: React.FC = () => {
           <Card className="glass-card">
             <CardHeader><CardTitle className="text-sm font-medium">Daily Lead Addition Trend</CardTitle></CardHeader>
             <CardContent className="h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData.dailyTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <XAxis dataKey="date" tick={{fontSize: 10}} />
-                  <YAxis tick={{fontSize: 10}} />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4 }} />
-                </LineChart>
-              </ResponsiveContainer>
+              {!renderDeferred ? (
+                <div className="h-full flex flex-col items-center justify-center space-y-2 text-muted-foreground text-xs animate-pulse">
+                  <div className="h-4 w-24 bg-accent/40 rounded" />
+                  <span>Loading trend...</span>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData.dailyTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <XAxis dataKey="date" tick={{fontSize: 10}} />
+                    <YAxis tick={{fontSize: 10}} />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
             </CardContent>
           </Card>
 
           <Card className="glass-card">
             <CardHeader><CardTitle className="text-sm font-medium">Lead Categories Breakdown</CardTitle></CardHeader>
             <CardContent className="h-[250px] flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={chartData.categoryBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5}>
-                    <Cell fill="#ef4444" />
-                    <Cell fill="#3b82f6" />
-                  </Pie>
-                  <Tooltip />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: '11px' }} />
-                </PieChart>
-              </ResponsiveContainer>
+              {!renderDeferred ? (
+                <div className="h-full flex flex-col items-center justify-center space-y-2 text-muted-foreground text-xs animate-pulse">
+                  <div className="h-4 w-24 bg-accent/40 rounded" />
+                  <span>Loading breakdown...</span>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={chartData.categoryBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5}>
+                      <Cell fill="#ef4444" />
+                      <Cell fill="#3b82f6" />
+                    </Pie>
+                    <Tooltip />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: '11px' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
             </CardContent>
           </Card>
         </div>

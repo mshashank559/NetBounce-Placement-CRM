@@ -20,6 +20,8 @@ import CallActivityDialog from '@/components/CallActivityDialog';
 import ClosureDialog from '@/components/ClosureDialog';
 import AccountantCommentDialog from '@/components/AccountantCommentDialog';
 import { getWorkingDaysDifference, getISTYearAndMonth, getISTDateString, formatToISTDateString } from '@/lib/dateUtils';
+import { useDeferredRender } from '@/hooks/useDeferredRender';
+import { DebouncedSearchInput } from '@/components/ui/DebouncedSearchInput';
 
 const ALL_STATUSES = ['New', 'DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', 'Hot Prospect', 'Closed', 'Non Interested'];
 
@@ -66,6 +68,7 @@ const statusBadgeClass = (s: string) => {
 const SalesMemberDashboard: React.FC = () => {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
+  const renderDeferred = useDeferredRender(80);
 
   const [viewMode, setViewMode] = useState<'personal' | 'global'>('personal');
   const [monthFilter, setMonthFilter] = useState(() => {
@@ -589,7 +592,7 @@ const SalesMemberDashboard: React.FC = () => {
               <TabsTrigger value="global">Global View</TabsTrigger>
             </TabsList>
           </Tabs>
-          <Input placeholder="Search name, id, email, phone..." value={nameSearch} onChange={e => setNameSearch(e.target.value)} className="w-56" />
+          <DebouncedSearchInput value={nameSearch} onChange={setNameSearch} className="w-56" placeholder="Search name, id, email, phone..." />
           <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); localStorage.setItem('netbounce_crm_month_filter_month_num', v); }}>
             <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -706,7 +709,12 @@ const SalesMemberDashboard: React.FC = () => {
           <Card className="glass-card">
             <CardHeader><CardTitle className="text-sm font-medium">Daily Call Trend (Last 7 Days)</CardTitle></CardHeader>
             <CardContent className="h-[200px]">
-              {chartData.callTrend.length === 0 ? (
+              {!renderDeferred ? (
+                <div className="h-full flex flex-col items-center justify-center space-y-2 text-muted-foreground text-xs animate-pulse">
+                  <div className="h-4 w-24 bg-accent/40 rounded" />
+                  <span>Loading trends...</span>
+                </div>
+              ) : chartData.callTrend.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No calls logged yet</div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
@@ -724,7 +732,12 @@ const SalesMemberDashboard: React.FC = () => {
           <Card className="glass-card">
             <CardHeader><CardTitle className="text-sm font-medium">Lead Status Breakdown</CardTitle></CardHeader>
             <CardContent className="h-[200px]">
-              {chartData.statusBreakdown.length === 0 ? (
+              {!renderDeferred ? (
+                <div className="h-full flex flex-col items-center justify-center space-y-2 text-muted-foreground text-xs animate-pulse">
+                  <div className="h-4 w-24 bg-accent/40 rounded" />
+                  <span>Loading breakdown...</span>
+                </div>
+              ) : chartData.statusBreakdown.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No leads yet</div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">

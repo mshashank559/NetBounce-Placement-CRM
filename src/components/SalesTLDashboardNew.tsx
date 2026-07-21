@@ -14,6 +14,8 @@ import { motion } from 'framer-motion';
 import { TrendingUp, CheckCircle, Phone, DollarSign, AlertTriangle, Clock, UserPlus, Eye, Search, RefreshCw, XCircle } from 'lucide-react';
 import LeadDetailDialog from './LeadDetailDialog';
 import { getWorkingDaysDifference, getISTYearAndMonth, getISTDateString, formatToISTDateString } from '@/lib/dateUtils';
+import { useDeferredRender } from '@/hooks/useDeferredRender';
+import { DebouncedSearchInput } from '@/components/ui/DebouncedSearchInput';
 import {
   LineChart, Line, BarChart, Bar, LabelList,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Cell
@@ -88,6 +90,7 @@ const SalesTLReassignDropdownMenu: React.FC<SalesTLReassignDropdownMenuProps> = 
 const SalesTLDashboard: React.FC = () => {
   const { user, profile, role } = useAuth();
   const queryClient = useQueryClient();
+  const renderDeferred = useDeferredRender(80);
 
   const [viewMode, setViewMode] = useState('team'); // 'personal', 'team', or 'global'
   const [selectedLead, setSelectedLead] = useState<any>(null);
@@ -629,7 +632,7 @@ const SalesTLDashboard: React.FC = () => {
               <TabsTrigger value="global">Global View</TabsTrigger>
             </TabsList>
           </Tabs>
-          <Input placeholder="Search name, id, email, phone..." value={nameSearch} onChange={e => setNameSearch(e.target.value)} className="w-56" />
+          <DebouncedSearchInput value={nameSearch} onChange={setNameSearch} className="w-56" placeholder="Search name, id, email, phone..." />
           <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); localStorage.setItem('netbounce_crm_month_filter_month_num', v); }} disabled={!!(dateFrom || dateTo)}>
             <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -732,30 +735,44 @@ const SalesTLDashboard: React.FC = () => {
           <Card className="glass-card lg:col-span-2">
             <CardHeader><CardTitle className="text-sm font-medium">Call Activity Trend (Last 7 Days)</CardTitle></CardHeader>
             <CardContent className="h-[220px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData.callTrend} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                  <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="calls" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4 }} />
-                </LineChart>
-              </ResponsiveContainer>
+              {!renderDeferred ? (
+                <div className="h-full flex flex-col items-center justify-center space-y-2 text-muted-foreground text-xs animate-pulse">
+                  <div className="h-4 w-24 bg-accent/40 rounded" />
+                  <span>Loading trends...</span>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData.callTrend} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="calls" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
             </CardContent>
           </Card>
 
           <Card className="glass-card">
             <CardHeader><CardTitle className="text-sm font-medium">Lead Status Funnel</CardTitle></CardHeader>
             <CardContent className="h-[220px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData.funnelData} layout="vertical" margin={{ top: 0, right: 10, left: 60, bottom: 0 }}>
-                  <XAxis type="number" tick={{ fontSize: 9 }} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} />
-                  <Tooltip />
-                  <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                    {chartData.funnelData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {!renderDeferred ? (
+                <div className="h-full flex flex-col items-center justify-center space-y-2 text-muted-foreground text-xs animate-pulse">
+                  <div className="h-4 w-24 bg-accent/40 rounded" />
+                  <span>Loading funnel...</span>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData.funnelData} layout="vertical" margin={{ top: 0, right: 10, left: 60, bottom: 0 }}>
+                    <XAxis type="number" tick={{ fontSize: 9 }} />
+                    <YAxis type="category" dataKey="name" tick={{ fontSize: 9 }} />
+                    <Tooltip />
+                    <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                      {chartData.funnelData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </CardContent>
           </Card>
         </div>

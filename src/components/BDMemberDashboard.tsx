@@ -17,6 +17,8 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import LeadDetailDialog from './LeadDetailDialog';
 import { normalizeSource } from '@/lib/leads';
 import { getISTYearAndMonth, getISTDateString, formatToISTDateString, isInCurrentShift, getBDBusinessDate, getNextDayString } from '@/lib/dateUtils';
+import { useDeferredRender } from '@/hooks/useDeferredRender';
+import { DebouncedSearchInput } from '@/components/ui/DebouncedSearchInput';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend
@@ -31,6 +33,7 @@ const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov
 const BDMemberDashboard: React.FC = () => {
   const { user, profile, role } = useAuth();
   const queryClient = useQueryClient();
+  const renderDeferred = useDeferredRender(80);
 
   // ── Filters ────────────────────────────────────────────────
   const [viewMode, setViewMode] = useState<'personal' | 'global'>('personal');
@@ -379,10 +382,10 @@ const BDMemberDashboard: React.FC = () => {
               </SelectContent>
             </Select>
           )}
-          <Input
+          <DebouncedSearchInput
             placeholder="Search name, id, email, phone..."
-            value={localSearch}
-            onChange={e => setLocalSearch(e.target.value)}
+            value={nameSearch}
+            onChange={setNameSearch}
             className="w-56"
           />
           <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); localStorage.setItem('netbounce_crm_month_filter_month_num', v); }}>
@@ -432,7 +435,12 @@ const BDMemberDashboard: React.FC = () => {
           <Card className="glass-card lg:col-span-2">
             <CardHeader><CardTitle className="text-sm font-medium">Daily Lead Addition Trend</CardTitle></CardHeader>
             <CardContent className="h-[220px]">
-              {chartData.dailyTrend.length === 0 ? (
+              {!renderDeferred ? (
+                <div className="h-full flex flex-col items-center justify-center space-y-2 text-muted-foreground text-xs animate-pulse">
+                  <div className="h-4 w-24 bg-accent/40 rounded" />
+                  <span>Loading trends...</span>
+                </div>
+              ) : chartData.dailyTrend.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-muted-foreground text-sm">No data for selected filters</div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
