@@ -41,38 +41,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfileAndRole = async (sessionUser: User) => {
-    try {
-      const userId = sessionUser.id;
-      let [profileRes, roleRes] = await Promise.all([
-        supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
-        supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle(),
-      ]);
+  const fetchProfileAndRole = async (sessionUser: User, retries = 3) => {
+    const userId = sessionUser.id;
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        let [profileRes, roleRes] = await Promise.all([
+          supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
+          supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle(),
+        ]);
 
-      // ── Self-Healing: Auto-create missing profile & role if they didn't trigger correctly
-      if (!profileRes.data && sessionUser.user_metadata) {
-        await supabase.from('profiles').insert({
-          user_id: userId,
-          full_name: sessionUser.user_metadata.full_name || 'User',
-          email: sessionUser.email || '',
-          department: sessionUser.user_metadata.department,
-          reports_to: sessionUser.user_metadata.reports_to
-        });
-        profileRes = await supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle();
+        // ── Self-Healing: Auto-create missing profile & role if they didn't trigger correctly
+        if (!profileRes.data && sessionUser.user_metadata) {
+          await supabase.from('profiles').insert({
+            user_id: userId,
+            full_name: sessionUser.user_metadata.full_name || 'User',
+            email: sessionUser.email || '',
+            department: sessionUser.user_metadata.department,
+            reports_to: sessionUser.user_metadata.reports_to
+          });
+          profileRes = await supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle();
+        }
+
+        if (!roleRes.data && sessionUser.user_metadata?.role) {
+          await supabase.from('user_roles').insert({
+            user_id: userId,
+            role: sessionUser.user_metadata.role
+          });
+          roleRes = await supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle();
+        }
+
+        if (profileRes.data) setProfile(profileRes.data as Profile);
+        if (roleRes.data) setRole(roleRes.data.role as AppRole);
+
+        // If we got a role, break out of retry loop
+        if (roleRes.data?.role) break;
+      } catch (error) {
+        console.error(`Attempt ${attempt} error fetching profile/role:`, error);
       }
 
-      if (!roleRes.data && sessionUser.user_metadata?.role) {
-        await supabase.from('user_roles').insert({
-          user_id: userId,
-          role: sessionUser.user_metadata.role
-        });
-        roleRes = await supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle();
+      // If attempt failed and we have retries left, wait 1000ms before retrying
+      if (attempt < retries) {
+        await new Promise(res => setTimeout(res, 1000));
       }
-
-      if (profileRes.data) setProfile(profileRes.data as Profile);
-      if (roleRes.data) setRole(roleRes.data.role as AppRole);
-    } catch (error) {
-      console.error('Error fetching profile/role:', error);
     }
   };
 

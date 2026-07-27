@@ -21,6 +21,7 @@ import BDTLDashboardPage from "@/pages/BDTLDashboardPage";
 import UserManagementPage from "@/pages/UserManagementPage";
 import LoginActivityPage from "@/pages/LoginActivityPage";
 import AssignmentAnalysisPage from "@/pages/AssignmentAnalysisPage";
+import CandidatesPage from "@/pages/CandidatesPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -68,6 +69,7 @@ const App = () => (
                   <Route path="/leads-view" element={<DashboardPage />} />
                   <Route path="/leads/new" element={<AddLeadPage />} />
                   <Route path="/leads" element={<LeadsPage />} />
+                  <Route path="/candidates" element={<CandidatesPage />} />
                   <Route path="/assign" element={<AssignLeadsPage />} />
                   <Route path="/calls" element={<CallTrackerPage />} />
                   <Route path="/analytics" element={<AnalyticsPage />} />

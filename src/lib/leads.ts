@@ -15,25 +15,32 @@ export async function fetchAllLeads() {
   if (total === 0) return [];
 
   const step = 1000;
-  const promises = [];
+  const chunkRanges: { from: number; to: number }[] = [];
 
   for (let from = 0; from < total; from += step) {
     const to = Math.min(from + step - 1, total - 1);
-    promises.push(
-      (supabase.rpc as any)('get_leads_v2', {}).range(from, to)
-    );
+    chunkRanges.push({ from, to });
   }
 
-  const results = await Promise.all(promises);
   let allLeads: any[] = [];
+  const BATCH_SIZE = 2; // Process 2 ranges at a time to prevent database connection saturation
 
-  for (const r of results) {
-    if (r.error) {
-      console.error("Error fetching parallel leads range:", r.error);
-      throw r.error;
-    }
-    if (r.data) {
-      allLeads = [...allLeads, ...r.data];
+  for (let i = 0; i < chunkRanges.length; i += BATCH_SIZE) {
+    const batch = chunkRanges.slice(i, i + BATCH_SIZE);
+    const promises = batch.map(({ from, to }) =>
+      (supabase.rpc as any)('get_leads_v2', {}).range(from, to)
+    );
+
+    const results = await Promise.all(promises);
+
+    for (const r of results) {
+      if (r.error) {
+        console.error("Error fetching leads range batch:", r.error);
+        throw r.error;
+      }
+      if (r.data) {
+        allLeads = [...allLeads, ...r.data];
+      }
     }
   }
 

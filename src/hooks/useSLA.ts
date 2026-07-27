@@ -204,7 +204,10 @@ export const useSLA = () => {
       // ── Rule 5: Follow-up SLA Notification Logic ──
       const { data: activeFollowupLeads } = await supabase
         .from('leads')
-        .select('unique_id, display_id, name, assigned_to, team_lead_id, lead_status, updated_at, dnr_followup_done, assigned_at');
+        .select('unique_id, display_id, name, assigned_to, team_lead_id, lead_status, updated_at, dnr_followup_done, assigned_at')
+        .not('lead_status', 'in', '("Closed","Non Interested")')
+        .order('updated_at', { ascending: false })
+        .limit(500);
 
       if (activeFollowupLeads && activeFollowupLeads.length > 0) {
         const pendingLeads = activeFollowupLeads.filter(

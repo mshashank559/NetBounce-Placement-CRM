@@ -15,6 +15,9 @@ import AdminDashboard from '@/components/AdminDashboard';
 import ProcessAnalystDashboard from '@/components/ProcessAnalystDashboard';
 import AccountantDashboard from '@/components/AccountantDashboard';
 
+import { Button } from '@/components/ui/button';
+import { RefreshCw } from 'lucide-react';
+
 const DashboardPage: React.FC = () => {
   const { role } = useAuth();
   
@@ -47,8 +50,20 @@ const DashboardPage: React.FC = () => {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-[400px]">
+    <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4 text-center">
       <p className="text-muted-foreground text-lg">Loading dashboard...</p>
+      <p className="text-xs text-muted-foreground max-w-sm">
+        If loading takes longer than usual, click below to refresh your session.
+      </p>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => window.location.reload()}
+        className="gap-2"
+      >
+        <RefreshCw className="h-4 w-4" />
+        Retry Loading Dashboard
+      </Button>
     </div>
   );
 };

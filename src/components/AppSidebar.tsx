@@ -4,7 +4,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Plus, BarChart3, Bell, LogOut, Sun, Moon, UserCog, Phone,
-  DollarSign, AlertCircle, UsersRound, Shield, Activity, PieChart
+  DollarSign, AlertCircle, UsersRound, Shield, Activity, PieChart, UserCheck
 } from 'lucide-react';
 import logoDark from '@/assets/logo-dark.png';
 
@@ -23,6 +23,7 @@ const navItems: NavItem[] = [
   { label: 'Leads View', icon: Users, path: '/leads-view', roles: ['ACCOUNTANT'] },
   { label: 'Add Lead', icon: Plus, path: '/leads/new', roles: ['ADMIN', 'LEAD_GEN', 'LEAD_TL', 'SALES_TM', 'SALES_TL'] },
   { label: 'Leads', icon: Users, path: '/leads', roles: ['ADMIN', 'PROCESS_ANALYST', 'LEAD_TL', 'LEAD_GEN', 'SALES_TL', 'SALES_TM'] },
+  { label: 'Candidates', icon: UserCheck, path: '/candidates', roles: ['ADMIN', 'PROCESS_ANALYST', 'LEAD_TL', 'LEAD_GEN', 'SALES_TL', 'SALES_TM', 'ACCOUNTANT'] },
   { label: 'Assign Leads', icon: UserCog, path: '/assign', roles: ['ADMIN', 'LEAD_TL', 'SALES_TL'] },
   { label: 'Assignment Analysis', icon: PieChart, path: '/assignment-analysis', roles: ['ADMIN', 'LEAD_TL'] },
   { label: 'Call Tracker', icon: Phone, path: '/calls', roles: ['SALES_TM', 'SALES_TL', 'ADMIN', 'PROCESS_ANALYST'] },
