@@ -537,7 +537,7 @@ export default function AccountantDashboard() {
           title="Active Enrollments" 
           value={activeEnrollments.toString()} 
           icon={Users} 
-          trend="Candidates in Pipeline"
+          trend="Active in Pipeline"
           color="indigo"
         />
         <KPICard 
@@ -551,7 +551,7 @@ export default function AccountantDashboard() {
           title="Pending Documents" 
           value={pendingDocumentsCount.toString()} 
           icon={Clock} 
-          trend="Awaiting candidate action"
+          trend="Awaiting client action"
           color="destructive"
         />
         <KPICard 
