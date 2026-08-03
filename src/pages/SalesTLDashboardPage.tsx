@@ -115,8 +115,6 @@ const SalesTLDashboardPage: React.FC = () => {
     return salesMembers.map(member => {
       const memberLeads = allLeads?.filter(l => l.assigned_to === member.user_id) || [];
       const memberCalls = callLogs?.filter(c => c.user_id === member.user_id) || [];
-      const memberClosedIds = new Set(memberLeads.filter(l => l.lead_status === 'Closed').map(l => l.unique_id));
-      const memberClosures = closures?.filter(c => memberClosedIds.has(c.lead_id)) || [];
 
       const today = getISTDateString(new Date());
       const todayCalls = memberCalls
@@ -130,29 +128,78 @@ const SalesTLDashboardPage: React.FC = () => {
       }).reduce((s, c) => s + (c.call_count || 0), 0);
 
       const leadsToday = memberLeads.filter(l => getISTDateString(l.created_at) === today).length;
-      const leadsMonth = memberLeads.filter(l => {
+      
+      const monthlyLeads = memberLeads.filter(l => {
         const ist = getISTYearAndMonth(l.created_at);
         return ist.year === filterYear && ist.month === filterMonth;
-      }).length;
+      });
+      const leadsMonth = monthlyLeads.length;
 
+      // Status breakdown for leads created in the selected month
       const statusBreakdown: Record<string, number> = {};
-      memberLeads.forEach(l => {
+      monthlyLeads.forEach(l => {
         const s = l.lead_status || 'New';
         statusBreakdown[s] = (statusBreakdown[s] || 0) + 1;
       });
 
-      const totalRevenue = memberClosures.reduce((s, c) => {
-        const s1 = c.slot1 ? (Number(c.slot1_amount) || 0) : 0;
-        const s2 = c.slot2 ? (Number(c.slot2_amount) || 0) : 0;
+      // Monthly closures for leads closed in the selected month
+      const memberClosures = closures?.filter(c => {
+        const lead = allLeads?.find(l => l.unique_id === c.lead_id);
+        if (!lead || lead.assigned_to !== member.user_id || lead.lead_status !== 'Closed') return false;
+        const closureDate = c.created_at || lead.created_at;
+        const ist = getISTYearAndMonth(closureDate);
+        return ist.year === filterYear && ist.month === filterMonth;
+      }) || [];
+
+      // Helper function to check if a date falls in the selected month
+      const matchesMonth = (dateStr: string | null | undefined) => {
+        if (!dateStr) return false;
+        const ist = getISTYearAndMonth(dateStr);
+        return ist.year === filterYear && ist.month === filterMonth;
+      };
+
+      // Calculate total revenue recognized strictly in the selected month
+      const memberAllClosedLeads = closures?.filter(c => {
+        const lead = allLeads?.find(l => l.unique_id === c.lead_id);
+        return lead && lead.assigned_to === member.user_id && lead.lead_status === 'Closed';
+      }) || [];
+
+      const totalRevenue = memberAllClosedLeads.reduce((s, c) => {
+        let upfront = 0;
+        let s1 = 0;
+        let s2 = 0;
         let additional = 0;
+
+        if (Number(c.upfront_amount) > 0 && matchesMonth(c.created_at)) {
+          upfront = Number(c.upfront_amount) || 0;
+        }
+
+        if (c.slot1 && Number(c.slot1_amount) > 0) {
+          const d = c.slot1_due_date || c.created_at;
+          if (matchesMonth(d)) {
+            s1 = Number(c.slot1_amount) || 0;
+          }
+        }
+
+        if (c.slot2 && Number(c.slot2_amount) > 0) {
+          const d = c.next_slot_due_date || c.created_at;
+          if (matchesMonth(d)) {
+            s2 = Number(c.slot2_amount) || 0;
+          }
+        }
+
         if (Array.isArray(c.additional_slots)) {
           c.additional_slots.forEach((slot: any) => {
-            if (slot.paid === true) {
-              additional += Number(slot.amount) || 0;
+            if (slot.paid === true && Number(slot.amount) > 0) {
+              const d = slot.due_date || slot.paid_at || c.created_at;
+              if (matchesMonth(d)) {
+                additional += Number(slot.amount) || 0;
+              }
             }
           });
         }
-        return s + s1 + s2 + additional;
+
+        return s + upfront + s1 + s2 + additional;
       }, 0);
 
       return {
@@ -165,7 +212,7 @@ const SalesTLDashboardPage: React.FC = () => {
         closures: memberClosures,
         totalRevenue,
         totalLeads: memberLeads.length,
-        closedCount: memberClosedIds.size,
+        closedCount: memberClosures.length,
       };
     });
   }, [salesMembers, allLeads, callLogs, closures, filterYear, filterMonth]);
