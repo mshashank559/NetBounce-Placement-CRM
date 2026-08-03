@@ -39,7 +39,7 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
   lead,
   queryKeys = [['leads']],
 }) => {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const queryClient = useQueryClient();
 
   const [formData, setFormData] = useState({
@@ -54,6 +54,7 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
     university: '',
     visa_status: '',
     next_followup_date: '',
+    referee_name: '',
   });
 
   // Reset form whenever dialog opens with a new lead
@@ -71,6 +72,7 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
         university: norm(lead.university),
         visa_status: norm(lead.visa_status),
         next_followup_date: norm(lead.next_followup_date),
+        referee_name: norm(lead.referee_name),
       });
     }
   }, [lead, open]);
@@ -107,6 +109,8 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
         changes.push(`Visa Status: "${norm(lead.visa_status)}" → "${updatedData.visa_status}"`);
       if (norm(lead.next_followup_date) !== updatedData.next_followup_date)
         changes.push(`Next Follow-Up Date: "${norm(lead.next_followup_date)}" → "${updatedData.next_followup_date}"`);
+      if (norm(lead.referee_name) !== updatedData.referee_name)
+        changes.push(`Referee Name: "${norm(lead.referee_name)}" → "${updatedData.referee_name}"`);
 
       // Nothing actually changed — skip DB write
       if (changes.length === 0) return;
@@ -126,6 +130,7 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
             university: updatedData.university || null,
             visa_status: updatedData.visa_status || null,
             next_followup_date: updatedData.next_followup_date || null,
+            referee_name: updatedData.referee_name || null,
             updated_at: new Date().toISOString(),
           })
           .eq('unique_id', lead.unique_id);
@@ -483,6 +488,26 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
                 onChange={e => setFormData({ ...formData, next_followup_date: e.target.value })}
               />
             </div>
+
+            {role === 'ADMIN' && (
+              (lead?.lead_type === 'Reference' || 
+               normalizeSource(formData.lead_source) === 'Reference' || 
+               normalizeSource(lead?.lead_source) === 'Reference' ||
+               formData.lead_source?.toLowerCase().includes('refer'))
+            ) && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-referee-name" className="text-amber-500 font-semibold">
+                  Referee Name (Admin Edit)
+                </Label>
+                <Input
+                  id="edit-referee-name"
+                  value={formData.referee_name}
+                  onChange={e => setFormData({ ...formData, referee_name: e.target.value })}
+                  placeholder="Enter referee name"
+                  className="border-amber-500/40 focus:border-amber-500"
+                />
+              </div>
+            )}
           </div>
 
           <DialogFooter className="pt-4 border-t border-border/50">

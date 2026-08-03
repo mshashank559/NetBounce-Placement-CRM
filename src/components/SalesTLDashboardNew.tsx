@@ -304,7 +304,29 @@ const SalesTLDashboard: React.FC = () => {
   // ── KPIs ──
   const today = getISTDateString(new Date());
   const activeLeads = filteredLeads.filter(l => l.lead_status !== 'Closed').length;
-  const closures = filteredLeads.filter(l => l.lead_status === 'Closed').length;
+  
+  const closures = useMemo(() => {
+    return closureData.filter(c => {
+      const lead = leads.find(l => l.unique_id === c.lead_id);
+      if (!lead || lead.lead_status !== 'Closed') return false;
+      if (viewMode === 'personal' && lead.assigned_to !== user?.id) return false;
+      if (viewMode === 'team' && (!lead.assigned_to || (!myTeamIds.has(lead.assigned_to) && lead.assigned_to !== user?.id))) return false;
+      if (viewMode === 'global') {
+        if (!lead.assigned_to) return false;
+        if (globalMemberFilter !== 'all' && lead.assigned_to !== globalMemberFilter) return false;
+        if (globalLeadGenFilter !== 'all' && lead.lead_generated_by !== globalLeadGenFilter) return false;
+      }
+      if (monthFilter !== 'all') {
+        const closureDate = c.created_at || lead.updated_at;
+        const { month } = getISTYearAndMonth(closureDate);
+        if (month !== parseInt(monthFilter)) return false;
+      }
+      const cDateStr = getISTDateString(c.created_at || lead.updated_at);
+      if (dateFrom && cDateStr < dateFrom) return false;
+      if (dateTo && cDateStr > dateTo) return false;
+      return true;
+    }).length;
+  }, [closureData, leads, viewMode, monthFilter, dateFrom, dateTo, user?.id, myTeamIds, globalMemberFilter, globalLeadGenFilter]);
 
   const filteredLeadIds = useMemo(() => new Set(filteredLeads.map(l => l.unique_id)), [filteredLeads]);
 
@@ -315,7 +337,8 @@ const SalesTLDashboard: React.FC = () => {
   }, [callLogs, today, filteredLeadIds]);
 
   const revenue = useMemo(() => {
-    const checkDate = (dateVal: string) => {
+    const checkDate = (dateVal: string | null | undefined) => {
+      if (!dateVal) return false;
       const dStr = getISTDateString(dateVal);
       if (dateFrom && dStr < dateFrom) return false;
       if (dateTo && dStr > dateTo) return false;
@@ -328,26 +351,26 @@ const SalesTLDashboard: React.FC = () => {
 
     return closureData
       .filter(c => {
-        if (role === 'SALES_TL') {
-          const lead = leads.find(l => l.unique_id === c.lead_id);
-          if (!lead) return false;
-          if (viewMode === 'personal' && lead.assigned_to !== user?.id) return false;
-          if (viewMode === 'team') {
-            if (!lead.assigned_to || (!myTeamIds.has(lead.assigned_to) && lead.assigned_to !== user?.id)) return false;
-          }
-          if (viewMode === 'global') {
-            if (!lead.assigned_to) return false;
-          }
-          if (viewMode === 'global' && globalMemberFilter !== 'all' && lead.assigned_to !== globalMemberFilter) return false;
-          if (viewMode === 'global' && globalLeadGenFilter !== 'all' && lead.lead_generated_by !== globalLeadGenFilter) return false;
-          return lead.assigned_to === user?.id || myTeamIds.has(lead.assigned_to);
+        const lead = leads.find(l => l.unique_id === c.lead_id);
+        if (!lead || lead.lead_status !== 'Closed') return false;
+        if (viewMode === 'personal' && lead.assigned_to !== user?.id) return false;
+        if (viewMode === 'team' && (!lead.assigned_to || (!myTeamIds.has(lead.assigned_to) && lead.assigned_to !== user?.id))) return false;
+        if (viewMode === 'global') {
+          if (!lead.assigned_to) return false;
+          if (globalMemberFilter !== 'all' && lead.assigned_to !== globalMemberFilter) return false;
+          if (globalLeadGenFilter !== 'all' && lead.lead_generated_by !== globalLeadGenFilter) return false;
         }
         return true;
       })
       .reduce((sum, c) => {
+        let upfront = 0;
         let s1 = 0;
         let s2 = 0;
         let additional = 0;
+
+        if (Number(c.upfront_amount) > 0 && checkDate(c.created_at)) {
+          upfront = Number(c.upfront_amount) || 0;
+        }
 
         if (c.slot1 && Number(c.slot1_amount) > 0) {
           const d = c.slot1_due_date || c.created_at;
@@ -366,7 +389,7 @@ const SalesTLDashboard: React.FC = () => {
         if (Array.isArray(c.additional_slots)) {
           c.additional_slots.forEach((slot: any) => {
             if (slot.paid === true && Number(slot.amount) > 0) {
-              const d = slot.due_date || c.created_at;
+              const d = slot.due_date || slot.paid_at || c.created_at;
               if (checkDate(d)) {
                 additional += Number(slot.amount) || 0;
               }
@@ -374,7 +397,7 @@ const SalesTLDashboard: React.FC = () => {
           });
         }
 
-        return sum + s1 + s2 + additional;
+        return sum + upfront + s1 + s2 + additional;
       }, 0);
   }, [closureData, leads, role, user?.id, myTeamIds, dateFrom, dateTo, monthFilter, viewMode, globalMemberFilter, globalLeadGenFilter]);
 
