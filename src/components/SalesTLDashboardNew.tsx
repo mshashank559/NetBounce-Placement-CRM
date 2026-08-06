@@ -372,68 +372,65 @@ const SalesTLDashboard: React.FC = () => {
 
   const revenue = useMemo(() => {
     const currentYear = new Date().getFullYear();
+    const payments: { amount: number; date: string }[] = [];
 
-    const checkDate = (dateVal: string | null | undefined) => {
-      if (!dateVal) return false;
-      const dStr = getISTDateString(dateVal);
-      if (dateFrom && dStr < dateFrom) return false;
-      if (dateTo && dStr > dateTo) return false;
-      if (!dateFrom && !dateTo) {
-        const ist = getISTYearAndMonth(dateVal);
-        if (monthFilter && monthFilter !== 'all') {
-          if (ist.month !== parseInt(monthFilter)) return false;
-        } else {
-          if (ist.year !== currentYear) return false;
-        }
+    (closureData || []).forEach((c: any) => {
+      const assignedTo = c.assigned_to || c.lead_assigned_to || c.leads?.assigned_to || leads.find(l => l.unique_id === c.lead_id)?.assigned_to;
+      if (viewMode === 'personal' && assignedTo && assignedTo !== user?.id) return;
+      if (viewMode === 'team' && assignedTo && assignedTo !== user?.id && !myTeamIds.has(assignedTo)) return;
+
+      // 1. Upfront Amount
+      if (Number(c.upfront_amount) > 0) {
+        payments.push({
+          amount: Number(c.upfront_amount),
+          date: c.created_at
+        });
       }
-      return true;
-    };
+      // 2. Slot 1 (If slot1 is true)
+      if (c.slot1 && Number(c.slot1_amount) > 0) {
+        payments.push({
+          amount: Number(c.slot1_amount),
+          date: c.slot1_due_date || c.created_at
+        });
+      }
+      // 3. Slot 2 (If slot2 is true)
+      if (c.slot2 && Number(c.slot2_amount) > 0) {
+        payments.push({
+          amount: Number(c.slot2_amount),
+          date: c.next_slot_due_date || c.created_at
+        });
+      }
+      // 4. Additional Slots
+      if (Array.isArray(c.additional_slots)) {
+        c.additional_slots.forEach((slot: any) => {
+          if (slot.paid === true && Number(slot.amount) > 0) {
+            payments.push({
+              amount: Number(slot.amount),
+              date: slot.due_date || slot.paid_at || c.created_at
+            });
+          }
+        });
+      }
+    });
 
-    return closureData
-      .filter(c => {
-        const assignedTo = c.assigned_to || c.leads?.assigned_to || leads.find(l => l.unique_id === c.lead_id)?.assigned_to;
-        if (viewMode === 'personal' && assignedTo !== user?.id) return false;
-        if (viewMode === 'team' && assignedTo && assignedTo !== user?.id && !myTeamIds.has(assignedTo)) return false;
+    return payments
+      .filter(p => {
+        if (!p.date) return false;
+        const dStr = getISTDateString(p.date);
+        if (dateFrom && dStr < dateFrom) return false;
+        if (dateTo && dStr > dateTo) return false;
+        if (!dateFrom && !dateTo) {
+          const ist = getISTYearAndMonth(p.date);
+          if (monthFilter && monthFilter !== 'all') {
+            if (ist.month !== parseInt(monthFilter)) return false;
+          } else {
+            if (ist.year !== currentYear) return false;
+          }
+        }
         return true;
       })
-      .reduce((sum, c) => {
-        let upfront = 0;
-        let s1 = 0;
-        let s2 = 0;
-        let additional = 0;
-
-        if (Number(c.upfront_amount) > 0 && checkDate(c.created_at)) {
-          upfront = Number(c.upfront_amount) || 0;
-        }
-
-        if (c.slot1 && Number(c.slot1_amount) > 0) {
-          const d = c.slot1_due_date || c.created_at;
-          if (checkDate(d)) {
-            s1 = Number(c.slot1_amount) || 0;
-          }
-        }
-
-        if (c.slot2 && Number(c.slot2_amount) > 0) {
-          const d = c.next_slot_due_date || c.created_at;
-          if (checkDate(d)) {
-            s2 = Number(c.slot2_amount) || 0;
-          }
-        }
-
-        if (Array.isArray(c.additional_slots)) {
-          c.additional_slots.forEach((slot: any) => {
-            if (slot.paid === true && Number(slot.amount) > 0) {
-              const d = slot.due_date || slot.paid_at || c.created_at;
-              if (checkDate(d)) {
-                additional += Number(slot.amount) || 0;
-              }
-            }
-          });
-        }
-
-        return sum + upfront + s1 + s2 + additional;
-      }, 0);
-  }, [closureData, leads, role, user?.id, myTeamIds, dateFrom, dateTo, monthFilter, viewMode]);
+      .reduce((sum, p) => sum + p.amount, 0);
+  }, [closureData, leads, user?.id, myTeamIds, dateFrom, dateTo, monthFilter, viewMode]);
 
   // ── SLA Alerts ──
   const staleLeads = useMemo(() => {
