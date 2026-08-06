@@ -410,6 +410,28 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
               <div className="relative border-l border-accent/30 pl-4 space-y-5 py-2 max-h-[50vh] overflow-y-auto pr-1">
                 {statusHistory.map((log) => {
                   const author = profiles.find(p => p.user_id === log.changed_by)?.full_name || 'System';
+                  
+                  const resolveName = (val: string | null | undefined) => {
+                    if (!val || val === 'None' || val === 'Unassigned') return val || 'None';
+                    const p = profiles.find(pr => pr.user_id === val);
+                    return p?.full_name || val;
+                  };
+
+                  const oldFormatted = resolveName(log.old_value);
+                  const newFormatted = resolveName(log.new_value);
+
+                  const isAssignment = ['ASSIGNMENT', 'OWNER_CHANGE', 'TL_ASSIGN', 'TM_ASSIGN', 'RE_ASSIGN'].includes(log.action_type) ||
+                    log.comments?.toLowerCase().includes('assigned') ||
+                    log.comments?.toLowerCase().includes('re-assigned');
+
+                  const isEdit = log.action_type === 'LEAD_EDIT' || log.comments?.toLowerCase().includes('edited');
+
+                  const actionTitle = isAssignment
+                    ? (log.comments?.toLowerCase().includes('re-assigned') || log.action_type === 'RE_ASSIGN' ? 're-assigned lead' : 'assigned lead')
+                    : isEdit
+                    ? 'edited details'
+                    : 'changed status';
+
                   return (
                     <div key={log.id} className="relative">
                       {/* Timeline Dot */}
@@ -419,16 +441,18 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                         <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-semibold text-foreground/80">{author}</span>
-                            <span className="text-xs text-muted-foreground">changed status</span>
+                            <span className="text-xs text-muted-foreground">{actionTitle}</span>
                           </div>
                           <span className="text-[11px] text-muted-foreground">{formatDateTimeToIST(log.created_at)}</span>
                         </div>
 
-                        <div className="flex items-center gap-2 text-xs font-semibold mt-1">
-                          <span className="text-muted-foreground">{log.old_value || 'None'}</span>
-                          <span className="text-muted-foreground">→</span>
-                          <span className="text-primary font-bold">{log.new_value}</span>
-                        </div>
+                        {(oldFormatted !== 'None' || newFormatted !== 'None') && (
+                          <div className="flex items-center gap-2 text-xs font-semibold mt-1">
+                            <span className="text-muted-foreground">{oldFormatted}</span>
+                            <span className="text-muted-foreground">→</span>
+                            <span className="text-primary font-bold">{newFormatted}</span>
+                          </div>
+                        )}
 
                         {log.comments && (
                           <p className="mt-2 text-sm text-foreground/90 bg-accent/20 p-2 rounded leading-relaxed border-l-2 border-primary/50">

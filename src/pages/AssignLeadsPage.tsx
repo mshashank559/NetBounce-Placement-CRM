@@ -267,6 +267,23 @@ const AssignLeadsPage: React.FC = () => {
         lead_id: leadId,
       }));
       await supabase.from('notifications').insert(notifs);
+
+      // Audit Log in Status History
+      const actionType = prevOwnerId ? 'RE_ASSIGN' : (isTL ? 'TL_ASSIGN' : 'TM_ASSIGN');
+      const logComment = prevOwnerId
+        ? `Re-assigned from ${prevOwnerName} to ${salesName} by ${performerName}`
+        : isTL
+        ? `Assigned to TL ${salesName} by ${performerName}`
+        : `Assigned to ${salesName} by ${performerName}`;
+
+      await supabase.from('lead_history_logs').insert({
+        lead_id: leadId,
+        changed_by: user!.id,
+        action_type: actionType,
+        old_value: prevOwnerId || 'Unassigned',
+        new_value: userId,
+        comments: logComment
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['unassigned-leads'] });
@@ -329,6 +346,17 @@ const AssignLeadsPage: React.FC = () => {
           });
         }
         await supabase.from('notifications').insert(notifs);
+
+        // Audit Log in Status History for Round Robin
+        const logRows = leadIds.map(lId => ({
+          lead_id: lId,
+          changed_by: user!.id,
+          action_type: 'TL_ASSIGN',
+          old_value: 'Unassigned Pool',
+          new_value: salesUserId,
+          comments: `Assigned to TL ${salesName} by ${performerName}`
+        }));
+        await supabase.from('lead_history_logs').insert(logRows);
       }
     },
     onSuccess: () => {
@@ -352,19 +380,20 @@ const AssignLeadsPage: React.FC = () => {
       
       if (error) throw error;
 
-      await supabase.from('lead_history_logs').insert({
-        lead_id: leadId,
-        changed_by: user!.id,
-        action_type: 'OWNER_CHANGE',
-        old_value: lead.assigned_to || 'Unassigned',
-        new_value: tlId,
-        comments: `Reassigned to ${queueType} Queue due to aging.`
-      });
-
       const performerName = profile?.full_name || 'System';
       const tlName = salesMembers?.find(m => m.user_id === tlId)?.full_name || 'Sales TL';
       const prevOwnerId = lead.assigned_to;
       const prevOwnerName = prevOwnerId ? (profilesMap?.[prevOwnerId]?.full_name || 'Unknown') : 'Unassigned Pool';
+
+      await supabase.from('lead_history_logs').insert({
+        lead_id: leadId,
+        changed_by: user!.id,
+        action_type: 'RE_ASSIGN',
+        old_value: prevOwnerId || 'Unassigned',
+        new_value: tlId,
+        comments: `Re-assigned from ${prevOwnerName} to ${tlName} by ${performerName}`
+      });
+
       const msg = prevOwnerId
         ? `Lead "${lead.name}" has been reassigned from ${prevOwnerName} to ${tlName} by ${performerName}.`
         : `Lead "${lead.name}" has been assigned from ${prevOwnerName} to ${tlName} by ${performerName}.`;
@@ -417,6 +446,21 @@ const AssignLeadsPage: React.FC = () => {
         lead_id: leadId,
       }));
       await supabase.from('notifications').insert(notifs);
+
+      // Audit Log in Status History
+      const actionType = prevOwnerId ? 'RE_ASSIGN' : 'TM_ASSIGN';
+      const logComment = prevOwnerId
+        ? `Re-assigned from ${prevOwnerName} to ${salesName} by ${performerName}`
+        : `Assigned to ${salesName} by ${performerName}`;
+
+      await supabase.from('lead_history_logs').insert({
+        lead_id: leadId,
+        changed_by: user!.id,
+        action_type: actionType,
+        old_value: prevOwnerId || 'Unassigned Pool',
+        new_value: salesUserId,
+        comments: logComment
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['team-queue-leads'] });
@@ -480,6 +524,17 @@ const AssignLeadsPage: React.FC = () => {
           });
         }
         await supabase.from('notifications').insert(notifs);
+
+        // Audit Log in Status History for Team Queue Round Robin
+        const logRows = leadIds.map(lId => ({
+          lead_id: lId,
+          changed_by: user!.id,
+          action_type: 'TM_ASSIGN',
+          old_value: currentTL || 'Team Queue',
+          new_value: salesUserId,
+          comments: `Assigned to ${salesName} by ${performerName}`
+        }));
+        await supabase.from('lead_history_logs').insert(logRows);
       }
     },
     onSuccess: () => {
