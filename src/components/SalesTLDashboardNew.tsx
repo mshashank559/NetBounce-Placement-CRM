@@ -215,27 +215,52 @@ const SalesTLDashboard: React.FC = () => {
     enabled: !!user && !!role,
   });
 
-  // ── Call logs ──
+  // ── Call & Follow-up activity logs ──
   const { data: callLogs = [] } = useQuery({
-    queryKey: ['all-call-logs', user?.id, role],
+    queryKey: ['all-call-logs-tl', user?.id, role],
     queryFn: async () => {
-      let query = supabase.from('call_logs').select('*');
+      let teamUserIds = [user!.id];
       if (role === 'SALES_TL') {
         const { data: teamProfiles } = await supabase
           .from('profiles')
           .select('user_id')
           .or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
-        const teamUserIds = teamProfiles?.map(p => p.user_id) || [user!.id];
-        const { data: leadsInTeam } = await supabase
-          .from('leads')
-          .select('unique_id')
-          .or(`assigned_to.in.(${teamUserIds.join(',')}),team_lead_id.eq.${user!.id}`);
-        const teamLeadIds = leadsInTeam?.map(l => l.unique_id) || [];
-        if (teamLeadIds.length === 0) return [];
-        query = query.in('lead_id', teamLeadIds);
+        if (teamProfiles?.length) {
+          teamUserIds = teamProfiles.map(p => p.user_id);
+        }
       }
-      const { data } = await query;
-      return data || [];
+
+      const { data: cLogs } = await supabase
+        .from('call_logs')
+        .select('*')
+        .in('user_id', teamUserIds);
+
+      const { data: fLogs } = await supabase
+        .from('followups')
+        .select('*')
+        .in('user_id', teamUserIds);
+
+      const combined: any[] = [];
+      (cLogs || []).forEach(c => {
+        combined.push({
+          id: c.id,
+          user_id: c.user_id,
+          lead_id: c.lead_id,
+          call_date: c.call_date || getISTDateString(c.created_at),
+          call_count: c.call_count || 1
+        });
+      });
+      (fLogs || []).forEach(f => {
+        combined.push({
+          id: f.id,
+          user_id: f.user_id,
+          lead_id: f.lead_id,
+          call_date: getISTDateString(f.created_at),
+          call_count: 1
+        });
+      });
+
+      return combined;
     },
     enabled: !!user && !!role,
   });
@@ -450,15 +475,22 @@ const SalesTLDashboard: React.FC = () => {
   const chartData = useMemo(() => {
     const isAllMonths = monthFilter === 'all' && !dateFrom && !dateTo;
 
+    // Filter calls for selected view mode (personal vs team)
+    const activeCalls = callLogs.filter(c => {
+      if (viewMode === 'personal' && c.user_id !== user?.id) return false;
+      if (viewMode === 'team' && c.user_id !== user?.id && !myTeamIds.has(c.user_id)) return false;
+      return true;
+    });
+
     if (isAllMonths) {
       // Group by Month (Jan - Dec)
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const monthMap: Record<number, number> = {};
 
-      callLogs.forEach(c => {
-        if (!c.call_date) return;
-        if (filteredLeadIds.size > 0 && !filteredLeadIds.has(c.lead_id)) return;
-        const parts = c.call_date.split('-');
+      activeCalls.forEach(c => {
+        const dateStr = c.call_date;
+        if (!dateStr) return;
+        const parts = dateStr.split('T')[0].split('-');
         if (parts.length >= 2) {
           const mIndex = parseInt(parts[1], 10) - 1;
           if (mIndex >= 0 && mIndex < 12) {
@@ -492,18 +524,18 @@ const SalesTLDashboard: React.FC = () => {
     } else {
       // Group by Day for selected date range or month
       const callMap: Record<string, number> = {};
-      callLogs.forEach(c => {
-        if (!c.call_date) return;
-        if (filteredLeadIds.size > 0 && !filteredLeadIds.has(c.lead_id)) return;
+      activeCalls.forEach(c => {
+        const dateStr = c.call_date;
+        if (!dateStr) return;
 
-        if (dateFrom && c.call_date < dateFrom) return;
-        if (dateTo && c.call_date > dateTo) return;
+        if (dateFrom && dateStr < dateFrom) return;
+        if (dateTo && dateStr > dateTo) return;
         if (monthFilter !== 'all') {
-          const m = parseInt(c.call_date.split('-')[1], 10);
+          const m = parseInt(dateStr.split('-')[1], 10);
           if (m !== parseInt(monthFilter)) return;
         }
 
-        callMap[c.call_date] = (callMap[c.call_date] || 0) + (c.call_count || 1);
+        callMap[dateStr] = (callMap[dateStr] || 0) + (c.call_count || 1);
       });
 
       let dates = Object.keys(callMap).sort();
@@ -534,7 +566,7 @@ const SalesTLDashboard: React.FC = () => {
 
       return { callTrend, funnelData, memberPerf, title: 'Call Activity Trend (Daily)' };
     }
-  }, [callLogs, filteredLeads, filteredLeadIds, salesMembers, monthFilter, dateFrom, dateTo]);
+  }, [callLogs, filteredLeads, salesMembers, monthFilter, dateFrom, dateTo, viewMode, myTeamIds, user?.id]);
 
   // ── Assign lead mutation ──
   const assignMutation = useMutation({
