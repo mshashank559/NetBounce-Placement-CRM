@@ -373,34 +373,36 @@ const SalesTLDashboard: React.FC = () => {
   const revenue = useMemo(() => {
     const currentYear = new Date().getFullYear();
     const payments: { amount: number; date: string }[] = [];
+    const seenClosureIds = new Set<string>();
 
     (closureData || []).forEach((c: any) => {
+      if (c.id && seenClosureIds.has(c.id)) return;
+      if (c.id) seenClosureIds.add(c.id);
+
       const assignedTo = c.assigned_to || c.lead_assigned_to || c.leads?.assigned_to || leads.find(l => l.unique_id === c.lead_id)?.assigned_to;
       if (viewMode === 'personal' && assignedTo && assignedTo !== user?.id) return;
       if (viewMode === 'team' && assignedTo && assignedTo !== user?.id && !myTeamIds.has(assignedTo)) return;
 
-      // 1. Upfront Amount
-      if (Number(c.upfront_amount) > 0) {
-        payments.push({
-          amount: Number(c.upfront_amount),
-          date: c.created_at
-        });
-      }
-      // 2. Slot 1 (If slot1 is true)
+      // 1. Slot 1 (If slot1 is true/paid) or fallback upfront
       if (c.slot1 && Number(c.slot1_amount) > 0) {
         payments.push({
           amount: Number(c.slot1_amount),
           date: c.slot1_due_date || c.created_at
         });
+      } else if (Number(c.upfront_amount) > 0) {
+        payments.push({
+          amount: Number(c.upfront_amount),
+          date: c.created_at
+        });
       }
-      // 3. Slot 2 (If slot2 is true)
+      // 2. Slot 2 (If slot2 is true/paid)
       if (c.slot2 && Number(c.slot2_amount) > 0) {
         payments.push({
           amount: Number(c.slot2_amount),
           date: c.next_slot_due_date || c.created_at
         });
       }
-      // 4. Additional Slots
+      // 3. Additional Slots
       if (Array.isArray(c.additional_slots)) {
         c.additional_slots.forEach((slot: any) => {
           if (slot.paid === true && Number(slot.amount) > 0) {
