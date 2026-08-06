@@ -120,17 +120,50 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
   });
 
   const effectiveHistory = React.useMemo(() => {
-    if (statusHistory && statusHistory.length > 0) {
-      return statusHistory;
-    }
-    // Fallback baseline for older leads without explicit log entries
-    const fallbackLogs: any[] = [];
-    if (lead) {
-      const creatorName = generatedByProfile?.full_name || (lead.lead_generated_by ? (profiles.find(p => p.user_id === lead.lead_generated_by)?.full_name) : 'System') || 'System';
-      const assigneeName = lead.assigned_to ? (profiles.find(p => p.user_id === lead.assigned_to)?.full_name) : null;
+    const logs = statusHistory ? [...statusHistory] : [];
+    if (!lead) return logs;
 
-      // Creation Log
-      fallbackLogs.push({
+    const hasAssignment = logs.some(l => 
+      ['ASSIGNMENT', 'OWNER_CHANGE', 'TL_ASSIGN', 'TM_ASSIGN', 'RE_ASSIGN'].includes(l.action_type) ||
+      l.comments?.toLowerCase().includes('assigned') ||
+      l.comments?.toLowerCase().includes('re-assigned')
+    );
+
+    const assigneeName = lead.assigned_to && lead.assigned_to !== 'Unassigned'
+      ? (profiles.find(p => p.user_id === lead.assigned_to)?.full_name)
+      : null;
+
+    if (!hasAssignment && assigneeName) {
+      const isTL = lead.team_lead_id === lead.assigned_to;
+      const assignerId = lead.team_lead_id || lead.lead_generated_by || user?.id || 'system';
+      const assignerName = profiles.find(p => p.user_id === assignerId)?.full_name || 'System';
+
+      const comment = isTL
+        ? `Assigned to TL ${assigneeName} by ${assignerName}`
+        : `Assigned to ${assigneeName} by ${assignerName}`;
+
+      logs.push({
+        id: `fallback-assigned-${lead.unique_id}`,
+        lead_id: lead.unique_id,
+        changed_by: assignerId === 'system' ? (lead.assigned_to || lead.lead_generated_by) : assignerId,
+        action_type: isTL ? 'TL_ASSIGN' : 'TM_ASSIGN',
+        old_value: 'Unassigned Pool',
+        new_value: lead.assigned_to,
+        comments: comment,
+        created_at: lead.assigned_at || lead.updated_at || lead.created_at
+      });
+    }
+
+    const hasCreation = logs.some(l => 
+      l.action_type === 'LEAD_CREATION' || 
+      l.comments?.toLowerCase().includes('created by')
+    );
+
+    if (!hasCreation && lead.created_at) {
+      const creatorName = generatedByProfile?.full_name || 
+        (lead.lead_generated_by ? (profiles.find(p => p.user_id === lead.lead_generated_by)?.full_name) : 'System') || 'System';
+
+      logs.push({
         id: `fallback-created-${lead.unique_id}`,
         lead_id: lead.unique_id,
         changed_by: lead.lead_generated_by || lead.assigned_to || user?.id || 'system',
@@ -140,23 +173,9 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
         comments: `Created by ${creatorName}`,
         created_at: lead.created_at
       });
-
-      // Current Assignment Log (if assigned)
-      if (assigneeName && lead.assigned_to !== 'Unassigned') {
-        const isTL = lead.team_lead_id === lead.assigned_to;
-        fallbackLogs.push({
-          id: `fallback-assigned-${lead.unique_id}`,
-          lead_id: lead.unique_id,
-          changed_by: lead.team_lead_id || lead.lead_generated_by || user?.id || 'system',
-          action_type: isTL ? 'TL_ASSIGN' : 'TM_ASSIGN',
-          old_value: 'Unassigned Pool',
-          new_value: lead.assigned_to,
-          comments: isTL ? `Assigned to TL ${assigneeName}` : `Assigned to ${assigneeName}`,
-          created_at: lead.assigned_at || lead.updated_at || lead.created_at
-        });
-      }
     }
-    return fallbackLogs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    return logs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [statusHistory, lead, generatedByProfile, profiles, user?.id]);
 
   // Submitted documents (performas)
