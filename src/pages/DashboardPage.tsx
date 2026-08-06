@@ -22,15 +22,6 @@ import { backfillMissingLeadHistory } from '@/lib/backfillLeadHistory';
 const DashboardPage: React.FC = () => {
   const { role } = useAuth();
   
-  React.useEffect(() => {
-    if (role === 'ADMIN') {
-      // Quietly backfill missing baseline logs for historical leads
-      backfillMissingLeadHistory().catch(err => {
-        console.error('Quiet backfill error:', err);
-      });
-    }
-  }, [role]);
-  
   if (role === 'LEAD_TL') {
     return <BDDashboard />;
   }

@@ -175,7 +175,24 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
       });
     }
 
-    return logs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    // Deduplicate logs by action, comment, and minute timestamp
+    const sorted = logs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    const uniqueLogs: any[] = [];
+    const seenKeys = new Set<string>();
+
+    for (const log of sorted) {
+      const commentKey = (log.comments || '').trim().toLowerCase();
+      const actionKey = (log.action_type || '').trim().toLowerCase();
+      const dateKey = log.created_at ? new Date(log.created_at).toISOString().slice(0, 16) : '';
+      const key = `${actionKey}|${commentKey}|${dateKey}`;
+
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        uniqueLogs.push(log);
+      }
+    }
+
+    return uniqueLogs;
   }, [statusHistory, lead, generatedByProfile, profiles, user?.id]);
 
   // Submitted documents (performas)
