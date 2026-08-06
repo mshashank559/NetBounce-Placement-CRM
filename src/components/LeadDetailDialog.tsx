@@ -336,7 +336,7 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
               <Info className="h-3.5 w-3.5" /> Info
             </TabsTrigger>
             <TabsTrigger value="history" className="text-xs font-medium flex items-center gap-1.5">
-              <History className="h-3.5 w-3.5" /> Status History ({statusHistory?.length || 0})
+              <History className="h-3.5 w-3.5" /> Status History ({effectiveHistory.length})
             </TabsTrigger>
             <TabsTrigger value="calls" className="text-xs font-medium flex items-center gap-1.5">
               <Phone className="h-3.5 w-3.5" /> Call History ({followups?.length || 0})
