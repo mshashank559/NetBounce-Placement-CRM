@@ -306,7 +306,8 @@ const SalesTLDashboard: React.FC = () => {
   const activeLeads = filteredLeads.filter(l => l.lead_status !== 'Closed').length;
   
   const closures = useMemo(() => {
-    return closureData.filter(c => {
+    const closedLeadsCount = filteredLeads.filter(l => l.lead_status === 'Closed').length;
+    const closureDataMatchesCount = closureData.filter(c => {
       const lead = leads.find(l => l.unique_id === c.lead_id);
       if (!lead || lead.lead_status !== 'Closed') return false;
       if (viewMode === 'personal' && lead.assigned_to !== user?.id) return false;
@@ -326,7 +327,9 @@ const SalesTLDashboard: React.FC = () => {
       if (dateTo && cDateStr > dateTo) return false;
       return true;
     }).length;
-  }, [closureData, leads, viewMode, monthFilter, dateFrom, dateTo, user?.id, myTeamIds, globalMemberFilter, globalLeadGenFilter]);
+
+    return Math.max(closedLeadsCount, closureDataMatchesCount);
+  }, [closureData, leads, filteredLeads, viewMode, monthFilter, dateFrom, dateTo, user?.id, myTeamIds, globalMemberFilter, globalLeadGenFilter]);
 
   const filteredLeadIds = useMemo(() => new Set(filteredLeads.map(l => l.unique_id)), [filteredLeads]);
 
@@ -704,12 +707,10 @@ const SalesTLDashboard: React.FC = () => {
 
       {/* SECTION 1: KPI Cards */}
       {viewMode !== 'global' && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
             { label: 'Active Leads', value: activeLeads, icon: TrendingUp, color: 'text-primary' },
             { label: 'Closures', value: closures, icon: CheckCircle, color: 'text-green-500' },
-            { label: "Today's Calls", value: todayCalls, icon: Phone, color: 'text-blue-500' },
-            { label: 'Total Calls', value: totalCalls, icon: Phone, color: 'text-indigo-500' },
             { label: 'Revenue', value: `$${revenue.toLocaleString()}`, icon: DollarSign, color: 'text-amber-500' },
           ].map(({ label, value, icon: Icon, color }, i) => (
             <motion.div key={label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
