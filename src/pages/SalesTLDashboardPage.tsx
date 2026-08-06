@@ -221,8 +221,24 @@ const SalesTLDashboardPage: React.FC = () => {
     if (viewMode === 'personal') {
       return memberStats.filter(m => m.user_id === user?.id);
     }
-    return memberStats.filter(m => m.user_id !== user?.id);
+    return memberStats; // Include TL + all team members reporting to TL
   }, [memberStats, viewMode, user?.id]);
+
+  const summaryKPIs = useMemo(() => {
+    const activeLeadsCount = displayedStats.reduce((s, m) => s + (m.totalLeads - m.closedCount), 0);
+    const totalClosuresCount = displayedStats.reduce((s, m) => s + m.closedCount, 0);
+    const todayCallsCount = displayedStats.reduce((s, m) => s + m.todayCalls, 0);
+    const totalCallsCount = displayedStats.reduce((s, m) => s + m.monthlyCalls, 0);
+    const totalRevenueSum = displayedStats.reduce((s, m) => s + m.totalRevenue, 0);
+
+    return {
+      activeLeads: activeLeadsCount,
+      closures: totalClosuresCount,
+      todayCalls: todayCallsCount,
+      totalCalls: totalCallsCount,
+      revenue: totalRevenueSum
+    };
+  }, [displayedStats]);
 
   if (role !== 'SALES_TL' && role !== 'ADMIN') {
     return <div className="text-center text-muted-foreground p-8">Access denied</div>;
@@ -251,17 +267,56 @@ const SalesTLDashboardPage: React.FC = () => {
           </Tabs>
 
           <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); localStorage.setItem('netbounce_crm_month_filter_yyyy_mm', v); }}>
-          <SelectTrigger className="w-48">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {monthOptions.map(o => (
-              <SelectItem key={o.val} value={o.val}>{o.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {monthOptions.map(o => (
+                <SelectItem key={o.val} value={o.val}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
-    </div>
+
+      {/* Summary KPI Cards Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <Card className="glass-card hover:nb-glow transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground">Active Leads</CardTitle>
+            <Users className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent><div className="text-2xl font-display font-bold">{summaryKPIs.activeLeads}</div></CardContent>
+        </Card>
+        <Card className="glass-card hover:nb-glow transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground">Closures</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent><div className="text-2xl font-display font-bold text-green-600">{summaryKPIs.closures}</div></CardContent>
+        </Card>
+        <Card className="glass-card hover:nb-glow transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground">Today's Calls</CardTitle>
+            <Phone className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent><div className="text-2xl font-display font-bold">{summaryKPIs.todayCalls}</div></CardContent>
+        </Card>
+        <Card className="glass-card hover:nb-glow transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground">Total Calls</CardTitle>
+            <Phone className="h-4 w-4 text-indigo-500" />
+          </CardHeader>
+          <CardContent><div className="text-2xl font-display font-bold">{summaryKPIs.totalCalls}</div></CardContent>
+        </Card>
+        <Card className="glass-card hover:nb-glow transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-xs font-medium text-muted-foreground">Revenue</CardTitle>
+            <DollarSign className="h-4 w-4 text-amber-500" />
+          </CardHeader>
+          <CardContent><div className="text-2xl font-display font-bold text-green-600">${summaryKPIs.revenue.toLocaleString()}</div></CardContent>
+        </Card>
+      </div>
 
     <div className="space-y-4">
         {displayedStats.map((m, i) => (

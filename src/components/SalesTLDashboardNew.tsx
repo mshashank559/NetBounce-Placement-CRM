@@ -336,6 +336,22 @@ const SalesTLDashboard: React.FC = () => {
       .reduce((s, c) => s + (c.call_count || 0), 0);
   }, [callLogs, today, filteredLeadIds]);
 
+  const totalCalls = useMemo(() => {
+    return callLogs
+      .filter(c => {
+        if (!c.call_date) return false;
+        if (dateFrom && c.call_date < dateFrom) return false;
+        if (dateTo && c.call_date > dateTo) return false;
+        if (monthFilter && monthFilter !== 'all') {
+          const parts = c.call_date.split('-');
+          const m = parseInt(parts[1], 10);
+          if (m !== parseInt(monthFilter)) return false;
+        }
+        return filteredLeadIds.has(c.lead_id);
+      })
+      .reduce((s, c) => s + (c.call_count || 0), 0);
+  }, [callLogs, filteredLeadIds, monthFilter, dateFrom, dateTo]);
+
   const revenue = useMemo(() => {
     const checkDate = (dateVal: string | null | undefined) => {
       if (!dateVal) return false;
@@ -688,11 +704,12 @@ const SalesTLDashboard: React.FC = () => {
 
       {/* SECTION 1: KPI Cards */}
       {viewMode !== 'global' && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           {[
             { label: 'Active Leads', value: activeLeads, icon: TrendingUp, color: 'text-primary' },
             { label: 'Closures', value: closures, icon: CheckCircle, color: 'text-green-500' },
             { label: "Today's Calls", value: todayCalls, icon: Phone, color: 'text-blue-500' },
+            { label: 'Total Calls', value: totalCalls, icon: Phone, color: 'text-indigo-500' },
             { label: 'Revenue', value: `$${revenue.toLocaleString()}`, icon: DollarSign, color: 'text-amber-500' },
           ].map(({ label, value, icon: Icon, color }, i) => (
             <motion.div key={label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
