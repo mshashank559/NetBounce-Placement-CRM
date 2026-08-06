@@ -267,24 +267,14 @@ const SalesTLDashboard: React.FC = () => {
 
   // ── Closures with payment ──
   const { data: closureData = [] } = useQuery({
-    queryKey: ['all-closures', user?.id, role],
+    queryKey: ['all-closures-stl', user?.id, role, viewMode],
     queryFn: async () => {
-      let query = supabase.from('lead_closures').select('*');
       if (role === 'SALES_TL') {
-        const { data: teamProfiles } = await supabase
-          .from('profiles')
-          .select('user_id')
-          .or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
-        const teamUserIds = teamProfiles?.map(p => p.user_id) || [user!.id];
-        const { data: leadsInTeam } = await supabase
-          .from('leads')
-          .select('unique_id')
-          .or(`assigned_to.in.(${teamUserIds.join(',')}),team_lead_id.eq.${user!.id}`);
-        const teamLeadIds = leadsInTeam?.map(l => l.unique_id) || [];
-        if (teamLeadIds.length === 0) return [];
-        query = query.in('lead_id', teamLeadIds);
+        const viewType = viewMode === 'personal' ? 'personal' : 'team';
+        const { data, error } = await (supabase as any).rpc('get_revenue_closures_v2', { view_type: viewType });
+        if (!error && data) return data;
       }
-      const { data } = await query;
+      const { data } = await supabase.from('lead_closures').select('*, leads(*)');
       return data || [];
     },
     enabled: !!user && !!role,
@@ -381,29 +371,29 @@ const SalesTLDashboard: React.FC = () => {
   }, [callLogs, filteredLeadIds, monthFilter, dateFrom, dateTo]);
 
   const revenue = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+
     const checkDate = (dateVal: string | null | undefined) => {
       if (!dateVal) return false;
       const dStr = getISTDateString(dateVal);
       if (dateFrom && dStr < dateFrom) return false;
       if (dateTo && dStr > dateTo) return false;
-      if (monthFilter && monthFilter !== 'all') {
+      if (!dateFrom && !dateTo) {
         const ist = getISTYearAndMonth(dateVal);
-        if (ist.month !== parseInt(monthFilter)) return false;
+        if (monthFilter && monthFilter !== 'all') {
+          if (ist.month !== parseInt(monthFilter)) return false;
+        } else {
+          if (ist.year !== currentYear) return false;
+        }
       }
       return true;
     };
 
     return closureData
       .filter(c => {
-        const lead = leads.find(l => l.unique_id === c.lead_id);
-        if (!lead || lead.lead_status !== 'Closed') return false;
-        if (viewMode === 'personal' && lead.assigned_to !== user?.id) return false;
-        if (viewMode === 'team' && (!lead.assigned_to || (!myTeamIds.has(lead.assigned_to) && lead.assigned_to !== user?.id))) return false;
-        if (viewMode === 'global') {
-          if (!lead.assigned_to) return false;
-          if (globalMemberFilter !== 'all' && lead.assigned_to !== globalMemberFilter) return false;
-          if (globalLeadGenFilter !== 'all' && lead.lead_generated_by !== globalLeadGenFilter) return false;
-        }
+        const assignedTo = c.assigned_to || c.leads?.assigned_to || leads.find(l => l.unique_id === c.lead_id)?.assigned_to;
+        if (viewMode === 'personal' && assignedTo !== user?.id) return false;
+        if (viewMode === 'team' && assignedTo && assignedTo !== user?.id && !myTeamIds.has(assignedTo)) return false;
         return true;
       })
       .reduce((sum, c) => {
@@ -443,7 +433,7 @@ const SalesTLDashboard: React.FC = () => {
 
         return sum + upfront + s1 + s2 + additional;
       }, 0);
-  }, [closureData, leads, role, user?.id, myTeamIds, dateFrom, dateTo, monthFilter, viewMode, globalMemberFilter, globalLeadGenFilter]);
+  }, [closureData, leads, role, user?.id, myTeamIds, dateFrom, dateTo, monthFilter, viewMode]);
 
   // ── SLA Alerts ──
   const staleLeads = useMemo(() => {
