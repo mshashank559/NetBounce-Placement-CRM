@@ -448,26 +448,93 @@ const SalesTLDashboard: React.FC = () => {
 
   // ── Chart Data ──
   const chartData = useMemo(() => {
-    const callMap: Record<string, number> = {};
-    callLogs.forEach(c => {
-      if (filteredLeadIds.has(c.lead_id)) {
-        callMap[c.call_date] = (callMap[c.call_date] || 0) + (c.call_count || 0);
+    const isAllMonths = monthFilter === 'all' && !dateFrom && !dateTo;
+
+    if (isAllMonths) {
+      // Group by Month (Jan - Dec)
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const monthMap: Record<number, number> = {};
+
+      callLogs.forEach(c => {
+        if (!c.call_date) return;
+        if (filteredLeadIds.size > 0 && !filteredLeadIds.has(c.lead_id)) return;
+        const parts = c.call_date.split('-');
+        if (parts.length >= 2) {
+          const mIndex = parseInt(parts[1], 10) - 1;
+          if (mIndex >= 0 && mIndex < 12) {
+            monthMap[mIndex] = (monthMap[mIndex] || 0) + (c.call_count || 1);
+          }
+        }
+      });
+
+      const currentMonthIndex = new Date().getMonth();
+      const callTrend: { date: string; calls: number }[] = [];
+      for (let i = 0; i <= Math.max(currentMonthIndex, 7); i++) {
+        if (i < 12) {
+          callTrend.push({
+            date: monthNames[i],
+            calls: monthMap[i] || 0
+          });
+        }
       }
-    });
-    const callTrend = Object.keys(callMap).sort().slice(-7).map(d => ({ date: d.slice(5), calls: callMap[d] }));
 
-    const funnelData = STATUS_FUNNEL.map(s => ({
-      name: s, value: filteredLeads.filter(l => l.lead_status === s).length
-    }));
+      const funnelData = STATUS_FUNNEL.map(s => ({
+        name: s, value: filteredLeads.filter(l => l.lead_status === s).length
+      }));
 
-    const memberPerf = salesMembers.map(m => ({
-      name: m.full_name?.split(' ')[0],
-      leads: filteredLeads.filter(l => l.assigned_to === m.user_id).length,
-      closed: filteredLeads.filter(l => l.assigned_to === m.user_id && l.lead_status === 'Closed').length,
-    }));
+      const memberPerf = salesMembers.map(m => ({
+        name: m.full_name?.split(' ')[0],
+        leads: filteredLeads.filter(l => l.assigned_to === m.user_id).length,
+        closed: filteredLeads.filter(l => l.assigned_to === m.user_id && l.lead_status === 'Closed').length,
+      }));
 
-    return { callTrend, funnelData, memberPerf };
-  }, [callLogs, filteredLeads, filteredLeadIds, salesMembers]);
+      return { callTrend, funnelData, memberPerf, title: 'Call Activity Trend (Monthly)' };
+    } else {
+      // Group by Day for selected date range or month
+      const callMap: Record<string, number> = {};
+      callLogs.forEach(c => {
+        if (!c.call_date) return;
+        if (filteredLeadIds.size > 0 && !filteredLeadIds.has(c.lead_id)) return;
+
+        if (dateFrom && c.call_date < dateFrom) return;
+        if (dateTo && c.call_date > dateTo) return;
+        if (monthFilter !== 'all') {
+          const m = parseInt(c.call_date.split('-')[1], 10);
+          if (m !== parseInt(monthFilter)) return;
+        }
+
+        callMap[c.call_date] = (callMap[c.call_date] || 0) + (c.call_count || 1);
+      });
+
+      let dates = Object.keys(callMap).sort();
+      if (dates.length === 0) {
+        const todayObj = new Date();
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(todayObj);
+          d.setDate(d.getDate() - i);
+          const dStr = getISTDateString(d);
+          dates.push(dStr);
+        }
+      }
+
+      const callTrend = dates.map(d => ({
+        date: d.length >= 10 ? d.slice(5) : d,
+        calls: callMap[d] || 0
+      }));
+
+      const funnelData = STATUS_FUNNEL.map(s => ({
+        name: s, value: filteredLeads.filter(l => l.lead_status === s).length
+      }));
+
+      const memberPerf = salesMembers.map(m => ({
+        name: m.full_name?.split(' ')[0],
+        leads: filteredLeads.filter(l => l.assigned_to === m.user_id).length,
+        closed: filteredLeads.filter(l => l.assigned_to === m.user_id && l.lead_status === 'Closed').length,
+      }));
+
+      return { callTrend, funnelData, memberPerf, title: 'Call Activity Trend (Daily)' };
+    }
+  }, [callLogs, filteredLeads, filteredLeadIds, salesMembers, monthFilter, dateFrom, dateTo]);
 
   // ── Assign lead mutation ──
   const assignMutation = useMutation({
@@ -774,7 +841,7 @@ const SalesTLDashboard: React.FC = () => {
       {viewMode !== 'global' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card className="glass-card lg:col-span-2">
-            <CardHeader><CardTitle className="text-sm font-medium">Call Activity Trend (Last 7 Days)</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm font-medium">{chartData.title}</CardTitle></CardHeader>
             <CardContent className="h-[220px]">
               {!renderDeferred ? (
                 <div className="h-full flex flex-col items-center justify-center space-y-2 text-muted-foreground text-xs animate-pulse">

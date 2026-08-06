@@ -563,16 +563,75 @@ const SalesMemberDashboard: React.FC = () => {
 
   // ── Chart data ──
   const chartData = useMemo(() => {
-    const callMap: Record<string, number> = {};
-    callLogs.forEach(c => { callMap[c.call_date] = (callMap[c.call_date] || 0) + (c.call_count || 0); });
-    const callTrend = Object.keys(callMap).sort().slice(-7).map(d => ({ date: d.slice(5), calls: callMap[d] }));
+    const isAllMonths = monthFilter === 'all' && !dateFrom && !dateTo;
 
-    const statusMap: Record<string, number> = {};
-    statsLeads.forEach(l => { const s = l.lead_status || 'New'; statusMap[s] = (statusMap[s] || 0) + 1; });
-    const statusBreakdown = Object.keys(statusMap).map(s => ({ name: s, value: statusMap[s] }));
+    if (isAllMonths) {
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const monthMap: Record<number, number> = {};
 
-    return { callTrend, statusBreakdown };
-  }, [callLogs, statsLeads]);
+      callLogs.forEach(c => {
+        if (!c.call_date) return;
+        const parts = c.call_date.split('-');
+        if (parts.length >= 2) {
+          const mIndex = parseInt(parts[1], 10) - 1;
+          if (mIndex >= 0 && mIndex < 12) {
+            monthMap[mIndex] = (monthMap[mIndex] || 0) + (c.call_count || 1);
+          }
+        }
+      });
+
+      const currentMonthIndex = new Date().getMonth();
+      const callTrend: { date: string; calls: number }[] = [];
+      for (let i = 0; i <= Math.max(currentMonthIndex, 7); i++) {
+        if (i < 12) {
+          callTrend.push({
+            date: monthNames[i],
+            calls: monthMap[i] || 0
+          });
+        }
+      }
+
+      const statusMap: Record<string, number> = {};
+      statsLeads.forEach(l => { const s = l.lead_status || 'New'; statusMap[s] = (statusMap[s] || 0) + 1; });
+      const statusBreakdown = Object.keys(statusMap).map(s => ({ name: s, value: statusMap[s] }));
+
+      return { callTrend, statusBreakdown, title: 'Daily Call Trend (Monthly View)' };
+    } else {
+      const callMap: Record<string, number> = {};
+      callLogs.forEach(c => {
+        if (!c.call_date) return;
+        if (dateFrom && c.call_date < dateFrom) return;
+        if (dateTo && c.call_date > dateTo) return;
+        if (monthFilter !== 'all') {
+          const m = parseInt(c.call_date.split('-')[1], 10);
+          if (m !== parseInt(monthFilter)) return;
+        }
+        callMap[c.call_date] = (callMap[c.call_date] || 0) + (c.call_count || 1);
+      });
+
+      let dates = Object.keys(callMap).sort();
+      if (dates.length === 0) {
+        const todayObj = new Date();
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(todayObj);
+          d.setDate(d.getDate() - i);
+          const dStr = getISTDateString(d);
+          dates.push(dStr);
+        }
+      }
+
+      const callTrend = dates.map(d => ({
+        date: d.length >= 10 ? d.slice(5) : d,
+        calls: callMap[d] || 0
+      }));
+
+      const statusMap: Record<string, number> = {};
+      statsLeads.forEach(l => { const s = l.lead_status || 'New'; statusMap[s] = (statusMap[s] || 0) + 1; });
+      const statusBreakdown = Object.keys(statusMap).map(s => ({ name: s, value: statusMap[s] }));
+
+      return { callTrend, statusBreakdown, title: 'Daily Call Trend' };
+    }
+  }, [callLogs, statsLeads, monthFilter, dateFrom, dateTo]);
 
   const getName = (id: string | null) => profiles.find(p => p.user_id === id)?.full_name || '—';
 
