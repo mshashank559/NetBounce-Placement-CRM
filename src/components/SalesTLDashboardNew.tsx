@@ -270,7 +270,7 @@ const SalesTLDashboard: React.FC = () => {
     queryKey: ['all-closures-stl', user?.id, role, viewMode],
     queryFn: async () => {
       if (role === 'SALES_TL') {
-        const viewType = viewMode === 'personal' ? 'personal' : 'my_team';
+        const viewType = viewMode === 'personal' ? 'my_view' : 'team_view';
         const { data, error } = await (supabase as any).rpc('get_revenue_closures_v2', { view_type: viewType });
         if (!error && data) return data;
       }
