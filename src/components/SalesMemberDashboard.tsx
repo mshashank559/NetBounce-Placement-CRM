@@ -595,7 +595,7 @@ const SalesMemberDashboard: React.FC = () => {
       statsLeads.forEach(l => { const s = l.lead_status || 'New'; statusMap[s] = (statusMap[s] || 0) + 1; });
       const statusBreakdown = Object.keys(statusMap).map(s => ({ name: s, value: statusMap[s] }));
 
-      return { callTrend, statusBreakdown, title: 'Daily Call Trend (Monthly View)' };
+      return { callTrend, statusBreakdown, title: 'Monthly Call Trend' };
     } else {
       const callMap: Record<string, number> = {};
       callLogs.forEach(c => {
@@ -766,7 +766,7 @@ const SalesMemberDashboard: React.FC = () => {
       {viewMode !== 'global' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card className="glass-card">
-            <CardHeader><CardTitle className="text-sm font-medium">Daily Call Trend (Last 7 Days)</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm font-medium">{chartData.title}</CardTitle></CardHeader>
             <CardContent className="h-[200px]">
               {!renderDeferred ? (
                 <div className="h-full flex flex-col items-center justify-center space-y-2 text-muted-foreground text-xs animate-pulse">

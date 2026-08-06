@@ -520,7 +520,7 @@ const SalesTLDashboard: React.FC = () => {
         closed: filteredLeads.filter(l => l.assigned_to === m.user_id && l.lead_status === 'Closed').length,
       }));
 
-      return { callTrend, funnelData, memberPerf, title: 'Call Activity Trend (Monthly)' };
+      return { callTrend, funnelData, memberPerf, title: 'Monthly Call Trend' };
     } else {
       // Group by Day for selected date range or month
       const callMap: Record<string, number> = {};
@@ -564,7 +564,7 @@ const SalesTLDashboard: React.FC = () => {
         closed: filteredLeads.filter(l => l.assigned_to === m.user_id && l.lead_status === 'Closed').length,
       }));
 
-      return { callTrend, funnelData, memberPerf, title: 'Call Activity Trend (Daily)' };
+      return { callTrend, funnelData, memberPerf, title: 'Daily Call Trend' };
     }
   }, [callLogs, filteredLeads, salesMembers, monthFilter, dateFrom, dateTo, viewMode, myTeamIds, user?.id]);
 
