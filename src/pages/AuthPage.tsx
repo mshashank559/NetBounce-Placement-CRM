@@ -269,8 +269,7 @@ const FloatingOrbs: React.FC = () => (
 );
 
 const AuthPage: React.FC = () => {
-  const { signIn, signUp } = useAuth();
-  const [isSignUp, setIsSignUp] = useState(false);
+  const { signIn } = useAuth();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   // Security message shown when an admin has force-logged-out this user
@@ -278,10 +277,6 @@ const AuthPage: React.FC = () => {
   const [form, setForm] = useState({
     email: '',
     password: '',
-    fullName: '',
-    role: '' as AppRole | '',
-    department: '',
-    reportsTo: '',
   });
 
   // Read and clear the forced-logout message from sessionStorage on mount
@@ -293,21 +288,6 @@ const AuthPage: React.FC = () => {
     }
   }, []);
 
-  const { data: teamLeads } = useQuery({
-    queryKey: ['available-team-leads', form.role],
-    queryFn: async () => {
-      if (!form.role || !['SALES_TM', 'LEAD_GEN'].includes(form.role)) return [];
-      
-      const targetRole = form.role === 'SALES_TM' ? 'SALES_TL' : 'LEAD_TL';
-      const { data: roles } = await supabase.from('user_roles').select('user_id').eq('role', targetRole);
-      if (!roles) return [];
-      
-      const { data: profiles } = await supabase.from('profiles').select('user_id, full_name').in('user_id', roles.map(r => r.user_id));
-      return profiles || [];
-    },
-    enabled: isSignUp && (form.role === 'SALES_TM' || form.role === 'LEAD_GEN'),
-  });
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -315,25 +295,9 @@ const AuthPage: React.FC = () => {
     const cleanedEmail = form.email.replace(/['"]/g, '').trim();
 
     try {
-      if (isSignUp) {
-        if (!form.role) {
-          toast.error('Please select a role');
-          setLoading(false);
-          return;
-        }
-        if (['SALES_TM', 'LEAD_GEN'].includes(form.role) && !form.reportsTo) {
-          toast.error('Please select your Team Lead');
-          setLoading(false);
-          return;
-        }
-        const { error } = await signUp(cleanedEmail, form.password, form.fullName, form.role as AppRole, form.department, form.reportsTo);
-        if (error) throw error;
-        toast.success('Account created! Check your email to verify.');
-      } else {
-        const { error } = await signIn(cleanedEmail, form.password);
-        if (error) throw error;
-        toast.success('Welcome back!');
-      }
+      const { error } = await signIn(cleanedEmail, form.password);
+      if (error) throw error;
+      toast.success('Welcome back!');
     } catch (err: any) {
       toast.error(err.message || 'Authentication failed');
     } finally {
@@ -523,10 +487,10 @@ const AuthPage: React.FC = () => {
               ) : null}
             </AnimatePresence>
 
-            {/* Email (Always visible) */}
+            {/* Email */}
             <div>
               <Label htmlFor="email" className={labelClassName}>
-                {isSignUp ? 'Email' : 'Your email'}
+                Your email
               </Label>
               <Input
                 id="email"
@@ -535,12 +499,12 @@ const AuthPage: React.FC = () => {
                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                 onBlur={e => setForm(f => ({ ...f, email: e.target.value.replace(/['"]/g, '').trim() }))}
                 required
-                placeholder={isSignUp ? 'you@netbounceplacement.com' : 'shashank.m@netbounceplacement.com'}
+                placeholder="you@netbounceplacement.com"
                 className={inputClassName}
               />
             </div>
 
-            {/* Password (Always visible) */}
+            {/* Password */}
             <div>
               <Label htmlFor="password" className={labelClassName}>Password</Label>
               <div className="relative">
@@ -575,24 +539,18 @@ const AuthPage: React.FC = () => {
                 boxShadow: '0 4px 20px rgba(67,97,238,0.35)',
               }}
             >
-              {loading ? 'Please wait...' : isSignUp ? 'Create Account' : 'Sign In'}
+              {loading ? 'Please wait...' : 'Sign In'}
             </Button>
           </form>
 
-          {/* Footer links */}
-          <div className="mt-6 text-center space-y-3">
-            <button
-              type="button"
-              onClick={() => setIsSignUp(!isSignUp)}
-              className="text-sm text-[#6b7a90] hover:text-[#4361ee] transition-colors"
-            >
-              {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
-            </button>
-            {!isSignUp && (
-              <p className="text-[11px] text-[#3d4a5c]">
-                Access restricted to NetBounce Placement LLC team members
-              </p>
-            )}
+          {/* Footer notice */}
+          <div className="mt-6 text-center space-y-2">
+            <p className="text-xs text-[#6b7a90]">
+              Authorized Team Members Only
+            </p>
+            <p className="text-[11px] text-[#3d4a5c]">
+              Account access is provisioned by CRM Administrator. Public registration is disabled.
+            </p>
           </div>
         </motion.div>
       </motion.div>

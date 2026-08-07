@@ -35,7 +35,8 @@ import {
   FileSignature,
   FileText,
   Pencil,
-  XCircle
+  XCircle,
+  ShieldAlert
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -88,7 +89,27 @@ import {
 import { format, subDays, isBefore, parseISO, isSameDay } from 'date-fns';
 import { getWorkingDaysDifference, getISTYearAndMonth, getISTDateString, formatToISTDateString } from '@/lib/dateUtils';
 
-const ROLES = ['ADMIN', 'PROCESS_ANALYST', 'LEAD_TL', 'LEAD_GEN', 'SALES_TL', 'SALES_TM'] as const;
+const ROLES = [
+  'SALES_TM',
+  'SALES_TL',
+  'LEAD_GEN',
+  'LEAD_TL',
+  'PROCESS_ANALYST',
+  'ACCOUNTANT',
+  'ACCOUNT_MANAGER',
+  'ADMIN'
+] as const;
+
+const ROLE_LABELS: Record<string, string> = {
+  SALES_TM: 'Sales Member',
+  SALES_TL: 'Sales Team Lead',
+  LEAD_GEN: 'BD Member',
+  LEAD_TL: 'BD Team Lead',
+  PROCESS_ANALYST: 'Process Analyst',
+  ACCOUNTANT: 'Accountant',
+  ACCOUNT_MANAGER: 'Account Manager',
+  ADMIN: 'Admin',
+};
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
 const formatDate = (dateString?: string) => formatToISTDateString(dateString);
@@ -346,7 +367,22 @@ const AdminDashboard: React.FC = () => {
     full_name: '',
     role: '' as string,
     department: '',
+    reports_to: '',
   });
+
+  // Safe User Deletion Modal State
+  const [userToDelete, setUserToDelete] = useState<{ user_id: string; full_name: string; role?: string } | null>(null);
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+
+  const handleRoleChange = (role: string) => {
+    let dept = '';
+    if (role === 'SALES_TM' || role === 'SALES_TL') dept = 'Sales';
+    else if (role === 'LEAD_GEN' || role === 'LEAD_TL') dept = 'BD';
+    else if (role === 'ACCOUNTANT' || role === 'ACCOUNT_MANAGER') dept = 'Accounts';
+    else if (role === 'PROCESS_ANALYST') dept = 'Operations';
+    else if (role === 'ADMIN') dept = 'Management';
+    setUserForm(f => ({ ...f, role, department: dept, reports_to: '' }));
+  };
 
   // Queries
 
@@ -629,6 +665,19 @@ const AdminDashboard: React.FC = () => {
     return allUsers.filter(u => u.role === 'LEAD_GEN' || u.role === 'LEAD_TL').sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
   }, [allUsers]);
 
+  // Derived lists for Admin User Creation TL dropdowns
+  const availableSalesTLs = useMemo(() => {
+    return allUsers
+      .filter(u => u.role === 'SALES_TL')
+      .sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
+  }, [allUsers]);
+
+  const availableBdTLs = useMemo(() => {
+    return allUsers
+      .filter(u => u.role === 'LEAD_TL')
+      .sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
+  }, [allUsers]);
+
   // Revenue
   const revenueStats = useMemo(() => {
     const isFilterActive = (monthFilter && monthFilter !== 'all') || dateFrom || dateTo;
@@ -898,14 +947,53 @@ const AdminDashboard: React.FC = () => {
   // Mutations
   const createUserMutation = useMutation({
     mutationFn: async () => {
-      const { email, password, full_name, role, department } = userForm;
-      if (!email || !password || !full_name || !role) throw new Error('All fields are required');
-      const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name, role, department } } });
+      const { email, password, full_name, role, department, reports_to } = userForm;
+      const cleanedEmail = email.replace(/['"]/g, '').trim();
+      const cleanedName = full_name.trim();
+
+      if (!cleanedEmail || !password || !cleanedName || !role) {
+        throw new Error('Please fill in all required fields (Name, Email, Password, Role)');
+      }
+      if (password.length < 6) {
+        throw new Error('Password must be at least 6 characters long');
+      }
+      if (role === 'SALES_TM' && !reports_to) {
+        throw new Error('Please select a Sales Team Lead (TL) for this Sales Member');
+      }
+      if (role === 'LEAD_GEN' && !reports_to) {
+        throw new Error('Please select a BD Team Lead (TL) for this BD Member');
+      }
+
+      const effectiveDept = department.trim() || (
+        role === 'SALES_TM' || role === 'SALES_TL' ? 'Sales' :
+        role === 'LEAD_GEN' || role === 'LEAD_TL' ? 'BD' :
+        role === 'ACCOUNTANT' || role === 'ACCOUNT_MANAGER' ? 'Accounts' :
+        role === 'PROCESS_ANALYST' ? 'Operations' : 'Management'
+      );
+
+      const { data, error } = await supabase.auth.signUp({
+        email: cleanedEmail,
+        password,
+        options: {
+          data: {
+            full_name: cleanedName,
+            role,
+            department: effectiveDept,
+            reports_to: reports_to || null,
+          },
+        },
+      });
       if (error) throw error;
       return data;
     },
-    onSuccess: () => { toast.success('User created'); queryClient.invalidateQueries({ queryKey: ['all-profiles-admin'] }); setUserForm({ email: '', password: '', full_name: '', role: '', department: '' }); },
-    onError: (err: any) => toast.error(err.message)
+    onSuccess: () => {
+      toast.success('User account created successfully');
+      queryClient.invalidateQueries({ queryKey: ['all-profiles-admin'] });
+      queryClient.invalidateQueries({ queryKey: ['all-users'] });
+      queryClient.invalidateQueries({ queryKey: ['concern-recipients'] });
+      setUserForm({ email: '', password: '', full_name: '', role: '', department: '', reports_to: '' });
+    },
+    onError: (err: any) => toast.error(err.message || 'Failed to create user')
   });
 
   const reassignLeadMutation = useMutation({
@@ -1028,102 +1116,204 @@ const AdminDashboard: React.FC = () => {
             </div>
             {isAdmin && (
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                <Card className="glass-card xl:col-span-1">
-                  <CardHeader>
-                    <CardTitle className="text-xl font-display">Create User</CardTitle>
+                <Card className="glass-card xl:col-span-1 border-primary/20">
+                  <CardHeader className="pb-3 border-b border-border/40">
+                    <CardTitle className="text-xl font-display flex items-center gap-2">
+                      <UserPlus className="h-5 w-5 text-primary" /> Create User
+                    </CardTitle>
+                    <CardDescription className="text-xs text-muted-foreground">
+                      Provision authorized CRM account with team mapping
+                    </CardDescription>
                   </CardHeader>
                   <form onSubmit={(e) => { e.preventDefault(); createUserMutation.mutate(); }}>
-                    <CardContent className="space-y-3">
-                      <Input 
-                        placeholder="Full Name" 
-                        value={userForm.full_name} 
-                        onChange={e => setUserForm(f => ({...f, full_name: e.target.value}))} 
-                        className="h-9 bg-accent/20 text-xs" 
-                        autoComplete="new-name"
-                      />
-                      <Input 
-                        placeholder="Email" 
-                        value={userForm.email} 
-                        onChange={e => setUserForm(f => ({...f, email: e.target.value}))} 
-                        className="h-9 bg-accent/20 text-xs" 
-                        autoComplete="new-email"
-                      />
-                      <Input 
-                        placeholder="Password" 
-                        type="password" 
-                        value={userForm.password} 
-                        onChange={e => setUserForm(f => ({...f, password: e.target.value}))} 
-                        className="h-9 bg-accent/20 text-xs" 
-                        autoComplete="new-password"
-                      />
-                      <div className="grid grid-cols-2 gap-3">
-                        <Select value={userForm.role} onValueChange={v => setUserForm(f => ({...f, role: v}))}>
-                          <SelectTrigger className="h-9 bg-accent/20 text-xs">
-                            <SelectValue placeholder="Role" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {ROLES.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
+                    <CardContent className="space-y-3 pt-4">
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Full Name *</Label>
                         <Input 
-                          placeholder="Dept" 
-                          value={userForm.department} 
-                          onChange={e => setUserForm(f => ({...f, department: e.target.value}))} 
+                          placeholder="e.g. Rahul Sharma" 
+                          value={userForm.full_name} 
+                          onChange={e => setUserForm(f => ({...f, full_name: e.target.value}))} 
                           className="h-9 bg-accent/20 text-xs" 
-                          autoComplete="new-dept"
+                          autoComplete="new-name"
+                          required
                         />
                       </div>
-                      <Button type="submit" className="w-full nb-gradient h-9 text-xs">Create Member</Button>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Official Email *</Label>
+                        <Input 
+                          placeholder="name@netbounceplacement.com" 
+                          type="email"
+                          value={userForm.email} 
+                          onChange={e => setUserForm(f => ({...f, email: e.target.value}))} 
+                          className="h-9 bg-accent/20 text-xs" 
+                          autoComplete="new-email"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Password *</Label>
+                        <Input 
+                          placeholder="Min 6 characters" 
+                          type="password" 
+                          value={userForm.password} 
+                          onChange={e => setUserForm(f => ({...f, password: e.target.value}))} 
+                          className="h-9 bg-accent/20 text-xs" 
+                          autoComplete="new-password"
+                          required
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1 block">Role *</Label>
+                          <Select value={userForm.role} onValueChange={handleRoleChange}>
+                            <SelectTrigger className="h-9 bg-accent/20 text-xs">
+                              <SelectValue placeholder="Select Role" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ROLES.map(r => (
+                                <SelectItem key={r} value={r}>
+                                  {ROLE_LABELS[r] || r}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1 block">Department</Label>
+                          <Input 
+                            placeholder="Dept" 
+                            value={userForm.department} 
+                            onChange={e => setUserForm(f => ({...f, department: e.target.value}))} 
+                            className="h-9 bg-accent/20 text-xs" 
+                            autoComplete="new-dept"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Dynamic Sales Team Lead dropdown */}
+                      {userForm.role === 'SALES_TM' && (
+                        <div className="p-2.5 rounded-lg bg-primary/5 border border-primary/20 space-y-1.5 animate-fadeIn">
+                          <Label className="text-xs font-semibold text-primary flex items-center gap-1.5">
+                            <Users className="h-3.5 w-3.5" /> Sales Team Lead (TL) <span className="text-red-500">*</span>
+                          </Label>
+                          <Select 
+                            value={userForm.reports_to} 
+                            onValueChange={v => setUserForm(f => ({ ...f, reports_to: v }))}
+                          >
+                            <SelectTrigger className="h-9 bg-background/80 text-xs border-primary/30">
+                              <SelectValue placeholder="Select Sales TL" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableSalesTLs.map(tl => (
+                                <SelectItem key={tl.user_id} value={tl.user_id}>
+                                  {tl.full_name}
+                                </SelectItem>
+                              ))}
+                              {availableSalesTLs.length === 0 && (
+                                <div className="p-2 text-xs text-muted-foreground text-center">
+                                  No Sales TLs found in database
+                                </div>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {/* Dynamic BD Team Lead dropdown */}
+                      {userForm.role === 'LEAD_GEN' && (
+                        <div className="p-2.5 rounded-lg bg-emerald-500/5 border border-emerald-500/20 space-y-1.5 animate-fadeIn">
+                          <Label className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+                            <Users className="h-3.5 w-3.5" /> BD Team Lead (TL) <span className="text-red-500">*</span>
+                          </Label>
+                          <Select 
+                            value={userForm.reports_to} 
+                            onValueChange={v => setUserForm(f => ({ ...f, reports_to: v }))}
+                          >
+                            <SelectTrigger className="h-9 bg-background/80 text-xs border-emerald-500/30">
+                              <SelectValue placeholder="Select BD TL" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableBdTLs.map(tl => (
+                                <SelectItem key={tl.user_id} value={tl.user_id}>
+                                  {tl.full_name}
+                                </SelectItem>
+                              ))}
+                              {availableBdTLs.length === 0 && (
+                                <div className="p-2 text-xs text-muted-foreground text-center">
+                                  No BD TLs found in database
+                                </div>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      <Button 
+                        type="submit" 
+                        className="w-full nb-gradient h-9 text-xs font-medium shadow-md mt-2"
+                        disabled={createUserMutation.isPending}
+                      >
+                        {createUserMutation.isPending ? 'Creating Member...' : 'Create Member'}
+                      </Button>
                     </CardContent>
                   </form>
                 </Card>
+
                 <Card className="glass-card xl:col-span-2 overflow-hidden">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-xl font-display">Active Directory</CardTitle>
+                  <CardHeader className="pb-2 border-b border-border/30 flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle className="text-xl font-display">Active Directory</CardTitle>
+                      <CardDescription className="text-xs text-muted-foreground">
+                        {allUsers.length} total active users provisioned
+                      </CardDescription>
+                    </div>
                   </CardHeader>
                   <CardContent className="p-0">
                     {renderDeferred ? (
-                      <div className="max-h-[300px] overflow-y-auto">
+                      <div className="max-h-[340px] overflow-y-auto">
                         <Table>
                           <TableHeader className="bg-accent/50 sticky top-0">
                             <TableRow>
-                              <TableHead className="text-xs">User</TableHead>
-                              <TableHead className="text-xs">Role</TableHead>
+                              <TableHead className="text-xs">User / Email</TableHead>
+                              <TableHead className="text-xs">Role & Team</TableHead>
                               <TableHead className="text-xs text-right">Action</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {allUsers.map(u => (
-                              <TableRow key={u.user_id}>
-                                <TableCell className="text-xs font-medium">{u.full_name}</TableCell>
-                                <TableCell>
-                                  <Badge variant="outline" className="text-[10px]">
-                                    {u.role}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 text-destructive"
-                                    onClick={() => {
-                                      if (confirm('Delete user?'))
-                                        supabase
-                                          .from('profiles')
-                                          .delete()
-                                          .eq('user_id', u.user_id)
-                                          .then(() =>
-                                            queryClient.invalidateQueries({
-                                              queryKey: ['all-profiles-admin'],
-                                            })
-                                          );
-                                    }}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))}
+                            {allUsers.map(u => {
+                              const tlName = u.reports_to ? (allUsers.find(tl => tl.user_id === u.reports_to)?.full_name || null) : null;
+                              return (
+                                <TableRow key={u.user_id} className="hover:bg-accent/20 transition-colors">
+                                  <TableCell className="text-xs">
+                                    <div className="font-medium text-foreground">{u.full_name}</div>
+                                    <div className="text-[11px] text-muted-foreground">{u.email || '—'}</div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <Badge variant="outline" className="text-[10px]">
+                                        {ROLE_LABELS[u.role] || u.role}
+                                      </Badge>
+                                      {tlName && (
+                                        <span className="text-[10px] text-muted-foreground bg-accent/40 px-1.5 py-0.5 rounded border border-border/40">
+                                          TL: {tlName}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                                      title="Delete user account"
+                                      onClick={() => setUserToDelete({ user_id: u.user_id, full_name: u.full_name || 'User', role: u.role })}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
                           </TableBody>
                         </Table>
                       </div>
@@ -1133,6 +1323,60 @@ const AdminDashboard: React.FC = () => {
                   </CardContent>
                 </Card>
               </div>
+
+              {/* Safe User Deletion Confirmation Dialog */}
+              <Dialog open={!!userToDelete} onOpenChange={open => !open && !isDeletingUser && setUserToDelete(null)}>
+                <DialogContent className="max-w-md bg-[#0a1128] border-border text-white">
+                  <DialogHeader>
+                    <DialogTitle className="text-lg font-display text-destructive flex items-center gap-2">
+                      <ShieldAlert className="h-5 w-5" /> Delete User Account
+                    </DialogTitle>
+                    <DialogDescription className="text-xs text-muted-foreground pt-2 space-y-2">
+                      <p>
+                        Are you sure you want to delete <strong className="text-white">{userToDelete?.full_name}</strong>?
+                      </p>
+                      <p className="text-[11px] bg-accent/20 p-2 rounded border border-border/50 text-[#a0aec0]">
+                        🛡️ <strong>Safety Guarantee:</strong> This action will remove the user's CRM access. All historical CRM data (leads, calls, payments, closures, revenue) will remain completely intact.
+                      </p>
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter className="gap-2 sm:gap-0 mt-4">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setUserToDelete(null)}
+                      disabled={isDeletingUser}
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      variant="destructive" 
+                      size="sm"
+                      disabled={isDeletingUser}
+                      onClick={async () => {
+                        if (!userToDelete) return;
+                        const uid = userToDelete.user_id;
+                        setIsDeletingUser(true);
+                        try {
+                          await supabase.from('user_roles').delete().eq('user_id', uid);
+                          await supabase.from('profiles').delete().eq('user_id', uid);
+                          queryClient.invalidateQueries({ queryKey: ['all-profiles-admin'] });
+                          queryClient.invalidateQueries({ queryKey: ['all-users'] });
+                          queryClient.invalidateQueries({ queryKey: ['concern-recipients'] });
+                          toast.success('User account removed successfully');
+                          setUserToDelete(null);
+                        } catch (err: any) {
+                          toast.error(err.message || 'Failed to delete user');
+                        } finally {
+                          setIsDeletingUser(false);
+                        }
+                      }}
+                    >
+                      {isDeletingUser ? 'Deleting...' : 'Confirm Delete'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             )}
             {/* Lead View with Personal/Team/Global toggle */}
             <Card className="glass-card border-primary/10 overflow-hidden">
