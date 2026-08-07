@@ -1115,7 +1115,8 @@ const AdminDashboard: React.FC = () => {
               <StatCard title="Revenue" value={`$${((dashboardStats && !isFilterActive) ? dashboardStats.revenue : revenueStats.total).toLocaleString()}`} icon={DollarSign} delay={0.3} isLoading={isLoadingStats} />
             </div>
             {isAdmin && (
-              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+              <>
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                 <Card className="glass-card xl:col-span-1 border-primary/20">
                   <CardHeader className="pb-3 border-b border-border/40">
                     <CardTitle className="text-xl font-display flex items-center gap-2">
@@ -1377,7 +1378,8 @@ const AdminDashboard: React.FC = () => {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
-            )}
+            </>
+          )}
             {/* Lead View with Personal/Team/Global toggle */}
             <Card className="glass-card border-primary/10 overflow-hidden">
               <CardHeader className="flex flex-row items-center justify-between border-b border-border/50 bg-accent/5 flex-wrap gap-3">
