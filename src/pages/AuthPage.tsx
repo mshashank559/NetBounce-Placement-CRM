@@ -375,10 +375,10 @@ const AuthPage: React.FC = () => {
               />
             </div>
             <h1 className="text-[22px] font-bold text-white">
-              {isSignUp ? 'Create Account' : 'Sign in to your account'}
+              Sign in to your account
             </h1>
             <p className="text-[#6b7a90] text-sm mt-1">
-              {isSignUp ? 'Join NetBounce CRM' : 'Track candidates, closures, and your team pipeline.'}
+              Track candidates, closures, and your team pipeline.
             </p>
           </div>
 
@@ -401,92 +401,6 @@ const AuthPage: React.FC = () => {
             </motion.div>
           )}
           <form onSubmit={handleSubmit} className="space-y-4">
-            <AnimatePresence mode="wait">
-              {isSignUp ? (
-                <motion.div
-                  key="signup-fields"
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -15 }}
-                  transition={{ duration: 0.25 }}
-                  className="space-y-4"
-                >
-                  {/* Full Name */}
-                  <div>
-                    <Label htmlFor="fullName" className={labelClassName}>Full Name</Label>
-                    <Input
-                      id="fullName"
-                      value={form.fullName}
-                      onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))}
-                      required
-                      placeholder="John Doe"
-                      className={inputClassName}
-                    />
-                  </div>
-
-                  {/* Role */}
-                  <div>
-                    <Label htmlFor="role" className={labelClassName}>Role</Label>
-                    <Select value={form.role} onValueChange={v => {
-                      const newRole = v as AppRole;
-                      setForm(f => ({ 
-                        ...f, 
-                        role: newRole,
-                        department: (newRole === 'ACCOUNTANT') ? 'ACCOUNTS MANAGEMENT' : f.department
-                      }));
-                    }}>
-                      <SelectTrigger className={inputClassName}>
-                        <SelectValue placeholder="Select your role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(Object.keys(roleLabels) as AppRole[]).map(r => (
-                          <SelectItem key={r} value={r}>{roleLabels[r]}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Reports To (conditional) */}
-                  {['SALES_TM', 'LEAD_GEN'].includes(form.role) && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      className="overflow-hidden"
-                    >
-                      <Label htmlFor="reportsTo" className={labelClassName}>
-                        Select {form.role === 'SALES_TM' ? 'Sales' : 'BD'} Team Lead *
-                      </Label>
-                      <Select value={form.reportsTo} onValueChange={v => setForm(f => ({ ...f, reportsTo: v }))}>
-                        <SelectTrigger className={inputClassName}>
-                          <SelectValue placeholder={`Select your ${form.role === 'SALES_TM' ? 'Sales' : 'BD'} TL`} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {teamLeads?.map(tl => (
-                            <SelectItem key={tl.user_id} value={tl.user_id}>{tl.full_name}</SelectItem>
-                          ))}
-                          {(!teamLeads || teamLeads.length === 0) && (
-                            <div className="p-2 text-xs text-muted-foreground text-center">No Team Leads found in database</div>
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </motion.div>
-                  )}
-
-                  {/* Department */}
-                  <div>
-                    <Label htmlFor="department" className={labelClassName}>Department</Label>
-                    <Input
-                      id="department"
-                      value={form.department}
-                      onChange={e => setForm(f => ({ ...f, department: e.target.value }))}
-                      placeholder="Sales / BD"
-                      className={inputClassName}
-                    />
-                  </div>
-                </motion.div>
-              ) : null}
-            </AnimatePresence>
-
             {/* Email */}
             <div>
               <Label htmlFor="email" className={labelClassName}>
@@ -499,7 +413,7 @@ const AuthPage: React.FC = () => {
                 onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                 onBlur={e => setForm(f => ({ ...f, email: e.target.value.replace(/['"]/g, '').trim() }))}
                 required
-                placeholder="you@netbounceplacement.com"
+                placeholder="shashank.m@netbounceplacement.com"
                 className={inputClassName}
               />
             </div>
