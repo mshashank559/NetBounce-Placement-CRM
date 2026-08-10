@@ -146,8 +146,8 @@ const AddLeadPage: React.FC = () => {
         comment: form.comment || null,
         concern: form.concern,
         lead_generated_by: selectedBdm && selectedBdm !== 'none' ? selectedBdm : user?.id,
-        generated_by_name: (selectedBdm && selectedBdm !== 'none' && bdmUsers?.find(b => b.user_id === selectedBdm)?.full_name)
-          ? bdmUsers?.find(b => b.user_id === selectedBdm)?.full_name
+        generated_by_name: (selectedBdm && selectedBdm !== 'none' && bdmList?.find(b => b.user_id === selectedBdm)?.full_name)
+          ? bdmList?.find(b => b.user_id === selectedBdm)?.full_name
           : (profile?.full_name || 'BD Member'),
         // Sales auto-assign to self; BD leaves null
         assigned_to: (role === 'SALES_TM' || role === 'SALES_TL') ? user?.id : null,
