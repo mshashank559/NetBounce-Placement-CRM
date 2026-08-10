@@ -226,13 +226,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // ── Log a logout event ───────────────────────────────────────
   const logLogout = async () => {
-    const currentId = loginRowId.current;
-    if (!currentId) return;
+    const currentId = loginRowId.current || localStorage.getItem('nb_login_activity_id');
+    const currentUserId = user?.id;
     try {
-      await (supabase as any)
-        .from('login_activity')
-        .update({ logged_out_at: new Date().toISOString() })
-        .eq('id', currentId);
+      if (currentId) {
+        await (supabase as any)
+          .from('login_activity')
+          .update({ logged_out_at: new Date().toISOString() })
+          .eq('id', currentId);
+      } else if (currentUserId) {
+        await (supabase as any)
+          .from('login_activity')
+          .update({ logged_out_at: new Date().toISOString() })
+          .eq('user_id', currentUserId)
+          .is('logged_out_at', null);
+      }
       setLoginRowId(null);
     } catch {
       // Non-critical
@@ -383,6 +391,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
+    await logLogout();
+    stopForcedLogoutPolling();
+    setSignInTime(null);
     await supabase.auth.signOut();
   };
 

@@ -85,6 +85,19 @@ export const recordAuthActivity = async (params: LogAuthParams): Promise<string 
       resolvedRole = resolvedRole || roleRes.data?.role || null;
     }
 
+    // Close any previous unclosed sessions for this user before recording new login
+    if (actionType === 'LOGIN') {
+      try {
+        await (supabase as any)
+          .from('login_activity')
+          .update({ logged_out_at: new Date().toISOString() })
+          .eq('user_id', actorId)
+          .is('logged_out_at', null);
+      } catch {
+        // Non-critical
+      }
+    }
+
     const payload: Record<string, any> = {
       user_id: actorId,
       logged_in_at: new Date().toISOString(),

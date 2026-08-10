@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Activity, Calendar, Clock, LogIn, LogOut, ShieldCheck, UserCheck, LayoutDashboard, Eye } from 'lucide-react';
+import { Activity, Calendar, Clock, LogIn, LogOut, ShieldCheck, UserCheck, LayoutDashboard, Eye, RefreshCw } from 'lucide-react';
 
 import { getISTYearAndMonth, getISTDateString, formatToISTDateString } from '@/lib/dateUtils';
 
@@ -63,7 +63,7 @@ const LoginActivityPage: React.FC = () => {
   });
 
   // ── Fetch login activity ──────────────────────────────────────
-  const { data: activity = [], isLoading } = useQuery({
+  const { data: activity = [], isLoading, refetch: refetchActivity, isFetching: isFetchingActivity } = useQuery({
     queryKey: ['login-activity'],
     queryFn: async () => {
       const { data } = await (supabase as any)
@@ -72,7 +72,7 @@ const LoginActivityPage: React.FC = () => {
         .order('logged_in_at', { ascending: false });
       return data || [];
     },
-    refetchInterval: 20000, // refresh every 20s
+    refetchInterval: 15000, // refresh every 15s
   });
 
   // ── Client-side filtering ─────────────────────────────────────
@@ -125,9 +125,21 @@ const LoginActivityPage: React.FC = () => {
           <Activity className="h-6 w-6 text-primary" />
           <h1 className="text-2xl font-display font-bold">Login & Access Audit Trail</h1>
         </div>
-        <span className="text-xs text-muted-foreground bg-accent/40 px-3 py-1 rounded-full border border-border/50">
-          {filtered.length} total event{filtered.length !== 1 ? 's' : ''} recorded
-        </span>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => refetchActivity()}
+            disabled={isFetchingActivity}
+            className="h-8 text-xs gap-1.5 border-border/60 hover:bg-accent/40 shadow-sm"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetchingActivity ? 'animate-spin text-primary' : ''}`} />
+            Refresh Logs
+          </Button>
+          <span className="text-xs text-muted-foreground bg-accent/40 px-3 py-1 rounded-full border border-border/50">
+            {filtered.length} total event{filtered.length !== 1 ? 's' : ''} recorded
+          </span>
+        </div>
       </div>
 
       {/* ── Filters ───────────────────────────────────────────── */}
