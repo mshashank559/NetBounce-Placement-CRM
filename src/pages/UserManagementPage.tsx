@@ -65,6 +65,13 @@ const UserManagementPage: React.FC = () => {
       if (!cleanedEmail || !form.password || !form.full_name || !form.role) {
         throw new Error('All fields are required');
       }
+
+      // Strict company email domain validation (@netbounceplacement.com, case-insensitive)
+      const emailLower = cleanedEmail.toLowerCase();
+      const emailDomainRegex = /^[a-zA-Z0-9._%+-]+@netbounceplacement\.com$/i;
+      if (!emailDomainRegex.test(cleanedEmail) || !emailLower.endsWith('@netbounceplacement.com')) {
+        throw new Error('Only @netbounceplacement.com email addresses are allowed.');
+      }
       // Use supabase auth signUp with metadata — the handle_new_user trigger will create profile + role
       const { error } = await supabase.auth.signUp({
         email: cleanedEmail,

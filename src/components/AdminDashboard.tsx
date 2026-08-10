@@ -954,6 +954,14 @@ const AdminDashboard: React.FC = () => {
       if (!cleanedEmail || !password || !cleanedName || !role) {
         throw new Error('Please fill in all required fields (Name, Email, Password, Role)');
       }
+
+      // Strict company email domain validation (@netbounceplacement.com, case-insensitive)
+      const emailLower = cleanedEmail.toLowerCase();
+      const emailDomainRegex = /^[a-zA-Z0-9._%+-]+@netbounceplacement\.com$/i;
+      if (!emailDomainRegex.test(cleanedEmail) || !emailLower.endsWith('@netbounceplacement.com')) {
+        throw new Error('Only @netbounceplacement.com email addresses are allowed.');
+      }
+
       if (password.length < 6) {
         throw new Error('Password must be at least 6 characters long');
       }

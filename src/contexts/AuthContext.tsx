@@ -263,9 +263,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signUp = async (email: string, password: string, fullName: string, role: AppRole, department?: string, reportsTo?: string) => {
+    const cleanedEmail = email.replace(/['"]/g, '').trim();
+    const emailLower = cleanedEmail.toLowerCase();
+    const emailDomainRegex = /^[a-zA-Z0-9._%+-]+@netbounceplacement\.com$/i;
+    if (!emailDomainRegex.test(cleanedEmail) || !emailLower.endsWith('@netbounceplacement.com')) {
+      return { error: new Error('Only @netbounceplacement.com email addresses are allowed.') };
+    }
+
     // Step 1: Create the auth user
     const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
+      email: cleanedEmail,
       password,
       options: {
         data: { full_name: fullName, role, department, reports_to: reportsTo },
