@@ -28,14 +28,20 @@ const DashboardLayout: React.FC = memo(() => {
   const { data: unreadCount } = useQuery({
     queryKey: ['unread-count', user?.id],
     queryFn: async () => {
-      const { count } = await supabase
+      if (!user?.id) return 0;
+      const { data, error } = await supabase
         .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user!.id)
-        .eq('read', false);
-      return count || 0;
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('read', false)
+        .limit(10);
+      if (error) {
+        console.warn('Unread count query warning:', error);
+        return 0;
+      }
+      return data?.length || 0;
     },
-    enabled: !!user,
+    enabled: !!user?.id,
     refetchInterval: 30000, // refresh every 30s
   });
 
