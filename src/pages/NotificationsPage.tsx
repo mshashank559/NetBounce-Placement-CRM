@@ -34,47 +34,64 @@ const NotificationsPage: React.FC = () => {
   const { data, isLoading } = useQuery({
     queryKey: ['notifications', user?.id, currentPage, filterType, dateFrom, dateTo],
     queryFn: async () => {
-      let query = supabase
-        .from('notifications')
-        .select('*', { count: 'exact' })
-        .eq('user_id', user!.id)
-        .order('created_at', { ascending: false });
+      try {
+        let query = supabase
+          .from('notifications')
+          .select('*', { count: 'exact' })
+          .eq('user_id', user!.id)
+          .order('created_at', { ascending: false });
 
-      if (dateFrom) {
-        query = query.gte('created_at', `${dateFrom}T00:00:00`);
-      }
-      if (dateTo) {
-        query = query.lte('created_at', `${dateTo}T23:59:59`);
-      }
-
-      if (filterType !== 'all') {
-        if (filterType === 'DNR Updates') {
-          query = query.eq('type', 'dnr');
-        } else if (filterType === 'Lead Added') {
-          query = query.in('type', ['new_lead', 'lead_added']);
-        } else if (filterType === 'Lead Closed') {
-          query = query.eq('type', 'closure');
-        } else if (filterType === 'Revenue') {
-          query = query.eq('type', 'revenue');
-        } else if (filterType === 'Follow-ups') {
-          query = query.eq('type', 'followup');
-        } else if (filterType === 'Document Updates') {
-          query = query.eq('type', 'accountant_update');
-        } else if (filterType === 'SLA Alerts') {
-          query = query.like('title', '%SLA Alert%');
-        } else {
-          query = query.eq('type', filterType);
+        if (dateFrom) {
+          query = query.gte('created_at', `${dateFrom}T00:00:00`);
         }
+        if (dateTo) {
+          query = query.lte('created_at', `${dateTo}T23:59:59`);
+        }
+
+        if (filterType !== 'all') {
+          if (filterType === 'DNR Updates') {
+            query = query.eq('type', 'dnr');
+          } else if (filterType === 'Lead Added') {
+            query = query.in('type', ['new_lead', 'lead_added']);
+          } else if (filterType === 'Lead Closed') {
+            query = query.eq('type', 'closure');
+          } else if (filterType === 'Revenue') {
+            query = query.eq('type', 'revenue');
+          } else if (filterType === 'Follow-ups') {
+            query = query.eq('type', 'followup');
+          } else if (filterType === 'Document Updates') {
+            query = query.eq('type', 'accountant_update');
+          } else if (filterType === 'SLA Alerts') {
+            query = query.like('title', '%SLA Alert%');
+          } else {
+            query = query.eq('type', filterType);
+          }
+        }
+
+        const from = (currentPage - 1) * pageSize;
+        const to = from + pageSize - 1;
+        const { data: dbData, count, error } = await query.range(from, to);
+
+        if (error) {
+          console.warn('Notifications range error, falling back:', error);
+          const fallback = await supabase
+            .from('notifications')
+            .select('*')
+            .eq('user_id', user!.id)
+            .order('created_at', { ascending: false })
+            .limit(pageSize);
+          return { list: fallback.data || [], totalCount: fallback.data?.length || 0 };
+        }
+
+        return { list: dbData || [], totalCount: count ?? (dbData?.length || 0) };
+      } catch (err) {
+        console.error('Notifications query exception:', err);
+        return { list: [], totalCount: 0 };
       }
-
-      const from = (currentPage - 1) * pageSize;
-      const to = from + pageSize - 1;
-      const { data: dbData, count, error } = await query.range(from, to);
-
-      if (error) throw error;
-      return { list: dbData || [], totalCount: count || 0 };
     },
-    enabled: !!user,
+    enabled: !!user?.id,
+    staleTime: 5000,
+    retry: 1,
   });
 
   const notificationsList = data?.list || [];
