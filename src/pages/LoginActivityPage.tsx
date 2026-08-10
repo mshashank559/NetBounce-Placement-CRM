@@ -69,7 +69,7 @@ const LoginActivityPage: React.FC = () => {
       const { data, error } = await (supabase as any)
         .from('login_activity')
         .select('*')
-        .order('logged_in_at', { ascending: false });
+        .order('created_at', { ascending: false });
       if (error) {
         console.error('Error loading login activity:', error);
         return [];
@@ -290,8 +290,8 @@ const LoginActivityPage: React.FC = () => {
                       >
                         {/* Timestamp */}
                         <td className="p-3 text-xs whitespace-nowrap">
-                          <div className="font-medium text-foreground">{fmt(row.logged_in_at)}</div>
-                          <div className="text-[11px] text-muted-foreground">{fmtDate(row.logged_in_at)}</div>
+                          <div className="font-medium text-foreground">{fmt(row.created_at || row.logged_in_at)}</div>
+                          <div className="text-[11px] text-muted-foreground">{fmtDate(row.created_at || row.logged_in_at)}</div>
                         </td>
 
                         {/* Actor */}
