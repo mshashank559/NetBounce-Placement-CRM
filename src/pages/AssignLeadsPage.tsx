@@ -82,31 +82,33 @@ const AssignLeadsPage: React.FC = () => {
     queryFn: async () => {
       const allLeads = await fetchAllLeads();
       
-      const getStatusThreshold = (status: string): number | null => {
-        switch (status) {
-          case 'New': return 5;
-          case 'DNR1': return 20;
-          case 'DNR2': return 15;
-          case 'DNR3': return 10;
-          case 'Connected': return 30;
-          case 'Qualified': return 60;
-          case 'Hot Prospect': return 90;
-          case 'Non Interested':
-            return 2;
-          default: return null;
-        }
+      const getStatusThreshold = (status?: string | null): number => {
+        if (!status) return 5;
+        const s = status.trim().toLowerCase();
+        if (s.includes('hot')) return 90;
+        if (s.includes('qualif')) return 60;
+        if (s.includes('connect')) return 30;
+        if (s.includes('dnr1') || s === 'dnr 1') return 20;
+        if (s.includes('dnr2') || s === 'dnr 2') return 15;
+        if (s.includes('dnr3') || s === 'dnr 3') return 10;
+        if (s.includes('dnr')) return 15;
+        if (s.includes('non') || s.includes('not interest')) return 2;
+        if (s.includes('new')) return 5;
+        if (s.includes('stagnant') || s.includes('follow')) return 7;
+        return 10;
       };
 
-      return (allLeads || []).map(lead => {
-        const threshold = getStatusThreshold(lead.lead_status);
-        if (threshold === null) return null;
-        
-        const days = getWorkingDaysDifference(lead.updated_at, new Date());
-        
-        return { ...lead, aging_days: days, threshold };
-      })
-      .filter((lead): lead is any => lead !== null && !lead.dnr_followup_done && lead.aging_days >= lead.threshold)
-      .sort((a, b) => b.aging_days - a.aging_days);
+      return (allLeads || [])
+        .filter(lead => lead.assigned_to && !['closed', 'enrolled', 'won', 'lost'].includes((lead.lead_status || '').toLowerCase()))
+        .map(lead => {
+          const threshold = getStatusThreshold(lead.lead_status);
+          const lastActionDate = lead.updated_at || lead.assigned_at || lead.created_at;
+          const days = lastActionDate ? getWorkingDaysDifference(lastActionDate, new Date()) : 100;
+          
+          return { ...lead, aging_days: days, threshold };
+        })
+        .filter(lead => lead && lead.aging_days >= lead.threshold)
+        .sort((a, b) => b.aging_days - a.aging_days);
     },
     enabled: !!user,
   });
