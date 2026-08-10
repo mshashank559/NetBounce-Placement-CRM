@@ -161,6 +161,7 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
 
     if (!hasCreation && lead.created_at) {
       const creatorName = generatedByProfile?.full_name || 
+        (lead as any).generated_by_name ||
         (lead.lead_generated_by ? (profiles.find(p => p.user_id === lead.lead_generated_by)?.full_name) : 'System') || 'System';
 
       logs.push({
