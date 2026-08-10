@@ -13,6 +13,7 @@ import { Shuffle, UserPlus, AlertCircle, User, RefreshCw, Search, Eye } from 'lu
 import { useLocation } from 'react-router-dom';
 import LeadDetailDialog from '@/components/LeadDetailDialog';
 import { getWorkingDaysDifference } from '@/lib/dateUtils';
+import { fetchAllLeads } from '@/lib/leads';
 
 const AssignLeadsPage: React.FC = () => {
   const { role, user, profile } = useAuth();
@@ -79,31 +80,7 @@ const AssignLeadsPage: React.FC = () => {
   const { data: agingLeads, isLoading: agingLoading } = useQuery({
     queryKey: ['aging-leads'],
     queryFn: async () => {
-      let allLeads: any[] = [];
-      let from = 0;
-      const step = 1000;
-      let hasMore = true;
-      
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('leads')
-          .select('*')
-          .in('lead_status', ['New', 'DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', 'Hot Prospect', 'Non Interested'])
-          .range(from, from + step - 1);
-          
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          allLeads = [...allLeads, ...data];
-          if (data.length < step) {
-            hasMore = false;
-          } else {
-            from += step;
-          }
-        } else {
-          hasMore = false;
-        }
-      }
+      const allLeads = await fetchAllLeads();
       
       const getStatusThreshold = (status: string): number | null => {
         switch (status) {
@@ -120,8 +97,7 @@ const AssignLeadsPage: React.FC = () => {
         }
       };
 
-
-      return allLeads.map(lead => {
+      return (allLeads || []).map(lead => {
         const threshold = getStatusThreshold(lead.lead_status);
         if (threshold === null) return null;
         
@@ -132,6 +108,7 @@ const AssignLeadsPage: React.FC = () => {
       .filter((lead): lead is any => lead !== null && !lead.dnr_followup_done && lead.aging_days >= lead.threshold)
       .sort((a, b) => b.aging_days - a.aging_days);
     },
+    enabled: !!user,
   });
 
   const filteredAgingLeads = useMemo(() => {
