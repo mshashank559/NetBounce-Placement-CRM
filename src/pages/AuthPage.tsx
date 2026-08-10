@@ -296,7 +296,12 @@ const AuthPage: React.FC = () => {
 
     try {
       const { error } = await signIn(cleanedEmail, form.password);
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes('Weekend Access Locked')) {
+          setSecurityMessage(error.message);
+        }
+        throw error;
+      }
       toast.success('Welcome back!');
     } catch (err: any) {
       toast.error(err.message || 'Authentication failed');

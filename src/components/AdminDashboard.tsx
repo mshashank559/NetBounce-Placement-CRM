@@ -36,8 +36,13 @@ import {
   FileText,
   Pencil,
   XCircle,
-  ShieldAlert
+  ShieldAlert,
+  Lock,
+  Unlock,
+  KeyRound,
+  ShieldCheck
 } from 'lucide-react';
+import { isWeekendLockdownActive, isRoleRestrictedOnWeekend, getUpcomingMondayLockdownEndIST } from '@/lib/weekendLock';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -422,6 +427,33 @@ const AdminDashboard: React.FC = () => {
     },
     staleTime: 300000, // 5 minutes staleTime
   });
+
+  const { data: weekendPasses = [] } = useQuery({
+    queryKey: ['weekend-access-passes'],
+    queryFn: async () => {
+      try {
+        const { data, error } = await (supabase as any)
+          .from('weekend_access_passes')
+          .select('*');
+        if (error) return [];
+        return data || [];
+      } catch {
+        return [];
+      }
+    },
+    staleTime: 30000, // 30 seconds staleTime
+  });
+
+  const activeWeekendPassesMap = useMemo(() => {
+    const map = new Map<string, { valid_until: string; is_active: boolean }>();
+    const now = Date.now();
+    weekendPasses.forEach((p: any) => {
+      if (p.is_active && new Date(p.valid_until).getTime() > now) {
+        map.set(p.user_id, p);
+      }
+    });
+    return map;
+  }, [weekendPasses]);
 
   const { data: callLogs } = useQuery({
     queryKey: ['all-call-logs-admin'],
@@ -1004,6 +1036,35 @@ const AdminDashboard: React.FC = () => {
     onError: (err: any) => toast.error(err.message || 'Failed to create user')
   });
 
+  const toggleWeekendAccessMutation = useMutation({
+    mutationFn: async ({ userId, grant }: { userId: string; grant: boolean }) => {
+      if (grant) {
+        const expiry = getUpcomingMondayLockdownEndIST();
+        const { error } = await (supabase as any)
+          .from('weekend_access_passes')
+          .upsert({
+            user_id: userId,
+            granted_by: user?.id,
+            granted_at: new Date().toISOString(),
+            valid_until: expiry.toISOString(),
+            is_active: true,
+          }, { onConflict: 'user_id' });
+        if (error) throw error;
+      } else {
+        const { error } = await (supabase as any)
+          .from('weekend_access_passes')
+          .update({ is_active: false })
+          .eq('user_id', userId);
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['weekend-access-passes'] });
+      toast.success(variables.grant ? 'Weekend Access pass granted until Monday 7:30 PM' : 'Weekend Access pass revoked');
+    },
+    onError: (err: any) => toast.error(err.message || 'Failed to update weekend access pass'),
+  });
+
   const reassignLeadMutation = useMutation({
     mutationFn: async ({ leadId, userId }: { leadId: string, userId: string }) => {
       const lead = leads?.find(l => l.unique_id === leadId);
@@ -1269,12 +1330,23 @@ const AdminDashboard: React.FC = () => {
                 </Card>
 
                 <Card className="glass-card xl:col-span-2 overflow-hidden">
-                  <CardHeader className="pb-2 border-b border-border/30 flex flex-row items-center justify-between">
+                  <CardHeader className="pb-2 border-b border-border/30 flex flex-row items-center justify-between flex-wrap gap-2">
                     <div>
                       <CardTitle className="text-xl font-display">Active Directory</CardTitle>
                       <CardDescription className="text-xs text-muted-foreground">
                         {allUsers.length} total active users provisioned
                       </CardDescription>
+                    </div>
+                    <div>
+                      {isWeekendLockdownActive() ? (
+                        <Badge variant="destructive" className="flex items-center gap-1 text-[10px] font-normal">
+                          <Lock className="h-3 w-3 animate-pulse" /> Weekend Lockdown Active (Sat 4:30 AM – Mon 7:30 PM IST)
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-emerald-400 border-emerald-500/30 flex items-center gap-1 text-[10px] font-normal">
+                          <Unlock className="h-3 w-3" /> Standard Hours (Next Lock: Sat 4:30 AM)
+                        </Badge>
+                      )}
                     </div>
                   </CardHeader>
                   <CardContent className="p-0">
@@ -1285,12 +1357,15 @@ const AdminDashboard: React.FC = () => {
                             <TableRow>
                               <TableHead className="text-xs">User / Email</TableHead>
                               <TableHead className="text-xs">Role & Team</TableHead>
+                              <TableHead className="text-xs">Weekend Pass</TableHead>
                               <TableHead className="text-xs text-right">Action</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {allUsers.map(u => {
                               const tlName = u.reports_to ? (allUsers.find(tl => tl.user_id === u.reports_to)?.full_name || null) : null;
+                              const isRestrictedRole = isRoleRestrictedOnWeekend(u.role);
+                              const hasActivePass = activeWeekendPassesMap.has(u.user_id);
                               return (
                                 <TableRow key={u.user_id} className="hover:bg-accent/20 transition-colors">
                                   <TableCell className="text-xs">
@@ -1308,6 +1383,35 @@ const AdminDashboard: React.FC = () => {
                                         </span>
                                       )}
                                     </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    {!isRestrictedRole ? (
+                                      <span className="text-[10px] text-emerald-400/90 flex items-center gap-1 font-medium">
+                                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" /> Always Active
+                                      </span>
+                                    ) : hasActivePass ? (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-6 text-[10px] px-2 border-emerald-500/40 bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 flex items-center gap-1 font-medium shadow-sm"
+                                        title="Click to revoke weekend pass"
+                                        onClick={() => toggleWeekendAccessMutation.mutate({ userId: u.user_id, grant: false })}
+                                        disabled={toggleWeekendAccessMutation.isPending}
+                                      >
+                                        <KeyRound className="h-3 w-3 text-emerald-400" /> Pass Active (Revoke)
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-6 text-[10px] px-2 border-border/50 text-muted-foreground hover:text-foreground hover:border-primary/50 flex items-center gap-1"
+                                        title="Grant Weekend Pass expiring Monday 7:30 PM IST"
+                                        onClick={() => toggleWeekendAccessMutation.mutate({ userId: u.user_id, grant: true })}
+                                        disabled={toggleWeekendAccessMutation.isPending}
+                                      >
+                                        <Lock className="h-3 w-3" /> Grant Pass
+                                      </Button>
+                                    )}
                                   </TableCell>
                                   <TableCell className="text-right">
                                     <Button

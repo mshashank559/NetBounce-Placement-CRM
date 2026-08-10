@@ -2,10 +2,12 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 import { supabase } from '@/integrations/supabase/client';
 import type { User } from '@supabase/supabase-js';
 
+import { isWeekendLockdownActive, isRoleRestrictedOnWeekend, WEEKEND_LOCK_MESSAGE } from '@/lib/weekendLock';
+
 // Key used to pass the forced-logout message to AuthPage via sessionStorage
 export const FORCED_LOGOUT_KEY = 'nb_forced_logout_msg';
 
-type AppRole = 'ADMIN' | 'PROCESS_ANALYST' | 'LEAD_TL' | 'LEAD_GEN' | 'SALES_TL' | 'SALES_TM' | 'ACCOUNTANT';
+type AppRole = 'ADMIN' | 'PROCESS_ANALYST' | 'LEAD_TL' | 'LEAD_GEN' | 'SALES_TL' | 'SALES_TM' | 'ACCOUNTANT' | 'ACCOUNT_MANAGER';
 
 interface Profile {
   id: string;
@@ -33,6 +35,34 @@ export const useAuth = () => {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
+};
+
+/**
+ * Checks whether a given user is allowed CRM access during Weekend Lockdown
+ * (Sat 4:30 AM to Mon 7:30 PM IST).
+ * - Exempt roles (Admin, Accountant, Account Manager, Process Analyst) always return true.
+ * - If outside lockdown window, returns true.
+ * - If inside lockdown window for Sales/BD, checks if an active weekend pass exists.
+ */
+export const checkUserWeekendAccess = async (userId: string, userRole?: string | null): Promise<boolean> => {
+  if (!isWeekendLockdownActive()) return true;
+  if (!isRoleRestrictedOnWeekend(userRole)) return true;
+
+  try {
+    const { data: pass, error } = await (supabase as any)
+      .from('weekend_access_passes')
+      .select('valid_until, is_active')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (error || !pass) return false;
+
+    const validUntilTime = new Date(pass.valid_until).getTime();
+    return pass.is_active && validUntilTime > Date.now();
+  } catch {
+    return false;
+  }
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -90,7 +120,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginRowId = useRef<string | null>(null);
 
   // ISO timestamp of when the current session started — used to detect forced logouts.
-  // We initialize it from localStorage to persist it across page refreshes.
   const signInTime = useRef<string | null>(localStorage.getItem('nb_session_start_time'));
 
   const setSignInTime = (time: string | null) => {
@@ -102,22 +131,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Interval ID for the password_reset_at polling loop
+  // Interval ID for the security & lockdown polling loop
   const pollInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ── Poll profiles.password_reset_at every 30 s ───────────────────────────
-  // When an admin resets a user's password the Edge Function stamps
-  // password_reset_at on the profile. If that timestamp is newer than
-  // the client's session-start time we force an immediate sign-out.
-  const startForcedLogoutPolling = (userId: string) => {
+  // ── Poll profiles.password_reset_at & Weekend Lockdown every 30 s ───────────
+  const startForcedLogoutPolling = (userId: string, userRole?: string | null) => {
     if (pollInterval.current) clearInterval(pollInterval.current);
 
     const check = async () => {
       try {
-        // Cast to any: password_reset_at is a new column added via migration.
-        // The Supabase-generated types will be stale until `supabase gen types`
-        // is re-run after the migration is applied.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // 1. Check Weekend Lockdown status for restricted roles (Sat 4:30 AM to Mon 7:30 PM IST)
+        const isAllowed = await checkUserWeekendAccess(userId, userRole || role);
+        if (!isAllowed) {
+          if (pollInterval.current) clearInterval(pollInterval.current);
+          sessionStorage.setItem(FORCED_LOGOUT_KEY, WEEKEND_LOCK_MESSAGE);
+          setSignInTime(null);
+          await supabase.auth.signOut();
+          return;
+        }
+
+        // 2. Check admin-forced password resets
         const { data } = await (supabase as any)
           .from('profiles')
           .select('password_reset_at')
@@ -128,7 +161,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const resetAt  = new Date(data.password_reset_at).getTime();
           const loginAt  = new Date(signInTime.current).getTime();
           if (resetAt > loginAt) {
-            // Admin has reset this user's password after they logged in → force logout
             if (pollInterval.current) clearInterval(pollInterval.current);
             sessionStorage.setItem(
               FORCED_LOGOUT_KEY,
@@ -139,7 +171,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
       } catch {
-        // Non-critical — never disrupt the user session on poll failure
+        // Non-critical
       }
     };
 
@@ -155,10 +187,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // ── Log a login event (with denormalized user info for Admin panel) ───
+  // ── Log a login event ───
   const logLogin = async (userId: string) => {
     try {
-      // Fetch profile + role in parallel so we can store them in the row
       const [profileRes, roleRes] = await Promise.all([
         supabase.from('profiles').select('full_name, email').eq('user_id', userId).maybeSingle(),
         supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle(),
@@ -167,17 +198,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data } = await supabase
         .from('login_activity')
         .insert({
-          user_id:     userId,
+          user_id:      userId,
           logged_in_at: new Date().toISOString(),
-          user_name:   profileRes.data?.full_name  ?? null,
-          user_email:  profileRes.data?.email      ?? null,
-          user_role:   roleRes.data?.role          ?? null,
+          user_name:    profileRes.data?.full_name  ?? null,
+          user_email:   profileRes.data?.email      ?? null,
+          user_role:    roleRes.data?.role          ?? null,
         })
         .select('id')
         .single();
       if (data?.id) loginRowId.current = data.id;
     } catch {
-      // Non-critical — never block the login flow
+      // Non-critical
     }
   };
 
@@ -198,21 +229,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
-        // Record the moment this session became active if not already set
         if (!signInTime.current) {
           setSignInTime(new Date().toISOString());
         }
         setUser(session.user);
-        // logLogin first in the background; never await it so it doesn't block loading state
         logLogin(session.user.id);
         setTimeout(() => fetchProfileAndRole(session.user), 0);
-        // Start polling for admin-forced password resets
-        startForcedLogoutPolling(session.user.id);
+        startForcedLogoutPolling(session.user.id, session.user.user_metadata?.role);
       } else if (event === 'SIGNED_OUT') {
-        // Stop polling and clear session refs
         stopForcedLogoutPolling();
         setSignInTime(null);
-        // logLogout in the background
         logLogout();
         setUser(null);
         setProfile(null);
@@ -232,15 +258,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-          // Restore session start time and begin polling for existing sessions
+          // Check Weekend Lockdown before continuing existing session
+          const { data: roleRes } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+
+          const activeRole = roleRes?.role || session.user.user_metadata?.role;
+          const isAllowed = await checkUserWeekendAccess(session.user.id, activeRole);
+
+          if (!isAllowed) {
+            sessionStorage.setItem(FORCED_LOGOUT_KEY, WEEKEND_LOCK_MESSAGE);
+            await supabase.auth.signOut();
+            setLoading(false);
+            return;
+          }
+
           if (!signInTime.current) {
             setSignInTime(new Date().toISOString());
           }
           setUser(session.user);
-          // Run logLogin in background, fetchProfileAndRole in foreground
           logLogin(session.user.id);
           await fetchProfileAndRole(session.user);
-          startForcedLogoutPolling(session.user.id);
+          startForcedLogoutPolling(session.user.id, activeRole);
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
@@ -258,8 +299,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error as Error | null };
+    const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { error: error as Error | null };
+
+    if (authData?.user) {
+      // Validate Weekend Lockdown Policy (Sat 4:30 AM to Mon 7:30 PM IST)
+      const { data: roleRes } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', authData.user.id)
+        .maybeSingle();
+
+      const userRole = roleRes?.role || authData.user.user_metadata?.role;
+      const isAllowed = await checkUserWeekendAccess(authData.user.id, userRole);
+
+      if (!isAllowed) {
+        // Enforce immediate sign out and return explicit error
+        sessionStorage.setItem(FORCED_LOGOUT_KEY, WEEKEND_LOCK_MESSAGE);
+        await supabase.auth.signOut();
+        return { error: new Error(WEEKEND_LOCK_MESSAGE) };
+      }
+    }
+
+    return { error: null };
   };
 
   const signUp = async (email: string, password: string, fullName: string, role: AppRole, department?: string, reportsTo?: string) => {
