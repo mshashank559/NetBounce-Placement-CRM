@@ -58,16 +58,16 @@ export const recordAuthActivity = async (params: LogAuthParams): Promise<string 
     dashboardAccessed,
   } = params;
 
-  if (!actorId) return null;
-
-  // Deduplication key
-  const cacheKey = `${actorId}_${actionType}_${targetUserId || 'self'}_${dashboardAccessed || ''}`;
-  const lastLogged = recentLogsCache.get(cacheKey);
-  const now = Date.now();
-  if (lastLogged && now - lastLogged < 10000) {
-    return null; // Suppress duplicate event triggered within 10s
+  // Deduplication key only for repeated dashboard inspections, NEVER for logins
+  if (actionType !== 'LOGIN') {
+    const cacheKey = `${actorId}_${actionType}_${targetUserId || 'self'}_${dashboardAccessed || ''}`;
+    const lastLogged = recentLogsCache.get(cacheKey);
+    const now = Date.now();
+    if (lastLogged && now - lastLogged < 5000) {
+      return null; // Suppress rapid repeated inspection clicks within 5s
+    }
+    recentLogsCache.set(cacheKey, now);
   }
-  recentLogsCache.set(cacheKey, now);
 
   try {
     let resolvedName = actorName;

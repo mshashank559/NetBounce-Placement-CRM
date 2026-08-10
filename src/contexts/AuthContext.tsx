@@ -339,6 +339,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await supabase.auth.signOut();
         return { error: new Error(WEEKEND_LOCK_MESSAGE) };
       }
+
+      // Immediately record successful login to audit trail
+      await logLogin(authData.user.id, userRole);
     }
 
     return { error: null };

@@ -66,13 +66,18 @@ const LoginActivityPage: React.FC = () => {
   const { data: activity = [], isLoading, refetch: refetchActivity, isFetching: isFetchingActivity } = useQuery({
     queryKey: ['login-activity'],
     queryFn: async () => {
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from('login_activity')
         .select('*')
         .order('logged_in_at', { ascending: false });
+      if (error) {
+        console.error('Error loading login activity:', error);
+        return [];
+      }
       return data || [];
     },
-    refetchInterval: 15000, // refresh every 15s
+    staleTime: 0,
+    refetchInterval: 10000, // refresh every 10s
   });
 
   // ── Client-side filtering ─────────────────────────────────────
