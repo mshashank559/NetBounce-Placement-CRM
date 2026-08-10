@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { User } from '@supabase/supabase-js';
 
 import { isWeekendLockdownActive, isRoleRestrictedOnWeekend, WEEKEND_LOCK_MESSAGE } from '@/lib/weekendLock';
+import { recordAuthActivity, getDashboardNameByRole } from '@/lib/auditLogger';
 
 // Key used to pass the forced-logout message to AuthPage via sessionStorage
 export const FORCED_LOGOUT_KEY = 'nb_forced_logout_msg';
@@ -117,7 +118,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Tracks the login_activity row id for the current session so we can update logout_at
-  const loginRowId = useRef<string | null>(null);
+  const loginRowId = useRef<string | null>(localStorage.getItem('nb_login_activity_id'));
+
+  const setLoginRowId = (id: string | null) => {
+    loginRowId.current = id;
+    if (id) {
+      localStorage.setItem('nb_login_activity_id', id);
+    } else {
+      localStorage.removeItem('nb_login_activity_id');
+    }
+  };
 
   // ISO timestamp of when the current session started — used to detect forced logouts.
   const signInTime = useRef<string | null>(localStorage.getItem('nb_session_start_time'));
@@ -187,26 +197,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // ── Log a login event ───
-  const logLogin = async (userId: string) => {
+  // ── Guaranteed recording of login activity ───
+  const logLogin = async (userId: string, userRole?: string | null) => {
     try {
       const [profileRes, roleRes] = await Promise.all([
         supabase.from('profiles').select('full_name, email').eq('user_id', userId).maybeSingle(),
         supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle(),
       ]);
 
-      const { data } = await supabase
-        .from('login_activity')
-        .insert({
-          user_id:      userId,
-          logged_in_at: new Date().toISOString(),
-          user_name:    profileRes.data?.full_name  ?? null,
-          user_email:   profileRes.data?.email      ?? null,
-          user_role:    roleRes.data?.role          ?? null,
-        })
-        .select('id')
-        .single();
-      if (data?.id) loginRowId.current = data.id;
+      const resolvedRole = userRole || roleRes.data?.role || null;
+      const rowId = await recordAuthActivity({
+        actorId: userId,
+        actorName: profileRes.data?.full_name || 'User',
+        actorEmail: profileRes.data?.email || null,
+        actorRole: resolvedRole,
+        actionType: 'LOGIN',
+        targetUserId: userId,
+        targetUserName: profileRes.data?.full_name || 'User',
+        targetUserRole: resolvedRole,
+        dashboardAccessed: getDashboardNameByRole(resolvedRole),
+      });
+
+      if (rowId) setLoginRowId(rowId);
     } catch {
       // Non-critical
     }
@@ -214,13 +226,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // ── Log a logout event ───────────────────────────────────────
   const logLogout = async () => {
-    if (!loginRowId.current) return;
+    const currentId = loginRowId.current;
+    if (!currentId) return;
     try {
-      await supabase
+      await (supabase as any)
         .from('login_activity')
         .update({ logged_out_at: new Date().toISOString() })
-        .eq('id', loginRowId.current);
-      loginRowId.current = null;
+        .eq('id', currentId);
+      setLoginRowId(null);
     } catch {
       // Non-critical
     }
@@ -233,7 +246,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSignInTime(new Date().toISOString());
         }
         setUser(session.user);
-        logLogin(session.user.id);
+        logLogin(session.user.id, session.user.user_metadata?.role);
         setTimeout(() => fetchProfileAndRole(session.user), 0);
         startForcedLogoutPolling(session.user.id, session.user.user_metadata?.role);
       } else if (event === 'SIGNED_OUT') {
@@ -279,7 +292,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setSignInTime(new Date().toISOString());
           }
           setUser(session.user);
-          logLogin(session.user.id);
           await fetchProfileAndRole(session.user);
           startForcedLogoutPolling(session.user.id, activeRole);
         }

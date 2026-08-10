@@ -10,10 +10,23 @@ import { Phone, Users, CheckCircle, DollarSign, RefreshCw, Eye, LayoutDashboard,
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { getISTYearAndMonth, getISTDateString } from '@/lib/dateUtils';
+import { recordAuthActivity } from '@/lib/auditLogger';
 
 const SalesTLDashboardPage: React.FC = () => {
   const { user, role } = useAuth();
   const [viewMode, setViewMode] = useState('team'); // 'personal' or 'team'
+
+  React.useEffect(() => {
+    if (user && role === 'ADMIN') {
+      recordAuthActivity({
+        actorId: user.id,
+        actorRole: 'ADMIN',
+        actionType: 'DASHBOARD_ACCESS',
+        dashboardAccessed: 'Sales Performance & TL Dashboard',
+      });
+    }
+  }, [user, role]);
+
   const [monthFilter, setMonthFilter] = useState(() => {
     const saved = localStorage.getItem('netbounce_crm_month_filter_yyyy_mm');
     if (saved) return saved;

@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Activity, Calendar, Clock, LogIn, LogOut } from 'lucide-react';
+import { Activity, Calendar, Clock, LogIn, LogOut, ShieldCheck, UserCheck, LayoutDashboard, Eye } from 'lucide-react';
 
 import { getISTYearAndMonth, getISTDateString, formatToISTDateString } from '@/lib/dateUtils';
 
@@ -42,11 +42,12 @@ const LoginActivityPage: React.FC = () => {
   const { role } = useAuth();
 
   // ── Filters ──────────────────────────────────────────────────
-  const [userFilter, setUserFilter]   = useState('all');
-  const [monthFilter, setMonthFilter] = useState('all');
-  const [dateFrom, setDateFrom]       = useState('');
-  const [dateTo, setDateTo]           = useState('');
-  const [page, setPage]               = useState(1);
+  const [userFilter, setUserFilter]     = useState('all');
+  const [actionFilter, setActionFilter] = useState('all'); // 'all', 'LOGIN', 'DASHBOARD_ACCESS'
+  const [monthFilter, setMonthFilter]   = useState('all');
+  const [dateFrom, setDateFrom]         = useState('');
+  const [dateTo, setDateTo]             = useState('');
+  const [page, setPage]                 = useState(1);
   const PAGE_SIZE = 50;
 
   // ── Fetch all users for the filter dropdown ───────────────────
@@ -65,19 +66,24 @@ const LoginActivityPage: React.FC = () => {
   const { data: activity = [], isLoading } = useQuery({
     queryKey: ['login-activity'],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from('login_activity')
         .select('*')
         .order('logged_in_at', { ascending: false });
       return data || [];
     },
-    refetchInterval: 30000, // refresh every 30s
+    refetchInterval: 20000, // refresh every 20s
   });
 
   // ── Client-side filtering ─────────────────────────────────────
   const filtered = useMemo(() => {
-    return activity.filter(row => {
-      if (userFilter !== 'all' && row.user_id !== userFilter) return false;
+    return activity.filter((row: any) => {
+      if (userFilter !== 'all' && row.user_id !== userFilter && row.target_user_id !== userFilter) return false;
+
+      if (actionFilter !== 'all') {
+        const type = row.action_type || 'LOGIN';
+        if (type !== actionFilter) return false;
+      }
 
       if (monthFilter !== 'all') {
         const ist = getISTYearAndMonth(row.logged_in_at);
@@ -90,11 +96,11 @@ const LoginActivityPage: React.FC = () => {
 
       return true;
     });
-  }, [activity, userFilter, monthFilter, dateFrom, dateTo]);
+  }, [activity, userFilter, actionFilter, monthFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     setPage(1);
-  }, [userFilter, monthFilter, dateFrom, dateTo, activity.length]);
+  }, [userFilter, actionFilter, monthFilter, dateFrom, dateTo, activity.length]);
 
   const totalCount = filtered.length;
   const totalPages = Math.ceil(totalCount / PAGE_SIZE) || 1;
@@ -117,9 +123,11 @@ const LoginActivityPage: React.FC = () => {
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <Activity className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-display font-bold">Login Activity</h1>
+          <h1 className="text-2xl font-display font-bold">Login & Access Audit Trail</h1>
         </div>
-        <span className="text-sm text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? 's' : ''} found</span>
+        <span className="text-xs text-muted-foreground bg-accent/40 px-3 py-1 rounded-full border border-border/50">
+          {filtered.length} total event{filtered.length !== 1 ? 's' : ''} recorded
+        </span>
       </div>
 
       {/* ── Filters ───────────────────────────────────────────── */}
@@ -128,7 +136,7 @@ const LoginActivityPage: React.FC = () => {
           <div className="flex flex-wrap gap-3 items-end">
             {/* User filter */}
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground font-medium">Member</p>
+              <p className="text-xs text-muted-foreground font-medium">Actor / Member</p>
               <Select value={userFilter} onValueChange={setUserFilter}>
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder="All Members" />
@@ -137,9 +145,24 @@ const LoginActivityPage: React.FC = () => {
                   <SelectItem value="all">All Members</SelectItem>
                   {allUsers?.map(u => (
                     <SelectItem key={u.user_id} value={u.user_id}>
-                      {u.full_name}
+                      {u.full_name} ({u.role?.replace(/_/g, ' ')})
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Event Action Type filter */}
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground font-medium">Event Type</p>
+              <Select value={actionFilter} onValueChange={setActionFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="All Events" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Events</SelectItem>
+                  <SelectItem value="LOGIN">Direct Logins</SelectItem>
+                  <SelectItem value="DASHBOARD_ACCESS">Dashboard Access</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -184,9 +207,9 @@ const LoginActivityPage: React.FC = () => {
             </div>
 
             {/* Clear */}
-            {(userFilter !== 'all' || monthFilter !== 'all' || dateFrom || dateTo) && (
+            {(userFilter !== 'all' || actionFilter !== 'all' || monthFilter !== 'all' || dateFrom || dateTo) && (
               <button
-                onClick={() => { setUserFilter('all'); setMonthFilter('all'); setDateFrom(''); setDateTo(''); }}
+                onClick={() => { setUserFilter('all'); setActionFilter('all'); setMonthFilter('all'); setDateFrom(''); setDateTo(''); }}
                 className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 mt-5"
               >
                 Clear filters
@@ -198,80 +221,132 @@ const LoginActivityPage: React.FC = () => {
 
       {/* ── Activity Table ────────────────────────────────────── */}
       <Card className="glass-card">
-        <CardHeader>
-          <CardTitle className="text-lg font-display">Login Records</CardTitle>
+        <CardHeader className="pb-3 border-b border-border/30">
+          <CardTitle className="text-lg font-display flex items-center justify-between">
+            <span>Audit Records</span>
+            <span className="text-xs font-normal text-muted-foreground">Times displayed in IST (Asia/Kolkata)</span>
+          </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-8 text-center text-muted-foreground">Loading activity...</div>
           ) : filtered.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground">No login activity found</div>
+            <div className="p-8 text-center text-muted-foreground">No audit activity found</div>
           ) : (
             <div>
               <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border">
-                    <th className="text-left p-3 font-medium text-muted-foreground">Member</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Role</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Date</th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">
-                      <span className="flex items-center gap-1"><LogIn className="h-3.5 w-3.5 text-green-500" /> Login Time</span>
+                  <tr className="border-b border-border bg-accent/30">
+                    <th className="text-left p-3 font-medium text-muted-foreground text-xs">Date & Time</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground text-xs">Actor (Logged-In User)</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground text-xs">Action</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground text-xs">Target Account / Dashboard</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground text-xs">
+                      <span className="flex items-center gap-1"><Clock className="h-3 w-3 text-muted-foreground" /> Session Duration</span>
                     </th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">
-                      <span className="flex items-center gap-1"><LogOut className="h-3.5 w-3.5 text-red-400" /> Logout Time</span>
-                    </th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">
-                      <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> Duration</span>
-                    </th>
-                    <th className="text-left p-3 font-medium text-muted-foreground">Status</th>
+                    <th className="text-left p-3 font-medium text-muted-foreground text-xs">Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedActivity.map((row, i) => {
-                    // Prefer denormalized data stored at login time;
-                    // fall back to profileMap for older rows that predate this fix
+                  {paginatedActivity.map((row: any, i: number) => {
                     const profile = profileMap[row.user_id];
-                    const displayName  = (row as any).user_name  || profile?.full_name || null;
-                    const displayEmail = (row as any).user_email || profile?.email     || null;
-                    const displayRole  = (row as any).user_role  || profile?.role      || null;
+                    const actorName  = row.user_name  || profile?.full_name || 'User';
+                    const actorEmail = row.user_email || profile?.email     || '—';
+                    const actorRole  = row.user_role  || profile?.role      || 'USER';
+                    const actionType = row.action_type || 'LOGIN';
+                    const isDirectLogin = actionType === 'LOGIN';
+                    const isImpersonated = !isDirectLogin || (row.target_user_id && row.target_user_id !== row.user_id);
                     const isActive = !row.logged_out_at;
+
+                    const targetName = row.target_user_name || (isDirectLogin ? actorName : 'Target Dashboard');
+                    const targetRole = row.target_user_role || (isDirectLogin ? actorRole : null);
+                    const dashboardName = row.dashboard_accessed || (isDirectLogin ? `${actorRole.replace(/_/g, ' ')} Dashboard` : 'Dashboard');
+
                     return (
                       <motion.tr
-                        key={row.id}
+                        key={row.id || i}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        transition={{ delay: i * 0.02 }}
-                        className="border-b border-border/50 hover:bg-accent/30 transition-colors"
+                        transition={{ delay: i * 0.01 }}
+                        className="border-b border-border/50 hover:bg-accent/20 transition-colors"
                       >
-                        <td className="p-3">
-                          <p className="font-medium">{displayName || '—'}</p>
-                          <p className="text-xs text-muted-foreground">{displayEmail || '—'}</p>
+                        {/* Timestamp */}
+                        <td className="p-3 text-xs whitespace-nowrap">
+                          <div className="font-medium text-foreground">{fmt(row.logged_in_at)}</div>
+                          <div className="text-[11px] text-muted-foreground">{fmtDate(row.logged_in_at)}</div>
                         </td>
+
+                        {/* Actor */}
                         <td className="p-3">
-                          <Badge variant="secondary" className="text-xs">
-                            {displayRole ? displayRole.replace(/_/g, ' ') : '—'}
-                          </Badge>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-medium text-foreground text-xs">{actorName}</span>
+                            <Badge variant="outline" className="text-[10px] font-normal py-0 h-4">
+                              {actorRole.replace(/_/g, ' ')}
+                            </Badge>
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">{actorEmail}</div>
                         </td>
-                        <td className="p-3 text-muted-foreground">{fmtDate(row.logged_in_at)}</td>
-                        <td className="p-3">
-                          <span className="text-green-600 font-medium">{fmt(row.logged_in_at)}</span>
-                        </td>
-                        <td className="p-3">
-                          <span className={row.logged_out_at ? 'text-red-400 font-medium' : 'text-muted-foreground'}>
-                            {fmt(row.logged_out_at)}
-                          </span>
-                        </td>
-                        <td className="p-3 text-muted-foreground">{duration(row.logged_in_at, row.logged_out_at)}</td>
-                        <td className="p-3">
-                          {isActive ? (
-                            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-600 font-medium">
-                              <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-                              Active
-                            </span>
+
+                        {/* Action Type Badge */}
+                        <td className="p-3 whitespace-nowrap">
+                          {isDirectLogin ? (
+                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[10px] flex items-center gap-1 w-fit">
+                              <LogIn className="h-3 w-3" /> Direct Login
+                            </Badge>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                              Logged Out
+                            <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30 text-[10px] flex items-center gap-1 w-fit">
+                              <LayoutDashboard className="h-3 w-3" /> Accessed Dashboard
+                            </Badge>
+                          )}
+                        </td>
+
+                        {/* Target Account / Dashboard */}
+                        <td className="p-3">
+                          {isImpersonated ? (
+                            <div>
+                              <div className="font-medium text-foreground text-xs flex items-center gap-1">
+                                <Eye className="h-3 w-3 text-blue-400" />
+                                {targetName}
+                                {targetRole && (
+                                  <Badge variant="secondary" className="text-[9px] py-0 h-3.5 ml-1">
+                                    {targetRole.replace(/_/g, ' ')}
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-muted-foreground">
+                                {dashboardName}
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="text-xs text-foreground font-medium">{dashboardName}</div>
+                              <div className="text-[10px] text-muted-foreground">Self Account</div>
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Duration */}
+                        <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">
+                          {isDirectLogin ? duration(row.logged_in_at, row.logged_out_at) : '—'}
+                        </td>
+
+                        {/* Status */}
+                        <td className="p-3 whitespace-nowrap">
+                          {isDirectLogin ? (
+                            isActive ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 font-medium">
+                                <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                                Active
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-muted/60 text-muted-foreground">
+                                Logged Out ({fmt(row.logged_out_at)})
+                              </span>
+                            )
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400">
+                              Inspected
                             </span>
                           )}
                         </td>
@@ -281,6 +356,7 @@ const LoginActivityPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+
             {/* Pagination Controls */}
             {totalCount > 0 && (
               <div className="flex justify-between items-center p-4 border-t border-border flex-wrap gap-2">

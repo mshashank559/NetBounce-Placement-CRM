@@ -8,9 +8,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Users, Plus } from 'lucide-react';
 
 import { getISTYearAndMonth, isInCurrentShift, getBDBusinessDate } from '@/lib/dateUtils';
+import { recordAuthActivity } from '@/lib/auditLogger';
 
 const BDTLDashboardPage: React.FC = () => {
   const { user, role } = useAuth();
+
+  React.useEffect(() => {
+    if (user && role === 'ADMIN') {
+      recordAuthActivity({
+        actorId: user.id,
+        actorRole: 'ADMIN',
+        actionType: 'DASHBOARD_ACCESS',
+        dashboardAccessed: 'BD Performance & TL Dashboard',
+      });
+    }
+  }, [user, role]);
+
   const [monthFilter, setMonthFilter] = useState(() => {
     const saved = localStorage.getItem('netbounce_crm_month_filter_yyyy_mm');
     if (saved) return saved;
