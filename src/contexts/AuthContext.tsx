@@ -95,7 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!roleRes.data && sessionUser.user_metadata?.role) {
           await supabase.from('user_roles').insert({
             user_id: userId,
-            role: sessionUser.user_metadata.role
+            role: sessionUser.user_metadata.role as any
           });
           roleRes = await supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle();
         }
@@ -358,7 +358,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Step 3: Manually insert role
     const { error: roleError } = await supabase.from('user_roles').insert({
       user_id: userId,
-      role: role,
+      role: role as any,
     });
 
     // Return first error if any, but don't block — auth succeeded
