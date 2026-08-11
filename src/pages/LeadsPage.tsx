@@ -94,18 +94,12 @@ const ReassignDropdownMenu: React.FC<ReassignDropdownMenuProps> = ({ candidates,
     return () => document.removeEventListener('mousedown', handleClickOutside, true);
   }, [onClose]);
 
-  // Flatten candidates to show Personal and Team options
+  // Flatten candidates to show clean member names
   const options = React.useMemo(() => {
-    const opts: { label: string; value: string }[] = [];
-    candidates.forEach(c => {
-      if (c.role === 'SALES_TL') {
-        opts.push({ label: `${c.full_name.trim()} -- Personal`, value: `${c.user_id}_Personal` });
-        opts.push({ label: `${c.full_name.trim()} -- Team`, value: `${c.user_id}_Team` });
-      } else {
-        opts.push({ label: `${c.full_name.trim()} -- Personal`, value: `${c.user_id}_Personal` });
-      }
-    });
-    return opts;
+    return candidates.map(c => ({
+      label: c.full_name.trim(),
+      value: `${c.user_id}_Personal`
+    }));
   }, [candidates]);
 
   const filteredOptions = React.useMemo(() => {
