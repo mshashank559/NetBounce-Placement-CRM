@@ -1170,8 +1170,8 @@ const SalesTLDashboard: React.FC = () => {
                               <Eye className="h-4 w-4" />
                             </Button>
 
-                            {/* Reassign Button (only for Sales TL and not in Global View) */}
-                            {role === 'SALES_TL' && viewMode !== 'global' && (
+                            {/* Assign to Team Member Button (for Sales TL) */}
+                            {role === 'SALES_TL' && (
                               <div className="relative reassign-dropdown-container">
                                 <Button
                                   size="sm"
@@ -1179,9 +1179,9 @@ const SalesTLDashboard: React.FC = () => {
                                   className="h-7 w-7 p-0 text-blue-500 hover:text-blue-600 hover:bg-blue-500/10"
                                   disabled={salesReassignLead.isPending}
                                   onClick={() => setReassigningLeadId(reassigningLeadId === lead.unique_id ? null : lead.unique_id)}
-                                  title="Reassign Lead within Team"
+                                  title="Assign to Team Member"
                                 >
-                                  <RefreshCw className={`h-4 w-4 ${salesReassignLead.isPending && reassigningLeadId === lead.unique_id ? 'animate-spin' : ''}`} />
+                                  <UserPlus className={`h-4 w-4 ${salesReassignLead.isPending && reassigningLeadId === lead.unique_id ? 'animate-spin' : ''}`} />
                                 </Button>
                                 {reassigningLeadId === lead.unique_id && (
                                   <SalesTLReassignDropdownMenu

@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Phone, Eye, Filter, Palette, AlertTriangle, MessageSquare, FileText as FileTextIcon, Send, Pencil, Trash2, UserMinus } from 'lucide-react';
+import { Phone, Eye, Filter, Palette, AlertTriangle, MessageSquare, FileText as FileTextIcon, Send, Pencil, Trash2, UserMinus, UserPlus } from 'lucide-react';
 import LeadDetailDialog from '@/components/LeadDetailDialog';
 import ClosureDialog from '@/components/ClosureDialog';
 import CallActivityDialog from '@/components/CallActivityDialog';
@@ -421,11 +421,32 @@ const LeadsPage: React.FC = () => {
     enabled: !!user && (role === 'ADMIN' || role === 'SALES_TL' || role === 'LEAD_TL'),
   });
 
-  // ── Reassign candidates list (SALES_TL members) ───────────────
+  // ── Reassign candidates list (SALES_TL and team members) ───────────────
   const reassignCandidates = useMemo(() => {
     if (!profilesMap || !userRolesMap) return [];
+    
+    if (role === 'SALES_TL') {
+      // For Sales TL: show self and all Sales TMs reporting to this Sales TL
+      const myTeamMembers = (allProfilesList || []).filter(p => p.reports_to === user?.id && userRolesMap[p.user_id] === 'SALES_TM');
+      
+      const candidates = [
+        {
+          user_id: user!.id,
+          full_name: `${profilesMap[user!.id]?.full_name || 'Me'} (Self)`,
+          role: 'SALES_TL'
+        },
+        ...myTeamMembers.map(p => ({
+          user_id: p.user_id,
+          full_name: p.full_name || 'Team Member',
+          role: 'SALES_TM'
+        }))
+      ];
+      return candidates.sort((a, b) => a.full_name.localeCompare(b.full_name));
+    }
+    
+    // For Admin / LEAD_TL: show all Sales TLs and Sales TMs
     return Object.entries(userRolesMap)
-      .filter(([_, r]) => r === 'SALES_TL')
+      .filter(([_, r]) => r === 'SALES_TL' || r === 'SALES_TM')
       .map(([userId, r]) => {
         const profile = profilesMap[userId];
         return {
@@ -435,7 +456,7 @@ const LeadsPage: React.FC = () => {
         };
       })
       .sort((a, b) => a.full_name.localeCompare(b.full_name));
-  }, [profilesMap, userRolesMap]);
+  }, [profilesMap, userRolesMap, role, user?.id, allProfilesList]);
 
   // ── Reassign lead mutation ────────────────────────────────────
   const reassignLead = useMutation({
@@ -444,7 +465,7 @@ const LeadsPage: React.FC = () => {
       
       const { data: lead, error: fetchErr } = await supabase
         .from('leads')
-        .select('name, assigned_to')
+        .select('name, assigned_to, team_lead_id')
         .eq('unique_id', leadId)
         .single();
       if (fetchErr) throw fetchErr;
@@ -452,10 +473,23 @@ const LeadsPage: React.FC = () => {
       const leadName = lead?.name || 'Lead';
       const oldAssignee = lead?.assigned_to;
 
+      // Determine the correct team lead ID
+      let teamLeadId = user!.id;
+      if (role !== 'SALES_TL') {
+        const targetRole = userRolesMap?.[userId];
+        if (targetRole === 'SALES_TL') {
+          teamLeadId = userId;
+        } else {
+          const tmProfile = (allProfilesList || []).find(p => p.user_id === userId);
+          teamLeadId = tmProfile?.reports_to || lead?.team_lead_id || userId;
+        }
+      }
+
       const { error } = await supabase.from('leads').update({ 
         assigned_to: userId,
-        assignment_type: type,
-        team_lead_id: userId
+        assignment_type: type || 'Personal',
+        team_lead_id: teamLeadId,
+        assigned_at: new Date().toISOString(),
       } as any).eq('unique_id', leadId);
       if (error) throw error;
 
@@ -465,11 +499,13 @@ const LeadsPage: React.FC = () => {
         action_type: 'OWNER_CHANGE',
         old_value: oldAssignee || 'Unassigned',
         new_value: userId,
-        comments: `Reassigned to ${type} Queue.`
+        comments: `Assigned to ${profilesMap?.[userId]?.full_name || 'Sales Person'} by ${profile?.full_name || 'TL'}.`
       });
 
       const adminsAndTls = (await supabase.from('user_roles').select('user_id').in('role', ['ADMIN', 'LEAD_TL'])).data?.map(r => r.user_id) || [];
       const targets = new Set<string>([...adminsAndTls, userId]);
+      if (lead?.team_lead_id) targets.add(lead.team_lead_id);
+      if (teamLeadId) targets.add(teamLeadId);
       
       const salesName = profilesMap?.[userId]?.full_name || 'Salesperson';
       const performerName = profile?.full_name || 'System';
@@ -489,7 +525,9 @@ const LeadsPage: React.FC = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
-      toast.success('Lead reassigned successfully!');
+      queryClient.invalidateQueries({ queryKey: ['salestl-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      toast.success('Lead assigned successfully!');
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -1263,8 +1301,8 @@ const LeadsPage: React.FC = () => {
                               </Button>
                             )}
 
-                            {/* Reassign Dropdown (only for Admin and LEAD_TL) */}
-                            {(role === 'ADMIN' || role === 'LEAD_TL') && (
+                            {/* Quick Assign / Reassign Dropdown (for Admin, LEAD_TL, and SALES_TL) */}
+                            {(role === 'ADMIN' || role === 'LEAD_TL' || role === 'SALES_TL') && (
                               <div className="relative reassign-dropdown-container">
                                 <Button
                                   size="sm"
@@ -1272,9 +1310,13 @@ const LeadsPage: React.FC = () => {
                                   disabled={reassignLead.isPending}
                                   onClick={() => setReassigningLeadId(reassigningLeadId === lead.unique_id ? null : lead.unique_id)}
                                   className="text-blue-500 hover:text-blue-600 hover:bg-blue-500/10"
-                                  title="Reassign Lead"
+                                  title={role === 'SALES_TL' ? "Assign to Sales Member" : "Reassign Lead"}
                                 >
-                                  <RefreshCw className={`h-3.5 w-3.5 ${reassignLead.isPending && reassigningLeadId === lead.unique_id ? 'animate-spin' : ''}`} />
+                                  {role === 'SALES_TL' ? (
+                                    <UserPlus className={`h-3.5 w-3.5 ${reassignLead.isPending && reassigningLeadId === lead.unique_id ? 'animate-spin' : ''}`} />
+                                  ) : (
+                                    <RefreshCw className={`h-3.5 w-3.5 ${reassignLead.isPending && reassigningLeadId === lead.unique_id ? 'animate-spin' : ''}`} />
+                                  )}
                                 </Button>
                                 {reassigningLeadId === lead.unique_id && (
                                   <ReassignDropdownMenu
