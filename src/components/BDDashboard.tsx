@@ -40,7 +40,6 @@ const BDDashboard: React.FC = () => {
   const [bdMemberFilter, setBdMemberFilter] = useState('all');
   const [queueTab, setQueueTab] = useState('pending'); // 'pending' or 'all'
   const [nameSearch, setNameSearch] = useState('');
-  const [localSearch, setLocalSearch] = useState('');
   const [globalSalesMemberFilter, setGlobalSalesMemberFilter] = useState('all');
   const [globalLeadGenFilter, setGlobalLeadGenFilter] = useState('all');
   const [leadsPage, setLeadsPage] = useState(1);
@@ -49,14 +48,6 @@ const BDDashboard: React.FC = () => {
   React.useEffect(() => {
     setLeadsPage(1);
   }, [viewMode, monthFilter, dateFrom, dateTo, statusFilter, bdMemberFilter, queueTab, nameSearch, globalSalesMemberFilter, globalLeadGenFilter]);
-
-  // Debounce search input to avoid lag
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      setNameSearch(localSearch);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [localSearch]);
 
   // ── Data Fetching ───────────────────────────────────────
   const { data: leads, isLoading } = useQuery({

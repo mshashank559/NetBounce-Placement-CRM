@@ -45,7 +45,6 @@ const BDMemberDashboard: React.FC = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [nameSearch, setNameSearch] = useState('');
-  const [localSearch, setLocalSearch] = useState('');
   const [selectedGenerator, setSelectedGenerator] = useState('all');
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 50;
@@ -54,14 +53,6 @@ const BDMemberDashboard: React.FC = () => {
   useEffect(() => {
     setPage(1);
   }, [viewMode, monthFilter, dateFrom, dateTo, nameSearch, selectedGenerator]);
-
-  // Debounce search input to avoid lag
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setNameSearch(localSearch);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [localSearch]);
 
   // ── Concern Dialog State ─────────────────────────────────
   const [concernLead, setConcernLead] = useState<any>(null);
@@ -117,6 +108,9 @@ const BDMemberDashboard: React.FC = () => {
       };
     },
     enabled: !!user,
+    placeholderData: (previousData) => previousData,
+    staleTime: 3 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
   const filteredLeads = leadsResponse?.leads || [];

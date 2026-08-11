@@ -263,6 +263,7 @@ const LeadsPage: React.FC = () => {
       };
     },
     enabled: !!user && !!role,
+    placeholderData: (previousData) => previousData,
     staleTime: 3 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
@@ -1088,7 +1089,7 @@ const LeadsPage: React.FC = () => {
       {/* ── Leads Table ───────────────────────────────────────── */}
       <Card className="glass-card">
         <CardContent className="p-0">
-          {isLoading ? (
+          {(!leadsData && isLoading) ? (
             <div className="p-8 text-center text-muted-foreground">Loading leads...</div>
           ) : filtered.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">No leads found</div>
