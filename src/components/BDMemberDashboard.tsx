@@ -91,7 +91,11 @@ const BDMemberDashboard: React.FC = () => {
   const { data: leadsResponse, isLoading } = useQuery({
     queryKey: ['bd-member-leads-paginated', user?.id, viewMode, page, monthFilter, dateFrom, dateTo, nameSearch, selectedGenerator],
     queryFn: async () => {
-      let query = supabase.from('leads').select(LEAD_FIELDS, { count: 'exact' });
+      const isSearching = !!nameSearch.trim();
+      let query = isSearching
+        ? supabase.from('leads').select(LEAD_FIELDS)
+        : supabase.from('leads').select(LEAD_FIELDS, { count: 'exact' });
+
       if (viewMode === 'personal') {
         query = query.eq('lead_generated_by', user!.id);
       } else if (viewMode === 'global' && selectedGenerator !== 'all') {
@@ -99,7 +103,7 @@ const BDMemberDashboard: React.FC = () => {
       }
 
       // Apply smart targeted search filter
-      if (nameSearch.trim()) {
+      if (isSearching) {
         const raw = nameSearch.trim();
         const digitsOnly = raw.replace(/\D/g, '');
         const cleanStr = raw.replace(/\s+/g, '');
@@ -125,6 +129,17 @@ const BDMemberDashboard: React.FC = () => {
         }
 
         query = query.or(orConditions.join(','));
+
+        // Fast direct limit without count bottleneck
+        const { data, error } = await query
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (error) throw error;
+        return {
+          leads: data || [],
+          totalCount: data?.length || 0,
+        };
       }
 
       // Apply month filter
