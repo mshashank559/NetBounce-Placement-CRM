@@ -29,7 +29,20 @@ const AssignLeadsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLead, setSelectedLead] = useState<any>(null);
   const [selectedReassignTarget, setSelectedReassignTarget] = useState<Record<string, string>>({});
-  
+  const [bdMemberFilter, setBdMemberFilter] = useState<string>('all');
+
+  // Fetch all BD users (LEAD_GEN and LEAD_TL) for filter dropdown
+  const { data: bdUsers = [] } = useQuery({
+    queryKey: ['assign-bd-users'],
+    queryFn: async () => {
+      const { data: roles } = await supabase.from('user_roles').select('user_id').in('role', ['LEAD_GEN', 'LEAD_TL']);
+      if (!roles?.length) return [];
+      const userIds = roles.map(r => r.user_id);
+      const { data: profilesData } = await supabase.from('profiles').select('user_id, full_name').in('user_id', userIds);
+      return (profilesData || []).sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
+    },
+    enabled: !!user,
+  });
 
   const { data: unassignedLeads } = useQuery({
     queryKey: ['unassigned-leads'],
@@ -184,29 +197,41 @@ const AssignLeadsPage: React.FC = () => {
 
   const filteredUnassigned = useMemo(() => {
     if (!unassignedLeads) return [];
-    if (!searchQuery) return unassignedLeads;
+    let list = unassignedLeads;
+
+    if (bdMemberFilter !== 'all') {
+      list = list.filter(l => l.lead_generated_by === bdMemberFilter);
+    }
+
+    if (!searchQuery) return list;
     const q = searchQuery.toLowerCase().trim();
-    return unassignedLeads.filter(l => 
+    return list.filter(l => 
       l.name?.toLowerCase().includes(q) ||
       l.email?.toLowerCase().includes(q) ||
       l.phone?.toLowerCase().includes(q) ||
       l.display_id?.toLowerCase().includes(q) ||
       l.unique_id?.toLowerCase().includes(q)
     );
-  }, [unassignedLeads, searchQuery]);
+  }, [unassignedLeads, searchQuery, bdMemberFilter]);
 
   const filteredTeamQueue = useMemo(() => {
     if (!teamQueueLeads) return [];
-    if (!searchQuery) return teamQueueLeads;
+    let list = teamQueueLeads;
+
+    if (bdMemberFilter !== 'all') {
+      list = list.filter(l => l.lead_generated_by === bdMemberFilter);
+    }
+
+    if (!searchQuery) return list;
     const q = searchQuery.toLowerCase().trim();
-    return teamQueueLeads.filter(l => 
+    return list.filter(l => 
       l.name?.toLowerCase().includes(q) ||
       l.email?.toLowerCase().includes(q) ||
       l.phone?.toLowerCase().includes(q) ||
       l.display_id?.toLowerCase().includes(q) ||
       l.unique_id?.toLowerCase().includes(q)
     );
-  }, [teamQueueLeads, searchQuery]);
+  }, [teamQueueLeads, searchQuery, bdMemberFilter]);
 
   const assignMutation = useMutation({
     mutationFn: async ({ leadId, selection }: { leadId: string; selection: string }) => {
@@ -533,7 +558,7 @@ const AssignLeadsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
         <h1 className="text-2xl font-display font-bold">Assign Leads</h1>
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-          <div className="relative w-full sm:w-64">
+          <div className="relative w-full sm:w-60">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search name, id, email, phone..."
@@ -542,6 +567,19 @@ const AssignLeadsPage: React.FC = () => {
               className="pl-9 h-9 bg-accent/20"
             />
           </div>
+
+          <Select value={bdMemberFilter} onValueChange={setBdMemberFilter}>
+            <SelectTrigger className="w-48 h-9 text-xs bg-accent/20">
+              <SelectValue placeholder="All BD Members" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All BD Members</SelectItem>
+              {bdUsers.map(u => (
+                <SelectItem key={u.user_id} value={u.user_id}>{u.full_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           {(role === 'ADMIN' || role === 'LEAD_TL') && (
             <Button onClick={() => roundRobin.mutate()} disabled={roundRobin.isPending} className="nb-gradient h-9">
               <Shuffle className="h-4 w-4 mr-2" />
