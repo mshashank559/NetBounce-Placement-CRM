@@ -15,7 +15,7 @@ export const DebouncedSearchInput: React.FC<DebouncedSearchInputProps> = ({
   onChange,
   placeholder = 'Search by name, phone, email...',
   className = '',
-  debounceMs = 180,
+  debounceMs = 120,
 }) => {
   const [localValue, setLocalValue] = useState(externalValue || '');
   const inputRef = useRef<HTMLInputElement>(null);

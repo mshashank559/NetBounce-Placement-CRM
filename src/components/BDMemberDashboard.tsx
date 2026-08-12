@@ -98,23 +98,31 @@ const BDMemberDashboard: React.FC = () => {
         query = query.eq('lead_generated_by', selectedGenerator);
       }
 
-      // Apply search filter
+      // Apply smart targeted search filter
       if (nameSearch.trim()) {
         const raw = nameSearch.trim();
-        const s = `%${raw}%`;
-        const clean = `%${raw.replace(/\s+/g, '')}%`;
-        const digits = raw.replace(/\D/g, '');
-        const nbc = digits ? `%NBC${digits}%` : null;
+        const digitsOnly = raw.replace(/\D/g, '');
+        const cleanStr = raw.replace(/\s+/g, '');
+        const isNumeric = digitsOnly.length > 0 && /^\d+$/.test(raw.replace(/[\s\-\(\)\+]/g, ''));
 
-        const orConditions = [
-          `name.ilike.${s}`,
-          `email.ilike.${s}`,
-          `phone.ilike.${s}`,
-          `display_id.ilike.${s}`,
-          `display_id.ilike.${clean}`,
-        ];
-        if (nbc) orConditions.push(`display_id.ilike.${nbc}`);
-        if (digits.length >= 4) orConditions.push(`phone.ilike.%${digits}%`);
+        let orConditions: string[] = [];
+
+        if (isNumeric && digitsOnly.length >= 7) {
+          // Direct Phone Number index lookup
+          orConditions = [`phone.ilike.%${digitsOnly}%`, `phone.ilike.%${raw}%`];
+        } else if (/^nbc/i.test(cleanStr)) {
+          // Direct NBC ID index lookup
+          orConditions = [`display_id.ilike.%${cleanStr}%`, `display_id.ilike.%${raw}%`];
+        } else if (isNumeric && digitsOnly.length < 7) {
+          // Short number -> NBC ID or phone lookup
+          orConditions = [`display_id.ilike.%NBC${digitsOnly}%`, `display_id.ilike.%${digitsOnly}%`, `phone.ilike.%${digitsOnly}%`];
+        } else if (raw.includes('@')) {
+          // Direct Email index lookup
+          orConditions = [`email.ilike.%${raw}%`];
+        } else {
+          // Direct Name index lookup
+          orConditions = [`name.ilike.%${raw}%`, `display_id.ilike.%${cleanStr}%`];
+        }
 
         query = query.or(orConditions.join(','));
       }
