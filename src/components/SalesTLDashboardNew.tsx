@@ -998,40 +998,7 @@ const SalesTLDashboard: React.FC = () => {
         </Card>
       )}
 
-      {/* SECTION 7: Revenue Dashboard */}
-      {viewMode !== 'global' && (
-        <Card className="glass-card">
-          <CardHeader><CardTitle className="text-lg font-display flex items-center gap-2"><DollarSign className="h-5 w-5 text-amber-500" /> Revenue Dashboard</CardTitle></CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-              <div className="p-4 rounded-lg bg-accent/30 text-center">
-                <p className="text-xs text-muted-foreground">Total Revenue</p>
-                <p className="text-2xl font-bold text-green-600">${revenue.toLocaleString()}</p>
-              </div>
-              <div className="p-4 rounded-lg bg-accent/30 text-center">
-                <p className="text-xs text-muted-foreground">Total Upfront</p>
-                <p className="text-2xl font-bold text-blue-600">${closureData.filter(c => filteredLeadIds.has(c.lead_id)).reduce((s, c) => s + (c.upfront_amount || 0), 0).toLocaleString()}</p>
-              </div>
-              <div className="p-4 rounded-lg bg-accent/30 text-center">
-                <p className="text-xs text-muted-foreground">Pending Slots</p>
-                <p className="text-2xl font-bold text-red-600">${closureData.filter(c => filteredLeadIds.has(c.lead_id)).reduce((s, c) => {
-                  const s1 = !c.slot1 ? (Number(c.slot1_amount) || 0) : 0;
-                  const s2 = !c.slot2 ? (Number(c.slot2_amount) || 0) : 0;
-                  let additional = 0;
-                  if (Array.isArray(c.additional_slots)) {
-                    c.additional_slots.forEach((slot: any) => {
-                      if (!slot.paid) {
-                        additional += Number(slot.amount) || 0;
-                      }
-                    });
-                  }
-                  return s + s1 + s2 + additional;
-                }, 0).toLocaleString()}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+
 
       {/* SECTION 4: All Team Leads Table */}
       <Card className="glass-card">
