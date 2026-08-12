@@ -72,8 +72,23 @@ const BDMemberDashboard: React.FC = () => {
 
       // Apply search filter
       if (nameSearch.trim()) {
-        const s = `%${nameSearch.trim()}%`;
-        query = query.or(`name.ilike.${s},email.ilike.${s},phone.ilike.${s},display_id.ilike.${s}`);
+        const raw = nameSearch.trim();
+        const s = `%${raw}%`;
+        const clean = `%${raw.replace(/\s+/g, '')}%`;
+        const digits = raw.replace(/\D/g, '');
+        const nbc = digits ? `%NBC${digits}%` : null;
+
+        const orConditions = [
+          `name.ilike.${s}`,
+          `email.ilike.${s}`,
+          `phone.ilike.${s}`,
+          `display_id.ilike.${s}`,
+          `display_id.ilike.${clean}`,
+        ];
+        if (nbc) orConditions.push(`display_id.ilike.${nbc}`);
+        if (digits.length >= 4) orConditions.push(`phone.ilike.%${digits}%`);
+
+        query = query.or(orConditions.join(','));
       }
 
       // Apply month filter
@@ -132,8 +147,23 @@ const BDMemberDashboard: React.FC = () => {
 
       // Apply search filter
       if (nameSearch.trim()) {
-        const s = `%${nameSearch.trim()}%`;
-        query = query.or(`name.ilike.${s},email.ilike.${s},phone.ilike.${s},display_id.ilike.${s}`);
+        const raw = nameSearch.trim();
+        const s = `%${raw}%`;
+        const clean = `%${raw.replace(/\s+/g, '')}%`;
+        const digits = raw.replace(/\D/g, '');
+        const nbc = digits ? `%NBC${digits}%` : null;
+
+        const orConditions = [
+          `name.ilike.${s}`,
+          `email.ilike.${s}`,
+          `phone.ilike.${s}`,
+          `display_id.ilike.${s}`,
+          `display_id.ilike.${clean}`,
+        ];
+        if (nbc) orConditions.push(`display_id.ilike.${nbc}`);
+        if (digits.length >= 4) orConditions.push(`phone.ilike.%${digits}%`);
+
+        query = query.or(orConditions.join(','));
       }
 
       // Apply month filter

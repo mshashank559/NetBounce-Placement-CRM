@@ -54,6 +54,13 @@ export const DebouncedSearchInput: React.FC<DebouncedSearchInputProps> = ({
     inputRef.current?.focus();
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      isTypingRef.current = false;
+      onChange(localValue);
+    }
+  };
+
   return (
     <div className={`relative ${className}`}>
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -63,6 +70,11 @@ export const DebouncedSearchInput: React.FC<DebouncedSearchInputProps> = ({
         placeholder={placeholder}
         value={localValue}
         onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
         className="pl-9 pr-8"
       />
       {localValue && (
