@@ -43,17 +43,39 @@ const BDTLDashboardPage: React.FC = () => {
     enabled: !!user,
   });
 
-  // ── Fetch only minimal columns needed for stats (no select('*')) ──
+  // ── Fetch all lead records with chunked pagination for accurate stats ──
   const { data: leadStats } = useQuery({
     queryKey: ['bd-tl-lead-stats'],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('leads')
-        .select('lead_generated_by, created_at');
-      return data || [];
+      let allLeads: { lead_generated_by: string | null; created_at: string }[] = [];
+      let from = 0;
+      const step = 1000;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('leads')
+          .select('lead_generated_by, created_at')
+          .order('created_at', { ascending: false })
+          .range(from, from + step - 1);
+          
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allLeads = [...allLeads, ...data];
+          if (data.length < step) {
+            hasMore = false;
+          } else {
+            from += step;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+      return allLeads;
     },
     enabled: !!user,
-    staleTime: 60_000, // cache for 1 minute — stats don't need to be live
+    staleTime: 30_000,
   });
 
   const [filterYear, filterMonth] = monthFilter.split('-').map(Number);
