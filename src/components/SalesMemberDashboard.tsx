@@ -556,17 +556,37 @@ const SalesMemberDashboard: React.FC = () => {
     enabled: !!user,
   });
 
+  // ── Strictly filter for actual CALL activities only (excluding Email, WhatsApp, etc.) ──
+  const actualCalls = useMemo(() => {
+    return followups.filter((f: any) => !f.way_of_contact || f.way_of_contact.trim().toUpperCase() === 'CALL');
+  }, [followups]);
+
   const today = getISTDateString(new Date());
   const activeLeads = statsLeads.filter(l => l.lead_status !== 'Closed').length;
   const closures = statsLeads.filter(l => l.lead_status === 'Closed').length;
-  const todayCalls = callLogs.filter(c => c.call_date === today).reduce((s, c) => s + (c.call_count || 0), 0);
+  
+  // Strictly count today's actual calls
+  const todayCalls = useMemo(() => {
+    return actualCalls.filter((c: any) => getISTDateString(c.created_at) === today).length;
+  }, [actualCalls, today]);
+
   const currentISTMonth = getISTYearAndMonth(new Date()).month;
   const targetMonth = parseInt(monthFilter === 'all' ? String(currentISTMonth) : monthFilter);
-  const monthCallLogs = callLogs.filter(c => {
-    const m = parseInt(c.call_date.split('-')[1], 10);
-    return m === targetMonth;
-  });
-  const monthlyCalls = monthCallLogs.reduce((s, c) => s + (c.call_count || 0), 0);
+  
+  // Strictly count monthly actual calls
+  const monthlyCalls = useMemo(() => {
+    return actualCalls.filter((c: any) => {
+      const istDate = getISTDateString(c.created_at);
+      if (dateFrom && istDate < dateFrom) return false;
+      if (dateTo && istDate > dateTo) return false;
+      if (monthFilter !== 'all') {
+        const { month } = getISTYearAndMonth(c.created_at);
+        return month === parseInt(monthFilter);
+      }
+      const { month } = getISTYearAndMonth(c.created_at);
+      return month === currentISTMonth;
+    }).length;
+  }, [actualCalls, currentISTMonth, monthFilter, dateFrom, dateTo]);
 
   // Calculate follow-up counts
   const dueTodayLeads = statsLeads.filter(l => 
@@ -623,14 +643,11 @@ const SalesMemberDashboard: React.FC = () => {
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const monthMap: Record<number, number> = {};
 
-      callLogs.forEach(c => {
-        if (!c.call_date) return;
-        const parts = c.call_date.split('-');
-        if (parts.length >= 2) {
-          const mIndex = parseInt(parts[1], 10) - 1;
-          if (mIndex >= 0 && mIndex < 12) {
-            monthMap[mIndex] = (monthMap[mIndex] || 0) + (c.call_count || 1);
-          }
+      actualCalls.forEach((c: any) => {
+        const { month } = getISTYearAndMonth(c.created_at);
+        const mIndex = month - 1;
+        if (mIndex >= 0 && mIndex < 12) {
+          monthMap[mIndex] = (monthMap[mIndex] || 0) + 1;
         }
       });
 
@@ -652,15 +669,16 @@ const SalesMemberDashboard: React.FC = () => {
       return { callTrend, statusBreakdown, title: 'Monthly Call Trend' };
     } else {
       const callMap: Record<string, number> = {};
-      callLogs.forEach(c => {
-        if (!c.call_date) return;
-        if (dateFrom && c.call_date < dateFrom) return;
-        if (dateTo && c.call_date > dateTo) return;
+      actualCalls.forEach((c: any) => {
+        const dateStr = getISTDateString(c.created_at);
+        if (!dateStr) return;
+        if (dateFrom && dateStr < dateFrom) return;
+        if (dateTo && dateStr > dateTo) return;
         if (monthFilter !== 'all') {
-          const m = parseInt(c.call_date.split('-')[1], 10);
-          if (m !== parseInt(monthFilter)) return;
+          const { month } = getISTYearAndMonth(c.created_at);
+          if (month !== parseInt(monthFilter)) return;
         }
-        callMap[c.call_date] = (callMap[c.call_date] || 0) + (c.call_count || 1);
+        callMap[dateStr] = (callMap[dateStr] || 0) + 1;
       });
 
       let dates = Object.keys(callMap).sort();
@@ -685,7 +703,7 @@ const SalesMemberDashboard: React.FC = () => {
 
       return { callTrend, statusBreakdown, title: 'Daily Call Trend' };
     }
-  }, [callLogs, statsLeads, monthFilter, dateFrom, dateTo]);
+  }, [actualCalls, statsLeads, monthFilter, dateFrom, dateTo]);
 
   const getName = (id: string | null) => profiles.find(p => p.user_id === id)?.full_name || '—';
 

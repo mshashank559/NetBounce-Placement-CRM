@@ -173,8 +173,9 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
 
       const todayDate = getISTDateString(new Date());
 
-      // 1. Log the call only if the communication method is 'Call'
-      if (wayOfContact.toLowerCase() === 'call') {
+      // 1. Log the call only if the communication method is 'Call' and not an email
+      const isActualCall = !emailSent && wayOfContact.trim().toLowerCase() === 'call';
+      if (isActualCall) {
         const { data: existing } = await supabase
           .from('call_logs')
           .select('*')
