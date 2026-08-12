@@ -267,12 +267,26 @@ const BDMemberDashboard: React.FC = () => {
     enabled: !!user,
   });
 
+  // ── Filter statsLeads by nameSearch if active so KPIs and charts dynamically update ──
+  const displayStatsLeads = useMemo(() => {
+    if (!nameSearch.trim()) return statsLeads;
+    const raw = nameSearch.trim().toLowerCase();
+    const digits = raw.replace(/\D/g, '');
+    return statsLeads.filter(l => {
+      const nameMatch = l.name?.toLowerCase().includes(raw);
+      const emailMatch = l.email?.toLowerCase().includes(raw);
+      const phoneMatch = digits.length >= 4 && (l.phone?.replace(/\D/g, '').includes(digits) || l.phone?.toLowerCase().includes(raw));
+      const idMatch = l.display_id?.toLowerCase().includes(raw) || (digits.length >= 2 && l.display_id?.toLowerCase().includes(digits));
+      return nameMatch || emailMatch || phoneMatch || idMatch;
+    });
+  }, [statsLeads, nameSearch]);
+
   // ── KPI Calculations ─────────────────────────────────────
-  const totalLeads = statsLeads.length;
+  const totalLeads = displayStatsLeads.length;
   // Use shift-window boundary (7:30 PM IST rollover) instead of calendar midnight
-  const newToday = statsLeads.filter(l => isInCurrentShift(l.created_at)).length;
-  const assignedLeads = statsLeads.filter(l => l.assigned_to !== null).length;
-  const closures = statsLeads.filter(l => l.lead_status === 'Closed').length;
+  const newToday = displayStatsLeads.filter(l => isInCurrentShift(l.created_at)).length;
+  const assignedLeads = displayStatsLeads.filter(l => l.assigned_to !== null).length;
+  const closures = displayStatsLeads.filter(l => l.lead_status === 'Closed').length;
 
   // ── Chart Data ───────────────────────────────────────────
   const chartData = useMemo(() => {
@@ -280,7 +294,7 @@ const BDMemberDashboard: React.FC = () => {
     const sourceMap: Record<string, number> = {};
     let hot = 0, cold = 0;
 
-    statsLeads.forEach(l => {
+    displayStatsLeads.forEach(l => {
       const date = getBDBusinessDate(l.created_at);
       dailyMap[date] = (dailyMap[date] || 0) + 1;
       const src = normalizeSource(l.lead_source);
@@ -298,7 +312,7 @@ const BDMemberDashboard: React.FC = () => {
     const categoryData = [{ name: 'Hot', value: hot }, { name: 'Cold', value: cold }];
 
     return { dailyTrend, sourceBreakdown, categoryData };
-  }, [statsLeads]);
+  }, [displayStatsLeads]);
 
   // ── Raise Concern ────────────────────────────────────────
   const raiseConcernMutation = useMutation({
