@@ -15,7 +15,7 @@ export const DebouncedSearchInput: React.FC<DebouncedSearchInputProps> = ({
   onChange,
   placeholder = 'Search by name, phone, email...',
   className = '',
-  debounceMs = 120,
+  debounceMs = 80,
 }) => {
   const [localValue, setLocalValue] = useState(externalValue || '');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -52,6 +52,15 @@ export const DebouncedSearchInput: React.FC<DebouncedSearchInputProps> = ({
     }
   };
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const text = e.clipboardData.getData('text');
+    if (text) {
+      isTypingRef.current = false;
+      setLocalValue(text);
+      onChange(text);
+    }
+  };
+
   const handleClear = () => {
     isTypingRef.current = false;
     setLocalValue('');
@@ -75,6 +84,7 @@ export const DebouncedSearchInput: React.FC<DebouncedSearchInputProps> = ({
         placeholder={placeholder}
         value={localValue}
         onChange={handleChange}
+        onPaste={handlePaste}
         onKeyDown={handleKeyDown}
         autoComplete="off"
         autoCorrect="off"

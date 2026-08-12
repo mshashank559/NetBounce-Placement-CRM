@@ -174,13 +174,29 @@ const BDMemberDashboard: React.FC = () => {
       };
     },
     enabled: !!user,
-    placeholderData: (previousData) => previousData,
     staleTime: 3 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
 
-  const filteredLeads = leadsResponse?.leads || [];
-  const totalCount = leadsResponse?.totalCount || 0;
+  // ── Dual-Layer Instant In-Memory Filter for 0ms visual rendering ──
+  const filteredLeads = useMemo(() => {
+    const serverLeads = leadsResponse?.leads || [];
+    if (!nameSearch.trim()) return serverLeads;
+
+    const raw = nameSearch.trim().toLowerCase();
+    const digits = raw.replace(/\D/g, '');
+    const inMem = serverLeads.filter((l: any) => {
+      const nameMatch = l.name?.toLowerCase().includes(raw);
+      const emailMatch = l.email?.toLowerCase().includes(raw);
+      const phoneMatch = digits.length >= 4 && (l.phone?.replace(/\D/g, '').includes(digits) || l.phone?.toLowerCase().includes(raw));
+      const idMatch = l.display_id?.toLowerCase().includes(raw) || (digits.length >= 2 && l.display_id?.toLowerCase().includes(digits));
+      return nameMatch || emailMatch || phoneMatch || idMatch;
+    });
+
+    return inMem.length > 0 ? inMem : serverLeads;
+  }, [leadsResponse?.leads, nameSearch]);
+
+  const totalCount = nameSearch.trim() ? filteredLeads.length : (leadsResponse?.totalCount || 0);
 
   // ── Fetch lightweight lead records for KPIs and charts ──
   const { data: statsLeads = [] } = useQuery({
