@@ -83,6 +83,7 @@ const SalesMemberDashboard: React.FC = () => {
   const [globalSalesMemberFilter, setGlobalSalesMemberFilter] = useState('all');
   const [selectedGenerator, setSelectedGenerator] = useState('all');
   const [page, setPage] = useState(1);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const PAGE_SIZE = 50;
 
   // Reset page to 1 whenever any filter changes
@@ -294,10 +295,11 @@ const SalesMemberDashboard: React.FC = () => {
   const { data: leadsResponse, isLoading } = useQuery({
     queryKey: ['sm-leads-paginated', user?.id, viewMode, page, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, globalSalesTLFilter, globalSalesMemberFilter, selectedGenerator, teamUserIds],
     queryFn: async () => {
-      // Auto-trigger stagnant leads scan
-      await supabase.rpc('update_stagnant_leads');
+      const isSearching = !!nameSearch.trim();
+      let query = isSearching 
+        ? supabase.from('leads').select('*')
+        : supabase.from('leads').select('*', { count: 'exact' });
 
-      let query = supabase.from('leads').select('*', { count: 'exact' });
       if (viewMode === 'personal') {
         query = query.eq('assigned_to', user!.id);
       } else if (viewMode === 'global') {
@@ -306,10 +308,38 @@ const SalesMemberDashboard: React.FC = () => {
         query = query.in('assigned_to', teamUserIds.length > 0 ? teamUserIds : [user!.id]);
       }
 
-      // Apply search filter
-      if (nameSearch.trim()) {
-        const s = `%${nameSearch.trim()}%`;
-        query = query.or(`name.ilike.${s},email.ilike.${s},phone.ilike.${s},display_id.ilike.${s}`);
+      // Apply smart targeted search filter
+      if (isSearching) {
+        const raw = nameSearch.trim();
+        const digitsOnly = raw.replace(/\D/g, '');
+        const cleanStr = raw.replace(/\s+/g, '');
+        const isNumeric = digitsOnly.length > 0 && /^\d+$/.test(raw.replace(/[\s\-\(\)\+]/g, ''));
+
+        let orConditions: string[] = [];
+
+        if (isNumeric && digitsOnly.length >= 7) {
+          orConditions = [`phone.ilike.%${digitsOnly}%`, `phone.ilike.%${raw}%`];
+        } else if (/^nbc/i.test(cleanStr)) {
+          orConditions = [`display_id.ilike.%${cleanStr}%`, `display_id.ilike.%${raw}%`];
+        } else if (isNumeric && digitsOnly.length < 7) {
+          orConditions = [`display_id.ilike.%NBC${digitsOnly}%`, `display_id.ilike.%${digitsOnly}%`, `phone.ilike.%${digitsOnly}%`];
+        } else if (raw.includes('@')) {
+          orConditions = [`email.ilike.%${raw}%`];
+        } else {
+          orConditions = [`name.ilike.%${raw}%`, `display_id.ilike.%${cleanStr}%`];
+        }
+
+        query = query.or(orConditions.join(','));
+
+        const { data, error } = await query
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (error) throw error;
+        return {
+          leads: data || [],
+          totalCount: data?.length || 0,
+        };
       }
 
       // Apply status filter
@@ -360,14 +390,38 @@ const SalesMemberDashboard: React.FC = () => {
       };
     },
     enabled: !!user,
+    placeholderData: (previousData) => previousData,
+    staleTime: 3 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
-  const filteredLeads = leadsResponse?.leads || [];
-  const totalCount = leadsResponse?.totalCount || 0;
+  useEffect(() => {
+    if (leadsResponse) setHasLoadedOnce(true);
+  }, [leadsResponse]);
+
+  // ── Dual-Layer Instant In-Memory Filter for 0ms visual rendering ──
+  const filteredLeads = useMemo(() => {
+    const serverLeads = leadsResponse?.leads || [];
+    if (!nameSearch.trim()) return serverLeads;
+
+    const raw = nameSearch.trim().toLowerCase();
+    const digits = raw.replace(/\D/g, '');
+    const inMem = serverLeads.filter((l: any) => {
+      const nameMatch = l.name?.toLowerCase().includes(raw);
+      const emailMatch = l.email?.toLowerCase().includes(raw);
+      const phoneMatch = digits.length >= 4 && (l.phone?.replace(/\D/g, '').includes(digits) || l.phone?.toLowerCase().includes(raw));
+      const idMatch = l.display_id?.toLowerCase().includes(raw) || (digits.length >= 2 && l.display_id?.toLowerCase().includes(digits));
+      return nameMatch || emailMatch || phoneMatch || idMatch;
+    });
+
+    return inMem.length > 0 ? inMem : serverLeads;
+  }, [leadsResponse?.leads, nameSearch]);
+
+  const totalCount = nameSearch.trim() ? filteredLeads.length : (leadsResponse?.totalCount || 0);
 
   // ── Fetch lightweight lead records for KPIs and charts ──
   const { data: statsLeads = [] } = useQuery({
-    queryKey: ['sm-leads-stats', user?.id, viewMode, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, globalSalesTLFilter, globalSalesMemberFilter, selectedGenerator, teamUserIds],
+    queryKey: ['sm-leads-stats', user?.id, viewMode, monthFilter, dateFrom, dateTo, statusFilter, globalSalesTLFilter, globalSalesMemberFilter, selectedGenerator, teamUserIds],
     queryFn: async () => {
       // Auto-trigger stagnant leads scan
       await supabase.rpc('update_stagnant_leads');

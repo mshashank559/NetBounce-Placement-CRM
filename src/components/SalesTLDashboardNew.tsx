@@ -300,12 +300,13 @@ const SalesTLDashboard: React.FC = () => {
       const istDateStr = getISTDateString(l.created_at);
       if (dateFrom && istDateStr < dateFrom) return false;
       if (dateTo && istDateStr > dateTo) return false;
-      if (nameSearch) {
-        const query = nameSearch.toLowerCase();
-        const matchesName = l.name?.toLowerCase().includes(query);
-        const matchesEmail = l.email?.toLowerCase().includes(query);
-        const matchesPhone = l.phone?.toLowerCase().includes(query);
-        const matchesId = String(l.display_id || '').toLowerCase().includes(query) || String(l.unique_id || '').toLowerCase().includes(query);
+      if (nameSearch.trim()) {
+        const raw = nameSearch.trim().toLowerCase();
+        const digits = raw.replace(/\D/g, '');
+        const matchesName = l.name?.toLowerCase().includes(raw);
+        const matchesEmail = l.email?.toLowerCase().includes(raw);
+        const matchesPhone = digits.length >= 4 ? (l.phone?.replace(/\D/g, '').includes(digits) || l.phone?.toLowerCase().includes(raw)) : l.phone?.toLowerCase().includes(raw);
+        const matchesId = String(l.display_id || '').toLowerCase().includes(raw) || (digits.length >= 2 && String(l.display_id || '').toLowerCase().includes(digits)) || String(l.unique_id || '').toLowerCase().includes(raw);
         if (!matchesName && !matchesEmail && !matchesPhone && !matchesId) return false;
       }
       if (statusFilter !== 'all' && l.lead_status !== statusFilter) return false;

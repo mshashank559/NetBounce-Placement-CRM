@@ -14,6 +14,7 @@ import { useLocation } from 'react-router-dom';
 import LeadDetailDialog from '@/components/LeadDetailDialog';
 import { getWorkingDaysDifference } from '@/lib/dateUtils';
 import { fetchAllLeads } from '@/lib/leads';
+import { DebouncedSearchInput } from '@/components/ui/DebouncedSearchInput';
 
 const AssignLeadsPage: React.FC = () => {
   const { role, user, profile } = useAuth();
@@ -203,15 +204,16 @@ const AssignLeadsPage: React.FC = () => {
       list = list.filter(l => l.lead_generated_by === bdMemberFilter);
     }
 
-    if (!searchQuery) return list;
-    const q = searchQuery.toLowerCase().trim();
-    return list.filter(l => 
-      l.name?.toLowerCase().includes(q) ||
-      l.email?.toLowerCase().includes(q) ||
-      l.phone?.toLowerCase().includes(q) ||
-      l.display_id?.toLowerCase().includes(q) ||
-      l.unique_id?.toLowerCase().includes(q)
-    );
+    if (!searchQuery.trim()) return list;
+    const raw = searchQuery.trim().toLowerCase();
+    const digits = raw.replace(/\D/g, '');
+    return list.filter(l => {
+      const nameMatch = l.name?.toLowerCase().includes(raw);
+      const emailMatch = l.email?.toLowerCase().includes(raw);
+      const phoneMatch = digits.length >= 4 ? (l.phone?.replace(/\D/g, '').includes(digits) || l.phone?.toLowerCase().includes(raw)) : l.phone?.toLowerCase().includes(raw);
+      const idMatch = String(l.display_id || '').toLowerCase().includes(raw) || (digits.length >= 2 && String(l.display_id || '').toLowerCase().includes(digits)) || String(l.unique_id || '').toLowerCase().includes(raw);
+      return nameMatch || emailMatch || phoneMatch || idMatch;
+    });
   }, [unassignedLeads, searchQuery, bdMemberFilter]);
 
   const filteredTeamQueue = useMemo(() => {
@@ -222,15 +224,16 @@ const AssignLeadsPage: React.FC = () => {
       list = list.filter(l => l.lead_generated_by === bdMemberFilter);
     }
 
-    if (!searchQuery) return list;
-    const q = searchQuery.toLowerCase().trim();
-    return list.filter(l => 
-      l.name?.toLowerCase().includes(q) ||
-      l.email?.toLowerCase().includes(q) ||
-      l.phone?.toLowerCase().includes(q) ||
-      l.display_id?.toLowerCase().includes(q) ||
-      l.unique_id?.toLowerCase().includes(q)
-    );
+    if (!searchQuery.trim()) return list;
+    const raw = searchQuery.trim().toLowerCase();
+    const digits = raw.replace(/\D/g, '');
+    return list.filter(l => {
+      const nameMatch = l.name?.toLowerCase().includes(raw);
+      const emailMatch = l.email?.toLowerCase().includes(raw);
+      const phoneMatch = digits.length >= 4 ? (l.phone?.replace(/\D/g, '').includes(digits) || l.phone?.toLowerCase().includes(raw)) : l.phone?.toLowerCase().includes(raw);
+      const idMatch = String(l.display_id || '').toLowerCase().includes(raw) || (digits.length >= 2 && String(l.display_id || '').toLowerCase().includes(digits)) || String(l.unique_id || '').toLowerCase().includes(raw);
+      return nameMatch || emailMatch || phoneMatch || idMatch;
+    });
   }, [teamQueueLeads, searchQuery, bdMemberFilter]);
 
   const assignMutation = useMutation({
@@ -558,15 +561,12 @@ const AssignLeadsPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
         <h1 className="text-2xl font-display font-bold">Assign Leads</h1>
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-          <div className="relative w-full sm:w-60">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search name, id, email, phone..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-9 bg-accent/20"
-            />
-          </div>
+          <DebouncedSearchInput
+            placeholder="Search name, id, email, phone..."
+            value={searchQuery}
+            onChange={setSearchQuery}
+            className="w-full sm:w-60"
+          />
 
           <Select value={bdMemberFilter} onValueChange={setBdMemberFilter}>
             <SelectTrigger className="w-48 h-9 text-xs bg-accent/20">
