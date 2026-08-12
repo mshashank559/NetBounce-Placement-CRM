@@ -53,8 +53,9 @@ export const DebouncedSearchInput: React.FC<DebouncedSearchInputProps> = ({
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
     const text = e.clipboardData.getData('text');
-    if (text) {
+    if (text !== undefined) {
       isTypingRef.current = false;
       setLocalValue(text);
       onChange(text);
