@@ -563,65 +563,75 @@ const AssignLeadsPage: React.FC = () => {
               </p>
             ) : (
               <div className="space-y-3">
-                {filteredUnassigned.map((lead) => (
-                  <div
-                    key={lead.unique_id}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-accent/30 gap-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-medium text-sm truncate">{lead.name}</p>
-                      <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                        <span className="text-xs text-muted-foreground truncate">{lead.email} · {lead.phone}</span>
-                        {lead.lead_source && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-500/10 text-blue-500">{lead.lead_source}</span>
-                        )}
-                        {lead.lead_category && (
-                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                            lead.lead_category === 'Hot' ? 'bg-orange-500/10 text-orange-500' : 'bg-slate-500/10 text-slate-400'
-                          }`}>{lead.lead_category}</span>
-                        )}
+                {filteredUnassigned.map((lead) => {
+                  const generatorName = (lead as any).generated_by_name || (lead.lead_generated_by && profilesMap?.[lead.lead_generated_by]?.full_name);
+                  return (
+                    <div
+                      key={lead.unique_id}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-accent/30 gap-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-sm truncate">{lead.name}</p>
+                          {generatorName && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                              By: {generatorName}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                          <span className="text-xs text-muted-foreground truncate">{lead.email} · {lead.phone}</span>
+                          {lead.lead_source && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-500/10 text-blue-500">{lead.lead_source}</span>
+                          )}
+                          {lead.lead_category && (
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                              lead.lead_category === 'Hot' ? 'bg-orange-500/10 text-orange-500' : 'bg-slate-500/10 text-slate-400'
+                            }`}>{lead.lead_category}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Select
+                          value={selectedSales[lead.unique_id] || ''}
+                          onValueChange={(v) => setSelectedSales(prev => ({ ...prev, [lead.unique_id]: v }))}
+                        >
+                          <SelectTrigger className="w-48 h-8 text-xs">
+                            <SelectValue placeholder="Select salesperson" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {salesMembers?.filter(m => {
+                              // If Admin or BD TL, only show Sales TLs
+                              if (role === 'ADMIN' || role === 'LEAD_TL') return m.role === 'SALES_TL';
+                              // If Sales TL, only show their team members (already filtered in query)
+                              return true;
+                            }).map(m => 
+                              m.role === 'SALES_TL' ? (
+                                <React.Fragment key={m.user_id}>
+                                  <SelectItem value={`${m.user_id}_Personal`}>{m.full_name} -- Personal</SelectItem>
+                                  <SelectItem value={`${m.user_id}_Team`}>{m.full_name} -- Team</SelectItem>
+                                </React.Fragment>
+                              ) : (
+                                <SelectItem key={`${m.user_id}_Personal`} value={`${m.user_id}_Personal`}>{m.full_name} -- Personal</SelectItem>
+                              )
+                            )}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={!selectedSales[lead.unique_id]}
+                          onClick={() => {
+                            assignMutation.mutate({ leadId: lead.unique_id, selection: selectedSales[lead.unique_id] });
+                            setSelectedSales(prev => { const n = { ...prev }; delete n[lead.unique_id]; return n; });
+                          }}
+                        >
+                          <UserPlus className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Select
-                        value={selectedSales[lead.unique_id] || ''}
-                        onValueChange={(v) => setSelectedSales(prev => ({ ...prev, [lead.unique_id]: v }))}
-                      >
-                        <SelectTrigger className="w-48 h-8 text-xs">
-                          <SelectValue placeholder="Select salesperson" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {salesMembers?.filter(m => {
-                            // If Admin or BD TL, only show Sales TLs
-                            if (role === 'ADMIN' || role === 'LEAD_TL') return m.role === 'SALES_TL';
-                            // If Sales TL, only show their team members (already filtered in query)
-                            return true;
-                          }).map(m => 
-                            m.role === 'SALES_TL' ? (
-                              <React.Fragment key={m.user_id}>
-                                <SelectItem value={`${m.user_id}_Personal`}>{m.full_name} -- Personal</SelectItem>
-                                <SelectItem value={`${m.user_id}_Team`}>{m.full_name} -- Team</SelectItem>
-                              </React.Fragment>
-                            ) : (
-                              <SelectItem key={`${m.user_id}_Personal`} value={`${m.user_id}_Personal`}>{m.full_name} -- Personal</SelectItem>
-                            )
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={!selectedSales[lead.unique_id]}
-                        onClick={() => {
-                          assignMutation.mutate({ leadId: lead.unique_id, selection: selectedSales[lead.unique_id] });
-                          setSelectedSales(prev => { const n = { ...prev }; delete n[lead.unique_id]; return n; });
-                        }}
-                      >
-                        <UserPlus className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
@@ -651,61 +661,71 @@ const AssignLeadsPage: React.FC = () => {
               </p>
             ) : (
               <div className="space-y-3">
-                {filteredTeamQueue.map((lead) => (
-                  <div
-                    key={lead.unique_id}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-accent/30 gap-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-medium text-sm truncate">{lead.name}</p>
-                      <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                        <span className="text-xs text-muted-foreground truncate">{lead.email} · {lead.phone}</span>
-                        {lead.lead_source && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-500/10 text-blue-500">{lead.lead_source}</span>
-                        )}
-                        {lead.lead_category && (
-                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                            lead.lead_category === 'Hot' ? 'bg-orange-500/10 text-orange-500' : 'bg-slate-500/10 text-slate-400'
-                          }`}>{lead.lead_category}</span>
-                        )}
+                {filteredTeamQueue.map((lead) => {
+                  const generatorName = (lead as any).generated_by_name || (lead.lead_generated_by && profilesMap?.[lead.lead_generated_by]?.full_name);
+                  return (
+                    <div
+                      key={lead.unique_id}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-accent/30 gap-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-sm truncate">{lead.name}</p>
+                          {generatorName && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                              By: {generatorName}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                          <span className="text-xs text-muted-foreground truncate">{lead.email} · {lead.phone}</span>
+                          {lead.lead_source && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-500/10 text-blue-500">{lead.lead_source}</span>
+                          )}
+                          {lead.lead_category && (
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                              lead.lead_category === 'Hot' ? 'bg-orange-500/10 text-orange-500' : 'bg-slate-500/10 text-slate-400'
+                            }`}>{lead.lead_category}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Select
+                          value={selectedTeamMember[lead.unique_id] || ''}
+                          onValueChange={(v) => setSelectedTeamMember(prev => ({ ...prev, [lead.unique_id]: v }))}
+                        >
+                          <SelectTrigger className="w-48 h-8 text-xs">
+                            <SelectValue placeholder="Select salesperson" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(role === 'SALES_TL' || role === 'ADMIN') && activeTlId && profilesMap?.[activeTlId] && (
+                              <>
+                                <SelectItem value={activeTlId}>
+                                  {profilesMap[activeTlId].full_name} (Assign to Me / Self)
+                                </SelectItem>
+                                <SelectSeparator />
+                              </>
+                            )}
+                            {salesMembers?.filter(m => m.role === 'SALES_TM' && m.user_id !== activeTlId).map(m => (
+                              <SelectItem key={m.user_id} value={m.user_id}>{m.full_name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={!selectedTeamMember[lead.unique_id] || assignTeamLeadMutation.isPending}
+                          onClick={() => {
+                            assignTeamLeadMutation.mutate({ leadId: lead.unique_id, salesUserId: selectedTeamMember[lead.unique_id] });
+                            setSelectedTeamMember(prev => { const n = { ...prev }; delete n[lead.unique_id]; return n; });
+                          }}
+                        >
+                          <UserPlus className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Select
-                        value={selectedTeamMember[lead.unique_id] || ''}
-                        onValueChange={(v) => setSelectedTeamMember(prev => ({ ...prev, [lead.unique_id]: v }))}
-                      >
-                        <SelectTrigger className="w-48 h-8 text-xs">
-                          <SelectValue placeholder="Select salesperson" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(role === 'SALES_TL' || role === 'ADMIN') && activeTlId && profilesMap?.[activeTlId] && (
-                            <>
-                              <SelectItem value={activeTlId}>
-                                {profilesMap[activeTlId].full_name} (Assign to Me / Self)
-                              </SelectItem>
-                              <SelectSeparator />
-                            </>
-                          )}
-                          {salesMembers?.filter(m => m.role === 'SALES_TM' && m.user_id !== activeTlId).map(m => (
-                            <SelectItem key={m.user_id} value={m.user_id}>{m.full_name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={!selectedTeamMember[lead.unique_id] || assignTeamLeadMutation.isPending}
-                        onClick={() => {
-                          assignTeamLeadMutation.mutate({ leadId: lead.unique_id, salesUserId: selectedTeamMember[lead.unique_id] });
-                          setSelectedTeamMember(prev => { const n = { ...prev }; delete n[lead.unique_id]; return n; });
-                        }}
-                      >
-                        <UserPlus className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
