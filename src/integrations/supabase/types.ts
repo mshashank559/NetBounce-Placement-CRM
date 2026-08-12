@@ -265,6 +265,7 @@ export type Database = {
           updated_at: string
           visa_status: string | null
           next_followup_date: string | null
+          generated_by_name: string | null
         }
         Insert: {
           agreement_sent_at?: string | null
@@ -301,6 +302,7 @@ export type Database = {
           updated_at?: string
           visa_status?: string | null
           next_followup_date?: string | null
+          generated_by_name?: string | null
         }
         Update: {
           agreement_sent_at?: string | null
@@ -337,6 +339,7 @@ export type Database = {
           updated_at?: string
           visa_status?: string | null
           next_followup_date?: string | null
+          generated_by_name?: string | null
         }
         Relationships: []
       }
