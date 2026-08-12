@@ -59,11 +59,39 @@ const BDMemberDashboard: React.FC = () => {
   const [concernText, setConcernText] = useState('');
   const [concernRecipient, setConcernRecipient] = useState('');
 
+  const LEAD_FIELDS = 'unique_id, display_id, name, email, phone, linkedin_url, university, technology, lead_source, lead_category, lead_status, assigned_to, created_at, lead_generated_by, generated_by_name, concern, dnr_followup_done, dnr_followup_done_at, dnr_followup_done_by, visa_status, time_for_call, timezone, lead_type, referee_name, resume_url, comment';
+
+  // ── Prefetch Global View in background for instant 0ms tab switching ──
+  useEffect(() => {
+    if (user && viewMode === 'personal') {
+      queryClient.prefetchQuery({
+        queryKey: ['bd-member-leads-paginated', user.id, 'global', 1, monthFilter, dateFrom, dateTo, '', 'all'],
+        queryFn: async () => {
+          let query = supabase.from('leads').select(LEAD_FIELDS, { count: 'exact' });
+          if (monthFilter !== 'all') {
+            const year = getISTYearAndMonth(new Date()).year;
+            const monthNum = parseInt(monthFilter);
+            const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01T04:30:00+05:30`;
+            const lastDay = new Date(year, monthNum, 0).getDate();
+            const endDate = `${getNextDayString(`${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`)}T04:30:00+05:30`;
+            query = query.gte('created_at', startDate).lte('created_at', endDate);
+          }
+          const { data, count, error } = await query
+            .order('created_at', { ascending: false })
+            .range(0, PAGE_SIZE - 1);
+          if (error) throw error;
+          return { leads: data || [], totalCount: count || 0 };
+        },
+        staleTime: 5 * 60 * 1000,
+      });
+    }
+  }, [user, viewMode, monthFilter, dateFrom, dateTo, queryClient]);
+
   // ── Fetch leads (paginated) ──────────────────────────────
   const { data: leadsResponse, isLoading } = useQuery({
     queryKey: ['bd-member-leads-paginated', user?.id, viewMode, page, monthFilter, dateFrom, dateTo, nameSearch, selectedGenerator],
     queryFn: async () => {
-      let query = supabase.from('leads').select('*', { count: 'exact' });
+      let query = supabase.from('leads').select(LEAD_FIELDS, { count: 'exact' });
       if (viewMode === 'personal') {
         query = query.eq('lead_generated_by', user!.id);
       } else if (viewMode === 'global' && selectedGenerator !== 'all') {
@@ -377,7 +405,7 @@ const BDMemberDashboard: React.FC = () => {
     return profiles.find(p => p.user_id === id)?.full_name || 'Unknown';
   };
 
-  if (isLoading) return <div className="p-8 text-center text-muted-foreground">Loading your dashboard...</div>;
+  if (!leadsResponse && isLoading) return <div className="p-8 text-center text-muted-foreground">Loading your dashboard...</div>;
 
   return (
     <div className="space-y-8 pb-12">
