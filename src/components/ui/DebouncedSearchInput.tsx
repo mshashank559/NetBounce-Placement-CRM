@@ -15,7 +15,7 @@ export const DebouncedSearchInput: React.FC<DebouncedSearchInputProps> = ({
   onChange,
   placeholder = 'Search by name, phone, email...',
   className = '',
-  debounceMs = 350,
+  debounceMs = 180,
 }) => {
   const [localValue, setLocalValue] = useState(externalValue || '');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -44,7 +44,12 @@ export const DebouncedSearchInput: React.FC<DebouncedSearchInputProps> = ({
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     isTypingRef.current = true;
-    setLocalValue(e.target.value);
+    const val = e.target.value;
+    setLocalValue(val);
+    if (!val.trim()) {
+      isTypingRef.current = false;
+      onChange('');
+    }
   };
 
   const handleClear = () => {
