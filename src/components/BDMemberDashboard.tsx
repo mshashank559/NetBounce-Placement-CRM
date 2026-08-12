@@ -47,6 +47,7 @@ const BDMemberDashboard: React.FC = () => {
   const [nameSearch, setNameSearch] = useState('');
   const [selectedGenerator, setSelectedGenerator] = useState('all');
   const [page, setPage] = useState(1);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const PAGE_SIZE = 50;
 
   // Reset page to 1 whenever any filter changes
@@ -174,9 +175,14 @@ const BDMemberDashboard: React.FC = () => {
       };
     },
     enabled: !!user,
+    placeholderData: (previousData) => previousData,
     staleTime: 3 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
+
+  useEffect(() => {
+    if (leadsResponse) setHasLoadedOnce(true);
+  }, [leadsResponse]);
 
   // ── Dual-Layer Instant In-Memory Filter for 0ms visual rendering ──
   const filteredLeads = useMemo(() => {
@@ -425,7 +431,7 @@ const BDMemberDashboard: React.FC = () => {
     return profiles.find(p => p.user_id === id)?.full_name || 'Unknown';
   };
 
-  if (!leadsResponse && isLoading) return <div className="p-8 text-center text-muted-foreground">Loading your dashboard...</div>;
+  if (!hasLoadedOnce && isLoading) return <div className="p-8 text-center text-muted-foreground">Loading your dashboard...</div>;
 
   return (
     <div className="space-y-8 pb-12">
