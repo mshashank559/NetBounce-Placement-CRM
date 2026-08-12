@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Users, Plus } from 'lucide-react';
 
-import { getISTYearAndMonth, isInCurrentShift, getBDBusinessDate } from '@/lib/dateUtils';
+import { getISTYearAndMonth, getISTDateString, isInCurrentShift, getBDBusinessDate, getShiftStart } from '@/lib/dateUtils';
 import { recordAuthActivity } from '@/lib/auditLogger';
 
 const BDTLDashboardPage: React.FC = () => {
@@ -24,9 +24,21 @@ const BDTLDashboardPage: React.FC = () => {
     }
   }, [user, role]);
 
+  const monthOptions = useMemo(() => {
+    const options = [];
+    for (let i = 0; i < 12; i++) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      options.push({ val, label });
+    }
+    return options;
+  }, []);
+
   const [monthFilter, setMonthFilter] = useState(() => {
-    const saved = localStorage.getItem('netbounce_crm_month_filter_yyyy_mm');
-    if (saved) return saved;
+    const saved = localStorage.getItem('netbounce_crm_bd_perf_month_key');
+    if (saved && /^\d{4}-\d{2}$/.test(saved)) return saved;
     const { year, month } = getISTYearAndMonth(new Date());
     return `${year}-${String(month).padStart(2, '0')}`;
   });
@@ -34,11 +46,11 @@ const BDTLDashboardPage: React.FC = () => {
   const { data: bdMembers } = useQuery({
     queryKey: ['bd-members-perf'],
     queryFn: async () => {
-      const { data: roles } = await supabase.from('user_roles').select('user_id').eq('role', 'LEAD_GEN');
+      const { data: roles } = await supabase.from('user_roles').select('user_id').in('role', ['LEAD_GEN', 'LEAD_TL']);
       if (!roles) return [];
       const userIds = roles.map(r => r.user_id);
       const { data: profiles } = await supabase.from('profiles').select('*').in('user_id', userIds);
-      return profiles || [];
+      return (profiles || []).sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
     },
     enabled: !!user,
   });
@@ -78,18 +90,40 @@ const BDTLDashboardPage: React.FC = () => {
     staleTime: 30_000,
   });
 
-  const [filterYear, filterMonth] = monthFilter.split('-').map(Number);
-
   const memberStats = useMemo(() => {
     if (!bdMembers) return [];
+
+    let fYear: number;
+    let fMonth: number;
+    if (monthFilter && monthFilter.includes('-')) {
+      const [y, m] = monthFilter.split('-').map(Number);
+      fYear = y || new Date().getFullYear();
+      fMonth = m || (new Date().getMonth() + 1);
+    } else {
+      const { year, month } = getISTYearAndMonth(new Date());
+      fYear = year;
+      fMonth = month;
+    }
+
+    const todayDateStr = getISTDateString(new Date());
+    const shiftStart = getShiftStart();
+
     return bdMembers.map(member => {
       const memberLeads = leadStats?.filter(l => l.lead_generated_by === member.user_id) || [];
-      // Use shift-window boundary (7:30 PM IST rollover) instead of calendar midnight
-      const leadsToday = memberLeads.filter(l => isInCurrentShift(l.created_at)).length;
+      
+      // Leads today: created during current shift OR today in IST
+      const leadsToday = memberLeads.filter(l => {
+        if (!l.created_at) return false;
+        const d = new Date(l.created_at);
+        const lDateStr = getISTDateString(l.created_at);
+        return d >= shiftStart || lDateStr === todayDateStr || isInCurrentShift(l.created_at);
+      }).length;
+
+      // Leads in the selected month:
       const leadsMonth = memberLeads.filter(l => {
-        const bdDate = getBDBusinessDate(l.created_at);
-        const [y, m] = bdDate.split('-').map(Number);
-        return y === filterYear && m === filterMonth;
+        if (!l.created_at) return false;
+        const { year, month } = getISTYearAndMonth(l.created_at);
+        return year === fYear && month === fMonth;
       }).length;
 
       return {
@@ -99,28 +133,25 @@ const BDTLDashboardPage: React.FC = () => {
         leadsMonth,
       };
     });
-  }, [bdMembers, leadStats, filterYear, filterMonth]);
+  }, [bdMembers, leadStats, monthFilter]);
 
   if (role !== 'LEAD_TL' && role !== 'ADMIN') {
     return <div className="text-center text-muted-foreground p-8">Access denied</div>;
-  }
-
-  const monthOptions = [];
-  for (let i = 0; i < 12; i++) {
-    const d = new Date();
-    d.setMonth(d.getMonth() - i);
-    const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    monthOptions.push({ val, label });
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-display font-bold">BD Team Performance</h1>
-        <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); localStorage.setItem('netbounce_crm_month_filter_yyyy_mm', v); }}>
-          <SelectTrigger className="w-48">
-            <SelectValue />
+        <Select 
+          value={monthFilter} 
+          onValueChange={(v) => { 
+            setMonthFilter(v); 
+            localStorage.setItem('netbounce_crm_bd_perf_month_key', v); 
+          }}
+        >
+          <SelectTrigger className="w-48 h-9 bg-accent/20">
+            <SelectValue placeholder="Select Month" />
           </SelectTrigger>
           <SelectContent>
             {monthOptions.map(o => (

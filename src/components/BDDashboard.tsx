@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { Users, TrendingUp, CheckCircle, Plus, AlertTriangle, UserPlus, Shuffle, Clock, Eye } from 'lucide-react';
 import LeadDetailDialog from './LeadDetailDialog';
-import { getISTYearAndMonth, getISTDateString, formatToISTDateString, isInCurrentShift, getBDBusinessDate, getNextDayString } from '@/lib/dateUtils';
+import { getISTYearAndMonth, getISTDateString, formatToISTDateString, isInCurrentShift, getBDBusinessDate, getNextDayString, getShiftStart } from '@/lib/dateUtils';
 import { useDeferredRender } from '@/hooks/useDeferredRender';
 import { DebouncedSearchInput } from '@/components/ui/DebouncedSearchInput';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
@@ -194,17 +194,27 @@ const BDDashboard: React.FC = () => {
   // ── Team Performance Overview (Section 2) ────────────────
   const teamMetrics = useMemo(() => {
     if (!profiles || !leads || !user) return [];
-    // Only map BD Team Members reporting to this TL
-    const bdUsers = profiles.filter(p => p.reports_to === user.id);
+    const reportingUsers = profiles.filter(p => p.reports_to === user.id);
+    const bdUsers = reportingUsers.length > 0 ? reportingUsers : profiles;
     
+    const todayDateStr = getISTDateString(new Date());
+    const shiftStart = getShiftStart();
+    const currentMonthNum = parseInt(getBDBusinessDate(new Date()).split('-')[1], 10);
+    const targetMonth = monthFilter === 'all' ? currentMonthNum : parseInt(monthFilter, 10);
+
     return bdUsers.map(p => {
       const pLeads = leads.filter(l => l.lead_generated_by === p.user_id);
-      const dailyAdded = pLeads.filter(l => isInCurrentShift(l.created_at)).length;
-      const targetMonth = monthFilter === 'all' ? parseInt(getBDBusinessDate(new Date()).split('-')[1], 10) : parseInt(monthFilter);
+      const dailyAdded = pLeads.filter(l => {
+        if (!l.created_at) return false;
+        const d = new Date(l.created_at);
+        const lDateStr = getISTDateString(l.created_at);
+        return d >= shiftStart || lDateStr === todayDateStr || isInCurrentShift(l.created_at);
+      }).length;
+      
       const monthlyAdded = pLeads.filter(l => {
-        const bdDate = getBDBusinessDate(l.created_at);
-        const m = parseInt(bdDate.split('-')[1], 10);
-        return m === targetMonth;
+        if (!l.created_at) return false;
+        const { month } = getISTYearAndMonth(l.created_at);
+        return month === targetMonth;
       }).length;
       const converted = pLeads.filter(l => l.lead_status === 'Closed').length;
 
