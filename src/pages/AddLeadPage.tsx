@@ -122,7 +122,7 @@ const AddLeadPage: React.FC = () => {
 
       // ── Mandatory field validation ───────────────────────────
       if (!form.technology.trim()) throw new Error('Technology / Domain is mandatory');
-      if (!form.lead_source.trim()) throw new Error('Lead Source is mandatory');
+      if (form.lead_type !== 'Reference' && !form.lead_source.trim()) throw new Error('Lead Source is mandatory');
 
       // BD must add comment
       if ((role === 'LEAD_GEN' || role === 'LEAD_TL') && !form.comment.trim()) {
@@ -141,7 +141,7 @@ const AddLeadPage: React.FC = () => {
         lead_category: form.lead_category,
         lead_type: form.lead_type,
         referee_name: form.lead_type === 'Reference' ? form.referee_name : null,
-        lead_source: normalizeSource(form.lead_source),
+        lead_source: form.lead_source?.trim() ? normalizeSource(form.lead_source) : (form.lead_type === 'Reference' ? 'Reference' : null),
         resume_url: form.resume_url || null,
         comment: form.comment || null,
         concern: form.concern,
@@ -383,8 +383,13 @@ const AddLeadPage: React.FC = () => {
                 </div>
               )}
               <div>
-                <Label>Lead Source *</Label>
-                <Input value={form.lead_source} onChange={e => set('lead_source', e.target.value)} required placeholder="LinkedIn, OPT Nation, etc." />
+                <Label>Lead Source {form.lead_type !== 'Reference' && '*'}</Label>
+                <Input 
+                  value={form.lead_source} 
+                  onChange={e => set('lead_source', e.target.value)} 
+                  required={form.lead_type !== 'Reference'} 
+                  placeholder={form.lead_type === 'Reference' ? 'Optional (e.g. LinkedIn, Referral)' : 'LinkedIn, OPT Nation, etc.'} 
+                />
               </div>
               <div>
                 <Label>Visa Status</Label>
