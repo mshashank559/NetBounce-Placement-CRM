@@ -60,7 +60,7 @@ const BDMemberDashboard: React.FC = () => {
   const [concernText, setConcernText] = useState('');
   const [concernRecipient, setConcernRecipient] = useState('');
 
-  const LEAD_FIELDS = 'unique_id, display_id, name, email, phone, linkedin_url, university, technology, lead_source, lead_category, lead_status, assigned_to, created_at, lead_generated_by, generated_by_name, concern, dnr_followup_done, dnr_followup_done_at, dnr_followup_done_by, visa_status, time_for_call, timezone, lead_type, referee_name, resume_url, comment';
+  const LEAD_FIELDS = 'unique_id, display_id, name, email, phone, linkedin_url, university, technology, lead_source, lead_category, lead_status, assigned_to, created_at, updated_at, lead_generated_by, generated_by_name, concern, dnr_followup_done, dnr_followup_done_at, dnr_followup_done_by, visa_status, time_for_call, timezone, lead_type, referee_name, resume_url, comment';
 
   // ── Prefetch Global View in background for instant 0ms tab switching ──
   useEffect(() => {
@@ -685,7 +685,7 @@ const BDMemberDashboard: React.FC = () => {
                     </td>
                     {/* Last Activity */}
                     <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">
-                      {new Date(lead.updated_at).toLocaleDateString()}
+                      {(lead as any).updated_at ? new Date((lead as any).updated_at).toLocaleDateString() : '—'}
                     </td>
                     {/* Comment - READ ONLY view */}
                     <td className="p-2 text-xs max-w-[120px]">
