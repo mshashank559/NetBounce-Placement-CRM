@@ -173,9 +173,9 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
 
       const todayDate = getISTDateString(new Date());
 
-      // 1. Log the call only if the communication method is 'Call' and not an email
-      const isActualCall = !emailSent && wayOfContact.trim().toLowerCase() === 'call';
-      if (isActualCall) {
+      // 1. Log the call only if the communication method is 'Call' (Way of Contact is source of truth)
+      const isCallContact = wayOfContact.trim().toLowerCase() === 'call';
+      if (isCallContact) {
         const { data: existing } = await supabase
           .from('call_logs')
           .select('*')
@@ -198,12 +198,12 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
         }
       }
 
-      // 2. Insert follow-up record
+      // 2. Insert follow-up record — wayOfContact is the source of truth
       await supabase.from('followups').insert({
         lead_id: lead.unique_id,
         user_id: user!.id,
         notes: notes.trim(),
-        way_of_contact: emailSent ? 'Email' : wayOfContact,
+        way_of_contact: wayOfContact,
       });
 
       // 3. Update lead status and next follow-up date

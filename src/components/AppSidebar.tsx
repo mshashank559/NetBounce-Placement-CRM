@@ -24,7 +24,7 @@ const navItems: NavItem[] = [
   { label: 'Add Lead', icon: Plus, path: '/leads/new', roles: ['ADMIN', 'LEAD_GEN', 'LEAD_TL', 'SALES_TM', 'SALES_TL'] },
   { label: 'Leads', icon: Users, path: '/leads', roles: ['ADMIN', 'PROCESS_ANALYST', 'LEAD_TL', 'LEAD_GEN', 'SALES_TL', 'SALES_TM'] },
   { label: 'Assign Leads', icon: UserCog, path: '/assign', roles: ['ADMIN', 'LEAD_TL', 'SALES_TL'] },
-  { label: 'Assignment Analysis', icon: PieChart, path: '/assignment-analysis', roles: ['ADMIN', 'LEAD_TL'] },
+  { label: 'Assignment Analysis', icon: PieChart, path: '/assignment-analysis', roles: ['LEAD_TL'] },
   { label: 'Call Tracker', icon: Phone, path: '/calls', roles: ['SALES_TM', 'SALES_TL', 'ADMIN', 'PROCESS_ANALYST'] },
   { label: 'Sales Performance', icon: UsersRound, path: '/sales-performance', roles: ['SALES_TL', 'ADMIN'] },
   { label: 'BD Performance', icon: UsersRound, path: '/bd-performance', roles: ['LEAD_TL', 'ADMIN'] },
