@@ -588,14 +588,17 @@ const LeadsPage: React.FC = () => {
       const oldAssigneeId = lead.assigned_to;
       const teamLeadId = lead.team_lead_id;
 
-      // 2. Clear assignment on lead
+      const salespersonProfile = allProfilesList?.find(p => p.user_id === oldAssigneeId);
+      const salesTLId = teamLeadId || salespersonProfile?.reports_to;
+
+      // 2. Route lead to Reassignment Pool (assignment_type = 'Reassign', preserve salesTLId)
       const { error: updateErr } = await supabase
         .from('leads')
         .update({
           assigned_to: null,
-          assignment_type: null,
-          team_lead_id: null,
-          assigned_at: null
+          assignment_type: 'Reassign',
+          team_lead_id: salesTLId || null,
+          assigned_at: new Date().toISOString()
         } as any)
         .eq('unique_id', leadId);
       if (updateErr) throw updateErr;

@@ -65,7 +65,9 @@ const AssignLeadsPage: React.FC = () => {
         if (error) throw error;
         
         if (data && data.length > 0) {
-          allLeads = [...allLeads, ...data];
+          // Genuinely fresh unassigned leads (exclude explicit Reassign pool leads)
+          const freshLeads = data.filter(l => l.assignment_type !== 'Reassign');
+          allLeads = [...allLeads, ...freshLeads];
           if (data.length < step) {
             hasMore = false;
           } else {
@@ -113,7 +115,19 @@ const AssignLeadsPage: React.FC = () => {
       };
 
       return (allLeads || [])
-        .filter(lead => lead.assigned_to && !['closed', 'enrolled', 'won', 'lost'].includes((lead.lead_status || '').toLowerCase()))
+        .filter(lead => {
+          if (['closed', 'enrolled', 'won', 'lost'].includes((lead.lead_status || '').toLowerCase())) return false;
+          // Case 1: Explicitly sent to Reassignment pool by Admin
+          if (lead.assignment_type === 'Reassign') return true;
+          // Case 2: Currently assigned lead exceeding aging threshold
+          if (lead.assigned_to) {
+            const threshold = getStatusThreshold(lead.lead_status);
+            const lastActionDate = lead.updated_at || lead.assigned_at || lead.created_at;
+            const days = lastActionDate ? getWorkingDaysDifference(lastActionDate, new Date()) : 100;
+            return days >= threshold;
+          }
+          return false;
+        })
         .map(lead => {
           const threshold = getStatusThreshold(lead.lead_status);
           const lastActionDate = lead.updated_at || lead.assigned_at || lead.created_at;
@@ -121,7 +135,6 @@ const AssignLeadsPage: React.FC = () => {
           
           return { ...lead, aging_days: days, threshold };
         })
-        .filter(lead => lead && lead.aging_days >= lead.threshold)
         .sort((a, b) => b.aging_days - a.aging_days);
     },
     enabled: !!user,
@@ -131,9 +144,13 @@ const AssignLeadsPage: React.FC = () => {
     if (!agingLeads) return [];
     if (role === 'SALES_TL' || activeTlId) {
       return agingLeads.filter(lead => {
-        if (!lead.assigned_to) return false;
-        const assignee = profilesMap?.[lead.assigned_to];
-        return assignee?.reports_to === activeTlId;
+        // If lead was reassigned specifically under this TL's queue
+        if (lead.team_lead_id === activeTlId) return true;
+        if (lead.assigned_to) {
+          const assignee = profilesMap?.[lead.assigned_to];
+          return assignee?.reports_to === activeTlId;
+        }
+        return false;
       });
     }
     return agingLeads;
@@ -797,6 +814,7 @@ const AssignLeadsPage: React.FC = () => {
                 <tbody>
                   {filteredAgingLeads.map((lead) => {
                     const assignedProfile = lead.assigned_to && profilesMap?.[lead.assigned_to];
+                    const tlProfile = lead.team_lead_id && profilesMap?.[lead.team_lead_id];
                     const targetVal = selectedReassignTarget[lead.unique_id] || '';
                     return (
                       <tr key={lead.unique_id} className="border-b border-border/50 hover:bg-accent/30 transition-colors">
@@ -814,8 +832,13 @@ const AssignLeadsPage: React.FC = () => {
                               <p className="text-xs font-semibold text-foreground">{assignedProfile.full_name}</p>
                               <p className="text-xs text-muted-foreground">{assignedProfile.email}</p>
                             </div>
+                          ) : tlProfile ? (
+                            <div>
+                              <span className="text-xs font-semibold text-orange-600 bg-orange-500/10 px-1.5 py-0.5 rounded">Reassign Pool</span>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">TL: {tlProfile.full_name}</p>
+                            </div>
                           ) : (
-                            <span className="text-xs text-muted-foreground italic">Unassigned</span>
+                            <span className="text-xs text-muted-foreground italic">Reassign Pool</span>
                           )}
                         </td>
                         <td className="p-3">
