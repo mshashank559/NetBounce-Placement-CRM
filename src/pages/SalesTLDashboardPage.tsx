@@ -200,7 +200,7 @@ const SalesTLDashboardPage: React.FC = () => {
         let hasPaidSlot = false;
         const paidSlotsSummary: string[] = [];
 
-        // 1. Slot 1 (If slot1 is marked as paid)
+        // 1. Slot 1 (Only if slot1 is explicitly marked as Paid)
         const isSlot1Paid = c.slot1 === true || c.slot1 === 'true';
         if (isSlot1Paid && Number(c.slot1_amount) > 0) {
           const slot1Date = c.slot1_due_date || c.created_at;
@@ -213,7 +213,7 @@ const SalesTLDashboardPage: React.FC = () => {
           paidSlotsSummary.push(`S1: $${Number(c.slot1_amount).toLocaleString()} (Unpaid)`);
         }
 
-        // 2. Slot 2 (If slot2 is marked as paid)
+        // 2. Slot 2 (Only if slot2 is explicitly marked as Paid)
         const isSlot2Paid = c.slot2 === true || c.slot2 === 'true';
         if (isSlot2Paid && Number(c.slot2_amount) > 0) {
           const slot2Date = c.next_slot_due_date || c.created_at;
@@ -226,7 +226,7 @@ const SalesTLDashboardPage: React.FC = () => {
           paidSlotsSummary.push(`S2: $${Number(c.slot2_amount).toLocaleString()} (Unpaid)`);
         }
 
-        // 3. Additional Slots
+        // 3. Additional Slots (Only if slot.paid is explicitly true)
         if (Array.isArray(c.additional_slots)) {
           c.additional_slots.forEach((slot: any, idx: number) => {
             const slotNum = slot.slot_number || (idx + 3);
@@ -244,38 +244,19 @@ const SalesTLDashboardPage: React.FC = () => {
           });
         }
 
-        // 4. Upfront Amount:
-        // If neither slot1 nor slot2 was marked paid, but upfront_amount was paid
+        // 4. Upfront Display Info (Header metadata only)
         if (Number(c.upfront_amount) > 0) {
-          if (!isSlot1Paid && !isSlot2Paid) {
-            const upfrontDate = c.created_at;
-            if (isDateInRange(upfrontDate)) {
-              leadPaidRevenue += Number(c.upfront_amount);
-              hasPaidSlot = true;
-            }
-            paidSlotsSummary.unshift(`Upfront: $${Number(c.upfront_amount).toLocaleString()} (Paid)`);
-          } else {
-            paidSlotsSummary.unshift(`Upfront: $${Number(c.upfront_amount).toLocaleString()}`);
-          }
-        }
-
-        // 5. Fallback: If closure amount exists and no other slot breakdown
-        if (leadPaidRevenue === 0 && !hasPaidSlot && Number(c.amount) > 0 && paidSlotsSummary.length === 0) {
-          if (isDateInRange(c.created_at)) {
-            leadPaidRevenue += Number(c.amount);
-            hasPaidSlot = true;
-            paidSlotsSummary.push(`Amount: $${Number(c.amount).toLocaleString()} (Paid)`);
-          }
+          paidSlotsSummary.unshift(`Upfront: $${Number(c.upfront_amount).toLocaleString()}`);
         }
 
         // Check if any payment was recognized in range or overall
-        if (hasPaidSlot || (leadPaidRevenue > 0)) {
+        if (hasPaidSlot && leadPaidRevenue > 0) {
           paidLeadIds.add(c.lead_id || c.id);
           totalRevenue += leadPaidRevenue;
         }
 
         // If this closure has any paid slots, include in the display list
-        const isOverallPaid = isSlot1Paid || isSlot2Paid || (Number(c.upfront_amount) > 0) || (Array.isArray(c.additional_slots) && c.additional_slots.some((s: any) => s.paid === true));
+        const isOverallPaid = isSlot1Paid || isSlot2Paid || (Array.isArray(c.additional_slots) && c.additional_slots.some((s: any) => s.paid === true || s.paid === 'true'));
         if (hasPaidSlot || (!dateFrom && !dateTo && isOverallPaid)) {
           paidClosureItems.push({
             ...c,
