@@ -4,17 +4,16 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Phone, Users, CheckCircle, DollarSign, RefreshCw, Eye, LayoutDashboard, User } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Phone, Users, CheckCircle, DollarSign, Calendar, Eye, ShieldAlert } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-
 import { getISTYearAndMonth, getISTDateString } from '@/lib/dateUtils';
 import { recordAuthActivity } from '@/lib/auditLogger';
 
 const SalesTLDashboardPage: React.FC = () => {
   const { user, role } = useAuth();
-  const [viewMode, setViewMode] = useState('team'); // 'personal' or 'team'
+  const [viewMode, setViewMode] = useState<'personal' | 'team'>('team');
 
   React.useEffect(() => {
     if (user && role === 'ADMIN') {
@@ -27,221 +26,227 @@ const SalesTLDashboardPage: React.FC = () => {
     }
   }, [user, role]);
 
-  const [monthFilter, setMonthFilter] = useState(() => {
-    const saved = localStorage.getItem('netbounce_crm_month_filter_yyyy_mm');
-    if (saved) return saved;
+  // ── Date Range Calendar Filter (Default: Current Month) ──
+  const [dateFrom, setDateFrom] = useState(() => {
     const { year, month } = getISTYearAndMonth(new Date());
-    return `${year}-${String(month).padStart(2, '0')}`;
+    return `${year}-${String(month).padStart(2, '0')}-01`;
+  });
+  const [dateTo, setDateTo] = useState(() => {
+    const { year, month } = getISTYearAndMonth(new Date());
+    const lastDay = new Date(year, month, 0).getDate();
+    return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
   });
 
-  const { data: salesMembers } = useQuery({
-    queryKey: ['sales-members-perf', user?.id],
+  // Helper to check if a date string falls inside [dateFrom, dateTo] in IST
+  const isDateInRange = (dateInput: string | null | undefined) => {
+    if (!dateInput) return false;
+    const istDate = getISTDateString(dateInput);
+    if (dateFrom && istDate < dateFrom) return false;
+    if (dateTo && istDate > dateTo) return false;
+    return true;
+  };
+
+  // ── 1. Fetch authorized sales profiles based on role hierarchy ──
+  const { data: salesMembers = [] } = useQuery({
+    queryKey: ['sales-members-perf', user?.id, role],
     queryFn: async () => {
+      if (!user) return [];
       const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('role', ['SALES_TM', 'SALES_TL']);
       if (!roles) return [];
       const userIds = roles.map(r => r.user_id);
-      
+
       let query = supabase.from('profiles').select('*').in('user_id', userIds);
-      if (role !== 'ADMIN') {
-        query = query.or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
+      if (role === 'SALES_TM') {
+        // Sales Member: strictly own profile
+        query = query.eq('user_id', user.id);
+      } else if (role === 'SALES_TL') {
+        // Sales TL: strictly own profile + mapped team members
+        query = query.or(`reports_to.eq.${user.id},user_id.eq.${user.id}`);
       }
-      
+      // ADMIN gets all sales profiles
+
       const { data: profiles } = await query;
-      return profiles || [];
+      return (profiles || []).sort((a, b) => {
+        if (a.user_id === user.id) return -1;
+        if (b.user_id === user.id) return 1;
+        return (a.full_name || '').localeCompare(b.full_name || '');
+      });
     },
     enabled: !!user && !!role,
   });
 
-  const { data: allLeads } = useQuery({
-    queryKey: ['sales-tl-leads', user?.id, role],
+  const memberUserIds = useMemo(() => salesMembers.map(m => m.user_id), [salesMembers]);
+
+  // ── 2. Fetch leads assigned to authorized users ──
+  const { data: allLeads = [] } = useQuery({
+    queryKey: ['sales-tl-leads', user?.id, role, memberUserIds],
     queryFn: async () => {
+      if (!user || memberUserIds.length === 0) return [];
       let query = supabase
         .from('leads')
-        .select('unique_id, lead_status, assigned_to, team_lead_id, created_at');
-      if (role === 'SALES_TL') {
-        const { data: teamProfiles } = await supabase
-          .from('profiles')
-          .select('user_id')
-          .or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
-        const teamUserIds = teamProfiles?.map(p => p.user_id) || [user!.id];
-        query = query.or(`assigned_to.in.(${teamUserIds.join(',')}),team_lead_id.eq.${user!.id}`);
+        .select('unique_id, lead_status, assigned_to, team_lead_id, created_at, updated_at');
+      if (role !== 'ADMIN') {
+        query = query.in('assigned_to', memberUserIds);
       }
       const { data } = await query;
       return data || [];
     },
-    enabled: !!user && !!role,
+    enabled: !!user && !!role && memberUserIds.length > 0,
     staleTime: 60_000,
   });
 
-  const { data: callLogs } = useQuery({
-    queryKey: ['sales-tl-calls', user?.id, role],
+  const leadIds = useMemo(() => allLeads.map(l => l.unique_id), [allLeads]);
+
+  // ── 3. Fetch call activities strictly for authorized users ──
+  const { data: callActivities = [] } = useQuery({
+    queryKey: ['sales-perf-calls', user?.id, role, memberUserIds],
     queryFn: async () => {
-      let query = supabase.from('call_logs').select('*');
-      if (role === 'SALES_TL') {
-        const { data: teamProfiles } = await supabase
-          .from('profiles')
-          .select('user_id')
-          .or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
-        const teamUserIds = teamProfiles?.map(p => p.user_id) || [user!.id];
-        const { data: leadsInTeam } = await supabase
-          .from('leads')
-          .select('unique_id')
-          .or(`assigned_to.in.(${teamUserIds.join(',')}),team_lead_id.eq.${user!.id}`);
-        const teamLeadIds = leadsInTeam?.map(l => l.unique_id) || [];
-        if (teamLeadIds.length === 0) return [];
-        query = query.in('lead_id', teamLeadIds);
-      }
-      const { data } = await query;
+      if (!user || memberUserIds.length === 0) return [];
+      const { data } = await supabase
+        .from('followups')
+        .select('id, user_id, lead_id, created_at, way_of_contact')
+        .in('user_id', memberUserIds);
       return data || [];
     },
-    enabled: !!user && !!role,
+    enabled: !!user && !!role && memberUserIds.length > 0,
   });
 
-  const { data: closures } = useQuery({
-    queryKey: ['sales-tl-closures', user?.id, role],
+  // ── 4. Fetch lead closures strictly for accessible leads ──
+  const { data: closures = [] } = useQuery({
+    queryKey: ['sales-perf-closures', user?.id, role, leadIds],
     queryFn: async () => {
-      let query = supabase.from('lead_closures').select('*');
-      if (role === 'SALES_TL') {
-        const { data: teamProfiles } = await supabase
-          .from('profiles')
-          .select('user_id')
-          .or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
-        const teamUserIds = teamProfiles?.map(p => p.user_id) || [user!.id];
-        const { data: leadsInTeam } = await supabase
-          .from('leads')
-          .select('unique_id')
-          .or(`assigned_to.in.(${teamUserIds.join(',')}),team_lead_id.eq.${user!.id}`);
-        const teamLeadIds = leadsInTeam?.map(l => l.unique_id) || [];
-        if (teamLeadIds.length === 0) return [];
-        query = query.in('lead_id', teamLeadIds);
-      }
-      const { data } = await query;
+      if (!user || leadIds.length === 0) return [];
+      const { data } = await supabase
+        .from('lead_closures')
+        .select('*')
+        .in('lead_id', leadIds);
       return data || [];
     },
-    enabled: !!user && !!role,
+    enabled: !!user && !!role && leadIds.length > 0,
   });
 
-  const [filterYear, filterMonth] = monthFilter.split('-').map(Number);
-
+  // ── 5. Calculate per-member KPIs using real DB records & Mark-as-Paid truth ──
   const memberStats = useMemo(() => {
-    if (!salesMembers) return [];
+    if (!salesMembers.length) return [];
+    const today = getISTDateString(new Date());
+
     return salesMembers.map(member => {
-      const memberLeads = allLeads?.filter(l => l.assigned_to === member.user_id) || [];
-      const memberCalls = callLogs?.filter(c => c.user_id === member.user_id) || [];
-
-      const today = getISTDateString(new Date());
-      const todayCalls = memberCalls
-        .filter(c => c.call_date === today)
-        .reduce((s, c) => s + (c.call_count || 0), 0);
-      const monthlyCalls = memberCalls.filter(c => {
-        const parts = c.call_date.split('-');
-        const y = parseInt(parts[0], 10);
-        const m = parseInt(parts[1], 10);
-        return y === filterYear && m === filterMonth;
-      }).reduce((s, c) => s + (c.call_count || 0), 0);
-
-      const leadsToday = memberLeads.filter(l => getISTDateString(l.created_at) === today).length;
+      const memberLeads = allLeads.filter(l => l.assigned_to === member.user_id);
       
-      const monthlyLeads = memberLeads.filter(l => {
-        const ist = getISTYearAndMonth(l.created_at);
-        return ist.year === filterYear && ist.month === filterMonth;
+      // Actual calls only (excluding emails/WhatsApp)
+      const memberCalls = callActivities.filter(c => {
+        const isCall = !c.way_of_contact || c.way_of_contact.trim().toUpperCase() === 'CALL';
+        return c.user_id === member.user_id && isCall;
       });
-      const leadsMonth = monthlyLeads.length;
 
-      // Status breakdown for leads created in the selected month
+      const todayCalls = memberCalls.filter(c => getISTDateString(c.created_at) === today).length;
+      const totalCalls = memberCalls.filter(c => isDateInRange(c.created_at)).length;
+
+      // Status breakdown for all active leads assigned to member
       const statusBreakdown: Record<string, number> = {};
-      monthlyLeads.forEach(l => {
+      memberLeads.forEach(l => {
         const s = l.lead_status || 'New';
         statusBreakdown[s] = (statusBreakdown[s] || 0) + 1;
       });
 
-      // Monthly closures for leads closed in the selected month
-      const memberClosures = closures?.filter(c => {
-        const lead = allLeads?.find(l => l.unique_id === c.lead_id);
-        if (!lead || lead.assigned_to !== member.user_id || lead.lead_status !== 'Closed') return false;
-        const closureDate = c.created_at || lead.created_at;
-        const ist = getISTYearAndMonth(closureDate);
-        return ist.year === filterYear && ist.month === filterMonth;
-      }) || [];
+      // ── Closures & Revenue Calculation strictly based on Mark as Paid ──
+      const memberLeadIds = new Set(memberLeads.map(l => l.unique_id));
+      const memberClosureRecords = closures.filter(c => memberLeadIds.has(c.lead_id));
 
-      // Helper function to check if a date falls in the selected month
-      const matchesMonth = (dateStr: string | null | undefined) => {
-        if (!dateStr) return false;
-        const ist = getISTYearAndMonth(dateStr);
-        return ist.year === filterYear && ist.month === filterMonth;
-      };
+      let totalRevenue = 0;
+      const paidClosureItems: any[] = [];
+      const paidLeadIds = new Set<string>();
 
-      // Calculate total revenue recognized strictly in the selected month
-      const memberAllClosedLeads = closures?.filter(c => {
-        const lead = allLeads?.find(l => l.unique_id === c.lead_id);
-        return lead && lead.assigned_to === member.user_id && lead.lead_status === 'Closed';
-      }) || [];
+      memberClosureRecords.forEach(c => {
+        let leadPaidRevenueInRange = 0;
+        const paidSlotsSummary: string[] = [];
 
-      const totalRevenue = memberAllClosedLeads.reduce((s, c) => {
-        let upfront = 0;
-        let s1 = 0;
-        let s2 = 0;
-        let additional = 0;
-
-        if (Number(c.upfront_amount) > 0 && matchesMonth(c.created_at)) {
-          upfront = Number(c.upfront_amount) || 0;
-        }
-
+        // Check Slot 1
         if (c.slot1 && Number(c.slot1_amount) > 0) {
-          const d = c.slot1_due_date || c.created_at;
-          if (matchesMonth(d)) {
-            s1 = Number(c.slot1_amount) || 0;
+          const slot1Date = c.slot1_due_date ? getISTDateString(c.slot1_due_date) : getISTDateString(c.created_at);
+          if (isDateInRange(slot1Date)) {
+            leadPaidRevenueInRange += Number(c.slot1_amount);
+            paidLeadIds.add(c.lead_id);
           }
+          paidSlotsSummary.push(`S1: $${Number(c.slot1_amount).toLocaleString()} (Paid)`);
+        } else if (c.slot1_amount !== null && c.slot1_amount !== undefined) {
+          paidSlotsSummary.push(`S1: $${Number(c.slot1_amount).toLocaleString()} (Unpaid)`);
         }
 
+        // Check Slot 2
         if (c.slot2 && Number(c.slot2_amount) > 0) {
-          const d = c.next_slot_due_date || c.created_at;
-          if (matchesMonth(d)) {
-            s2 = Number(c.slot2_amount) || 0;
+          const slot2Date = c.next_slot_due_date ? getISTDateString(c.next_slot_due_date) : getISTDateString(c.created_at);
+          if (isDateInRange(slot2Date)) {
+            leadPaidRevenueInRange += Number(c.slot2_amount);
+            paidLeadIds.add(c.lead_id);
           }
+          paidSlotsSummary.push(`S2: $${Number(c.slot2_amount).toLocaleString()} (Paid)`);
+        } else if (c.slot2_amount !== null && c.slot2_amount !== undefined) {
+          paidSlotsSummary.push(`S2: $${Number(c.slot2_amount).toLocaleString()} (Unpaid)`);
         }
 
+        // Check Additional Slots
         if (Array.isArray(c.additional_slots)) {
-          c.additional_slots.forEach((slot: any) => {
+          c.additional_slots.forEach((slot: any, idx: number) => {
+            const slotNum = slot.slot_number || (idx + 3);
             if (slot.paid === true && Number(slot.amount) > 0) {
-              const d = slot.due_date || slot.paid_at || c.created_at;
-              if (matchesMonth(d)) {
-                additional += Number(slot.amount) || 0;
+              const addSlotDate = slot.due_date ? getISTDateString(slot.due_date) : (slot.paid_at ? getISTDateString(slot.paid_at) : getISTDateString(c.created_at));
+              if (isDateInRange(addSlotDate)) {
+                leadPaidRevenueInRange += Number(slot.amount);
+                paidLeadIds.add(c.lead_id);
               }
+              paidSlotsSummary.push(`S${slotNum}: $${Number(slot.amount).toLocaleString()} (Paid)`);
+            } else if (slot.amount !== null && slot.amount !== undefined) {
+              paidSlotsSummary.push(`S${slotNum}: $${Number(slot.amount).toLocaleString()} (Unpaid)`);
             }
           });
         }
 
-        return s + upfront + s1 + s2 + additional;
-      }, 0);
+        totalRevenue += leadPaidRevenueInRange;
+
+        // Keep records with payment info for the details list
+        const hasAnyPaid = c.slot1 || c.slot2 || (Array.isArray(c.additional_slots) && c.additional_slots.some((s: any) => s.paid));
+        if (hasAnyPaid && (leadPaidRevenueInRange > 0 || (!dateFrom && !dateTo))) {
+          paidClosureItems.push({
+            ...c,
+            paidSlotsSummary,
+            leadPaidRevenueInRange
+          });
+        }
+      });
+
+      const closedCount = paidLeadIds.size;
+      const activeLeads = memberLeads.filter(l => l.lead_status !== 'Closed').length;
 
       return {
         ...member,
         todayCalls,
-        monthlyCalls,
-        leadsToday,
-        leadsMonth,
+        totalCalls,
         statusBreakdown,
-        closures: memberClosures,
+        closures: paidClosureItems,
         totalRevenue,
         totalLeads: memberLeads.length,
-        closedCount: memberClosures.length,
+        activeLeads,
+        closedCount,
       };
     });
-  }, [salesMembers, allLeads, callLogs, closures, filterYear, filterMonth]);
+  }, [salesMembers, allLeads, callActivities, closures, dateFrom, dateTo]);
 
+  // ── 6. Filter displayed stats by view mode ──
   const displayedStats = useMemo(() => {
-    if (viewMode === 'personal') {
+    if (role === 'SALES_TM' || viewMode === 'personal') {
       return memberStats.filter(m => m.user_id === user?.id);
     }
-    return memberStats; // Include TL + all team members reporting to TL
-  }, [memberStats, viewMode, user?.id]);
+    // Team View: Sales TL + all team members mapped under them (or all for Admin)
+    return memberStats;
+  }, [memberStats, viewMode, user?.id, role]);
 
+  // ── 7. Summary Header KPIs ──
   const summaryKPIs = useMemo(() => {
-    const activeLeadsCount = displayedStats.reduce((s, m) => s + (m.totalLeads - m.closedCount), 0);
+    const activeLeadsCount = displayedStats.reduce((s, m) => s + m.activeLeads, 0);
     const totalClosuresCount = displayedStats.reduce((s, m) => s + m.closedCount, 0);
     const todayCallsCount = displayedStats.reduce((s, m) => s + m.todayCalls, 0);
-    const totalCallsCount = displayedStats.reduce((s, m) => s + m.monthlyCalls, 0);
+    const totalCallsCount = displayedStats.reduce((s, m) => s + m.totalCalls, 0);
     const totalRevenueSum = displayedStats.reduce((s, m) => s + m.totalRevenue, 0);
 
     return {
@@ -253,158 +258,202 @@ const SalesTLDashboardPage: React.FC = () => {
     };
   }, [displayedStats]);
 
-  if (role !== 'SALES_TL' && role !== 'ADMIN') {
-    return <div className="text-center text-muted-foreground p-8">Access denied</div>;
-  }
-
-  // Month options
-  const monthOptions = [];
-  for (let i = 0; i < 12; i++) {
-    const d = new Date();
-    d.setMonth(d.getMonth() - i);
-    const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    monthOptions.push({ val, label });
+  if (role !== 'SALES_TM' && role !== 'SALES_TL' && role !== 'ADMIN') {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[300px] text-center p-8">
+        <ShieldAlert className="h-10 w-10 text-destructive mb-3" />
+        <h2 className="text-lg font-semibold">Access Denied</h2>
+        <p className="text-sm text-muted-foreground mt-1">You do not have permission to view Sales Performance.</p>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-12">
+      {/* Header & Date Range Filter */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <h1 className="text-2xl font-display font-bold">Sales Team Performance</h1>
-        <div className="flex items-center gap-3">
-          <Tabs value={viewMode} onValueChange={setViewMode} className="w-[200px]">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="personal">My View</TabsTrigger>
-              <TabsTrigger value="team">Team View</TabsTrigger>
-            </TabsList>
-          </Tabs>
+        <div>
+          <h1 className="text-2xl font-display font-bold">
+            {role === 'SALES_TM' ? 'My Sales Performance' : 'Sales Team Performance'}
+          </h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Real-time tracking of calls, paid closures, active pipeline, and revenue.
+          </p>
+        </div>
 
-          <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); localStorage.setItem('netbounce_crm_month_filter_yyyy_mm', v); }}>
-            <SelectTrigger className="w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {monthOptions.map(o => (
-                <SelectItem key={o.val} value={o.val}>{o.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex flex-wrap items-center gap-3">
+          {role !== 'SALES_TM' && (
+            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'personal' | 'team')} className="w-[200px]">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="personal">My View</TabsTrigger>
+                <TabsTrigger value="team">Team View</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
+
+          {/* Date Range Calendar Filter */}
+          <div className="flex items-center gap-1.5 bg-background/50 border border-border/50 rounded-md p-1 shadow-sm">
+            <Calendar className="h-4 w-4 text-muted-foreground ml-1.5" />
+            <span className="text-xs text-muted-foreground font-medium">Date:</span>
+            <Input 
+              type="date" 
+              value={dateFrom} 
+              onChange={e => setDateFrom(e.target.value)} 
+              className="w-[130px] h-8 text-xs border-0 bg-transparent pl-1.5 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm" 
+              title="Start Date"
+            />
+            <span className="text-muted-foreground text-xs font-medium">to</span>
+            <Input 
+              type="date" 
+              value={dateTo} 
+              onChange={e => setDateTo(e.target.value)} 
+              className="w-[130px] h-8 text-xs border-0 bg-transparent pl-1.5 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm" 
+              title="End Date"
+            />
+            {(dateFrom || dateTo) && (
+              <button 
+                onClick={() => { setDateFrom(''); setDateTo(''); }} 
+                className="text-xs text-muted-foreground hover:text-foreground underline px-1.5"
+                title="Clear date filter"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Summary KPI Cards Grid */}
+      {/* Summary KPI Cards Grid (5 Cards) */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <Card className="glass-card hover:nb-glow transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-xs font-medium text-muted-foreground">Active Leads</CardTitle>
             <Users className="h-4 w-4 text-primary" />
           </CardHeader>
-          <CardContent><div className="text-2xl font-display font-bold">{summaryKPIs.activeLeads}</div></CardContent>
+          <CardContent>
+            <div className="text-2xl font-display font-bold">{summaryKPIs.activeLeads}</div>
+          </CardContent>
         </Card>
+
         <Card className="glass-card hover:nb-glow transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-xs font-medium text-muted-foreground">Closures</CardTitle>
             <CheckCircle className="h-4 w-4 text-green-500" />
           </CardHeader>
-          <CardContent><div className="text-2xl font-display font-bold text-green-600">{summaryKPIs.closures}</div></CardContent>
+          <CardContent>
+            <div className="text-2xl font-display font-bold text-green-600">{summaryKPIs.closures}</div>
+          </CardContent>
         </Card>
+
         <Card className="glass-card hover:nb-glow transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-xs font-medium text-muted-foreground">Today's Calls</CardTitle>
             <Phone className="h-4 w-4 text-blue-500" />
           </CardHeader>
-          <CardContent><div className="text-2xl font-display font-bold">{summaryKPIs.todayCalls}</div></CardContent>
+          <CardContent>
+            <div className="text-2xl font-display font-bold">{summaryKPIs.todayCalls}</div>
+          </CardContent>
         </Card>
+
         <Card className="glass-card hover:nb-glow transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-xs font-medium text-muted-foreground">Total Calls</CardTitle>
             <Phone className="h-4 w-4 text-indigo-500" />
           </CardHeader>
-          <CardContent><div className="text-2xl font-display font-bold">{summaryKPIs.totalCalls}</div></CardContent>
+          <CardContent>
+            <div className="text-2xl font-display font-bold">{summaryKPIs.totalCalls}</div>
+          </CardContent>
         </Card>
+
         <Card className="glass-card hover:nb-glow transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-xs font-medium text-muted-foreground">Revenue</CardTitle>
             <DollarSign className="h-4 w-4 text-amber-500" />
           </CardHeader>
-          <CardContent><div className="text-2xl font-display font-bold text-green-600">${summaryKPIs.revenue.toLocaleString()}</div></CardContent>
+          <CardContent>
+            <div className="text-2xl font-display font-bold text-green-600">${summaryKPIs.revenue.toLocaleString()}</div>
+          </CardContent>
         </Card>
       </div>
 
-    <div className="space-y-4">
+      {/* Member Cards Grid */}
+      <div className="space-y-4">
         {displayedStats.map((m, i) => (
-          <motion.div key={m.user_id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
+          <motion.div key={m.user_id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
             <Card className="glass-card">
               <CardHeader>
-                <CardTitle className="text-lg font-display">{m.full_name}</CardTitle>
-                <p className="text-xs text-muted-foreground">{m.email}</p>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-lg font-display">{m.full_name}</CardTitle>
+                    <p className="text-xs text-muted-foreground">{m.email}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      Active: {m.activeLeads}
+                    </Badge>
+                    <Badge variant="secondary" className="text-xs bg-green-500/10 text-green-600">
+                      Paid Closures: {m.closedCount}
+                    </Badge>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {/* 2 Call metrics (Leads Today and Leads Month removed) */}
+                <div className="grid grid-cols-2 md:grid-cols-2 gap-3">
                   <div className="bg-accent/30 rounded-lg p-3">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                      <Phone className="h-3 w-3" /> Calls Today
+                      <Phone className="h-3 w-3 text-blue-500" /> Calls Today
                     </div>
                     <p className="text-xl font-display font-bold">{m.todayCalls}</p>
                   </div>
                   <div className="bg-accent/30 rounded-lg p-3">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                      <Phone className="h-3 w-3" /> Calls (Month)
+                      <Phone className="h-3 w-3 text-indigo-500" /> Calls (Selected Period)
                     </div>
-                    <p className="text-xl font-display font-bold">{m.monthlyCalls}</p>
-                  </div>
-                  <div className="bg-accent/30 rounded-lg p-3">
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                      <Users className="h-3 w-3" /> Leads Today
-                    </div>
-                    <p className="text-xl font-display font-bold">{m.leadsToday}</p>
-                  </div>
-                  <div className="bg-accent/30 rounded-lg p-3">
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                      <Users className="h-3 w-3" /> Leads (Month)
-                    </div>
-                    <p className="text-xl font-display font-bold">{m.leadsMonth}</p>
+                    <p className="text-xl font-display font-bold">{m.totalCalls}</p>
                   </div>
                 </div>
 
-                <div>
-                  <p className="text-xs text-muted-foreground mb-2">Status Breakdown</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {Object.entries(m.statusBreakdown).map(([status, count]) => (
-                      <Badge key={status} variant="secondary" className="text-xs">
-                        {status}: {count as number}
-                      </Badge>
-                    ))}
+                {/* Status Breakdown */}
+                {Object.keys(m.statusBreakdown).length > 0 && (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-2">Status Breakdown</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {Object.entries(m.statusBreakdown).map(([status, count]) => (
+                        <Badge key={status} variant="secondary" className="text-xs">
+                          {status}: {count as number}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {/* Closures & Revenue */}
+                <div className="grid grid-cols-2 md:grid-cols-2 gap-3">
                   <div className="bg-green-500/5 border border-green-500/20 rounded-lg p-3">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                      <CheckCircle className="h-3 w-3" /> Closures
+                      <CheckCircle className="h-3 w-3 text-green-500" /> Closures (Paid)
                     </div>
                     <p className="text-xl font-display font-bold text-green-600">{m.closedCount}</p>
                   </div>
                   <div className="bg-green-500/5 border border-green-500/20 rounded-lg p-3">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                      <DollarSign className="h-3 w-3" /> Revenue
+                      <DollarSign className="h-3 w-3 text-amber-500" /> Revenue
                     </div>
                     <p className="text-xl font-display font-bold text-green-600">${m.totalRevenue.toLocaleString()}</p>
                   </div>
                 </div>
 
+                {/* Payment Details List */}
                 {m.closures.length > 0 && (
                   <div>
-                    <p className="text-xs text-muted-foreground mb-2">Payment Details</p>
-                    <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground mb-2 font-medium">Payment & Slot Details</p>
+                    <div className="space-y-1.5">
                       {m.closures.map((c: any) => (
-                        <div key={c.id} className="flex items-center justify-between text-xs bg-accent/20 rounded p-2">
-                          <span>{c.plan} · {c.payment_mode}</span>
-                          <span className="font-medium">
-                            Upfront: ${c.upfront_amount}
-                            {c.slot1_amount !== null && ` · S1: $${c.slot1_amount}${c.slot1 ? ' (Paid)' : ' (Unpaid)'}`}
-                            {c.slot2_amount !== null && ` · S2: $${c.slot2_amount}${c.slot2 ? ' (Paid)' : ' (Unpaid)'}`}
-                            {Array.isArray(c.additional_slots) && c.additional_slots.map((s: any, idx: number) => ` · S${s.slot_number || (idx + 3)}: $${s.amount}${s.paid ? ' (Paid)' : ' (Unpaid)'}`)}
+                        <div key={c.id} className="flex flex-col sm:flex-row sm:items-center justify-between text-xs bg-accent/20 rounded p-2.5 gap-1.5">
+                          <span className="font-semibold text-primary">{c.plan || 'Custom Plan'} · {c.payment_mode || 'Payment'}</span>
+                          <span className="font-mono text-xs text-muted-foreground">
+                            {c.paidSlotsSummary && c.paidSlotsSummary.length > 0 ? c.paidSlotsSummary.join(' · ') : 'No slots'}
                           </span>
                         </div>
                       ))}
@@ -415,11 +464,11 @@ const SalesTLDashboardPage: React.FC = () => {
             </Card>
           </motion.div>
         ))}
+
         {displayedStats.length === 0 && (
-          <p className="text-center text-muted-foreground py-8">No {viewMode} performance data found</p>
+          <p className="text-center text-muted-foreground py-12">No sales performance records found for this period</p>
         )}
       </div>
-
     </div>
   );
 };
