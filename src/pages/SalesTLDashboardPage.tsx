@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Phone, Users, CheckCircle, DollarSign, Calendar, Eye, ShieldAlert } from 'lucide-react';
+import { Phone, Users, CheckCircle, DollarSign, Calendar, ShieldAlert } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getISTYearAndMonth, getISTDateString } from '@/lib/dateUtils';
 import { recordAuthActivity } from '@/lib/auditLogger';
@@ -37,10 +37,30 @@ const SalesTLDashboardPage: React.FC = () => {
     return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
   });
 
-  // Helper to check if a date string falls inside [dateFrom, dateTo] in IST
+  // Robust date parser that handles YYYY-MM-DD, DD-MM-YYYY, DD/MM/YYYY and ISO timestamps
+  const parseDateToISTString = (rawDate: any): string => {
+    if (!rawDate) return '';
+    if (typeof rawDate === 'string') {
+      const trimmed = rawDate.trim();
+      if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+        return trimmed.substring(0, 10);
+      }
+      const dmyMatch = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+      if (dmyMatch) {
+        const day = dmyMatch[1].padStart(2, '0');
+        const month = dmyMatch[2].padStart(2, '0');
+        const year = dmyMatch[3];
+        return `${year}-${month}-${day}`;
+      }
+    }
+    return getISTDateString(rawDate);
+  };
+
+  // Helper to check if a date string falls inside [dateFrom, dateTo]
   const isDateInRange = (dateInput: string | null | undefined) => {
     if (!dateInput) return false;
-    const istDate = getISTDateString(dateInput);
+    const istDate = parseDateToISTString(dateInput);
+    if (!istDate) return false;
     if (dateFrom && istDate < dateFrom) return false;
     if (dateTo && istDate > dateTo) return false;
     return true;
@@ -85,8 +105,10 @@ const SalesTLDashboardPage: React.FC = () => {
       let query = supabase
         .from('leads')
         .select('unique_id, lead_status, assigned_to, team_lead_id, created_at, updated_at');
-      if (role !== 'ADMIN') {
-        query = query.in('assigned_to', memberUserIds);
+      if (role === 'SALES_TM') {
+        query = query.eq('assigned_to', user.id);
+      } else if (role === 'SALES_TL') {
+        query = query.or(`assigned_to.in.(${memberUserIds.join(',')}),team_lead_id.eq.${user.id}`);
       }
       const { data } = await query;
       return data || [];
@@ -95,34 +117,60 @@ const SalesTLDashboardPage: React.FC = () => {
     staleTime: 60_000,
   });
 
-  const leadIds = useMemo(() => allLeads.map(l => l.unique_id), [allLeads]);
-
   // ── 3. Fetch call activities strictly for authorized users ──
   const { data: callActivities = [] } = useQuery({
     queryKey: ['sales-perf-calls', user?.id, role, memberUserIds],
     queryFn: async () => {
       if (!user || memberUserIds.length === 0) return [];
-      const { data } = await supabase
-        .from('followups')
-        .select('id, user_id, lead_id, created_at, way_of_contact')
-        .in('user_id', memberUserIds);
-      return data || [];
+      const [followupsRes, callLogsRes] = await Promise.all([
+        supabase
+          .from('followups')
+          .select('id, user_id, lead_id, created_at, way_of_contact')
+          .in('user_id', memberUserIds),
+        supabase
+          .from('call_logs')
+          .select('id, user_id, lead_id, call_date, call_count')
+          .in('user_id', memberUserIds)
+      ]);
+
+      if (followupsRes.data && followupsRes.data.length > 0) {
+        return followupsRes.data.map(f => ({
+          user_id: f.user_id,
+          created_at: f.created_at,
+          isCall: !f.way_of_contact || f.way_of_contact.trim().toUpperCase() === 'CALL'
+        }));
+      } else {
+        return (callLogsRes.data || []).map(c => ({
+          user_id: c.user_id,
+          created_at: c.call_date,
+          isCall: true
+        }));
+      }
     },
     enabled: !!user && !!role && memberUserIds.length > 0,
   });
 
-  // ── 4. Fetch lead closures strictly for accessible leads ──
+  // ── 4. Fetch lead closures with fallback to RPC get_revenue_closures_v2 ──
   const { data: closures = [] } = useQuery({
-    queryKey: ['sales-perf-closures', user?.id, role, leadIds],
+    queryKey: ['sales-perf-closures', user?.id, role, memberUserIds, viewMode],
     queryFn: async () => {
-      if (!user || leadIds.length === 0) return [];
-      const { data } = await supabase
-        .from('lead_closures')
-        .select('*')
-        .in('lead_id', leadIds);
-      return data || [];
+      if (!user) return [];
+      // 1. Try secure RPC get_revenue_closures_v2
+      try {
+        const viewType = (role === 'SALES_TM' || viewMode === 'personal') ? 'my_view' : (role === 'SALES_TL' ? 'team_view' : 'global_view');
+        const { data: rpcData, error: rpcErr } = await (supabase as any).rpc('get_revenue_closures_v2', { view_type: viewType });
+        if (!rpcErr && rpcData && Array.isArray(rpcData) && rpcData.length > 0) {
+          return rpcData;
+        }
+      } catch (err) {
+        console.warn('RPC failed, falling back to direct table query', err);
+      }
+
+      // 2. Direct table query with lead join
+      const { data: directData } = await supabase.from('lead_closures').select('*, leads(*)');
+      return directData || [];
     },
-    enabled: !!user && !!role && leadIds.length > 0,
+    enabled: !!user && !!role,
   });
 
   // ── 5. Calculate per-member KPIs using real DB records & Mark-as-Paid truth ──
@@ -134,12 +182,9 @@ const SalesTLDashboardPage: React.FC = () => {
       const memberLeads = allLeads.filter(l => l.assigned_to === member.user_id);
       
       // Actual calls only (excluding emails/WhatsApp)
-      const memberCalls = callActivities.filter(c => {
-        const isCall = !c.way_of_contact || c.way_of_contact.trim().toUpperCase() === 'CALL';
-        return c.user_id === member.user_id && isCall;
-      });
+      const memberCalls = callActivities.filter(c => c.user_id === member.user_id && c.isCall);
 
-      const todayCalls = memberCalls.filter(c => getISTDateString(c.created_at) === today).length;
+      const todayCalls = memberCalls.filter(c => parseDateToISTString(c.created_at) === today).length;
       const totalCalls = memberCalls.filter(c => isDateInRange(c.created_at)).length;
 
       // Status breakdown for all active leads assigned to member
@@ -150,63 +195,90 @@ const SalesTLDashboardPage: React.FC = () => {
       });
 
       // ── Closures & Revenue Calculation strictly based on Mark as Paid ──
-      const memberLeadIds = new Set(memberLeads.map(l => l.unique_id));
-      const memberClosureRecords = closures.filter(c => memberLeadIds.has(c.lead_id));
+      const memberClosureRecords = closures.filter((c: any) => {
+        if (c.assigned_to === member.user_id) return true;
+        if (c.leads?.assigned_to === member.user_id) return true;
+        const lead = allLeads.find(l => l.unique_id === c.lead_id);
+        if (lead && lead.assigned_to === member.user_id) return true;
+        return false;
+      });
 
       let totalRevenue = 0;
       const paidClosureItems: any[] = [];
       const paidLeadIds = new Set<string>();
 
-      memberClosureRecords.forEach(c => {
+      memberClosureRecords.forEach((c: any) => {
         let leadPaidRevenueInRange = 0;
+        let hasPaidSlotInRange = false;
         const paidSlotsSummary: string[] = [];
 
-        // Check Slot 1
+        // 1. Upfront Amount (Paid at closing: c.created_at)
+        if (Number(c.upfront_amount) > 0) {
+          const upfrontDate = c.created_at;
+          if (isDateInRange(upfrontDate)) {
+            leadPaidRevenueInRange += Number(c.upfront_amount);
+            hasPaidSlotInRange = true;
+          }
+          paidSlotsSummary.push(`Upfront: $${Number(c.upfront_amount).toLocaleString()} (Paid)`);
+        }
+
+        // 2. Slot 1 (If slot1 is true/paid)
         if (c.slot1 && Number(c.slot1_amount) > 0) {
-          const slot1Date = c.slot1_due_date ? getISTDateString(c.slot1_due_date) : getISTDateString(c.created_at);
+          const slot1Date = c.slot1_due_date || c.created_at;
           if (isDateInRange(slot1Date)) {
             leadPaidRevenueInRange += Number(c.slot1_amount);
-            paidLeadIds.add(c.lead_id);
+            hasPaidSlotInRange = true;
           }
           paidSlotsSummary.push(`S1: $${Number(c.slot1_amount).toLocaleString()} (Paid)`);
-        } else if (c.slot1_amount !== null && c.slot1_amount !== undefined) {
+        } else if (c.slot1_amount !== null && c.slot1_amount !== undefined && Number(c.slot1_amount) > 0) {
           paidSlotsSummary.push(`S1: $${Number(c.slot1_amount).toLocaleString()} (Unpaid)`);
         }
 
-        // Check Slot 2
+        // 3. Slot 2 (If slot2 is true/paid)
         if (c.slot2 && Number(c.slot2_amount) > 0) {
-          const slot2Date = c.next_slot_due_date ? getISTDateString(c.next_slot_due_date) : getISTDateString(c.created_at);
+          const slot2Date = c.next_slot_due_date || c.created_at;
           if (isDateInRange(slot2Date)) {
             leadPaidRevenueInRange += Number(c.slot2_amount);
-            paidLeadIds.add(c.lead_id);
+            hasPaidSlotInRange = true;
           }
           paidSlotsSummary.push(`S2: $${Number(c.slot2_amount).toLocaleString()} (Paid)`);
-        } else if (c.slot2_amount !== null && c.slot2_amount !== undefined) {
+        } else if (c.slot2_amount !== null && c.slot2_amount !== undefined && Number(c.slot2_amount) > 0) {
           paidSlotsSummary.push(`S2: $${Number(c.slot2_amount).toLocaleString()} (Unpaid)`);
         }
 
-        // Check Additional Slots
+        // 4. Additional Slots
         if (Array.isArray(c.additional_slots)) {
           c.additional_slots.forEach((slot: any, idx: number) => {
             const slotNum = slot.slot_number || (idx + 3);
             if (slot.paid === true && Number(slot.amount) > 0) {
-              const addSlotDate = slot.due_date ? getISTDateString(slot.due_date) : (slot.paid_at ? getISTDateString(slot.paid_at) : getISTDateString(c.created_at));
+              const addSlotDate = slot.due_date || slot.paid_at || c.created_at;
               if (isDateInRange(addSlotDate)) {
                 leadPaidRevenueInRange += Number(slot.amount);
-                paidLeadIds.add(c.lead_id);
+                hasPaidSlotInRange = true;
               }
               paidSlotsSummary.push(`S${slotNum}: $${Number(slot.amount).toLocaleString()} (Paid)`);
-            } else if (slot.amount !== null && slot.amount !== undefined) {
+            } else if (slot.amount !== null && slot.amount !== undefined && Number(slot.amount) > 0) {
               paidSlotsSummary.push(`S${slotNum}: $${Number(slot.amount).toLocaleString()} (Unpaid)`);
             }
           });
         }
 
-        totalRevenue += leadPaidRevenueInRange;
+        // 5. Fallback: If no slots specified but closure has on-offer amount
+        if (!hasPaidSlotInRange && paidSlotsSummary.length === 0 && Number(c.amount) > 0) {
+          if (isDateInRange(c.created_at)) {
+            leadPaidRevenueInRange += Number(c.amount);
+            hasPaidSlotInRange = true;
+            paidSlotsSummary.push(`Amount: $${Number(c.amount).toLocaleString()} (Paid)`);
+          }
+        }
+
+        if (hasPaidSlotInRange) {
+          paidLeadIds.add(c.lead_id || c.id);
+          totalRevenue += leadPaidRevenueInRange;
+        }
 
         // Keep records with payment info for the details list
-        const hasAnyPaid = c.slot1 || c.slot2 || (Array.isArray(c.additional_slots) && c.additional_slots.some((s: any) => s.paid));
-        if (hasAnyPaid && (leadPaidRevenueInRange > 0 || (!dateFrom && !dateTo))) {
+        if (hasPaidSlotInRange || paidSlotsSummary.some(s => s.includes('(Paid)')) || (!dateFrom && !dateTo)) {
           paidClosureItems.push({
             ...c,
             paidSlotsSummary,
