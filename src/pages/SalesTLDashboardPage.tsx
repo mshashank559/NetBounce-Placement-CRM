@@ -292,28 +292,28 @@ const SalesTLDashboardPage: React.FC = () => {
           )}
 
           {/* Date Range Calendar Filter */}
-          <div className="flex items-center gap-1.5 bg-background/50 border border-border/50 rounded-md p-1 shadow-sm">
-            <Calendar className="h-4 w-4 text-muted-foreground ml-1.5" />
-            <span className="text-xs text-muted-foreground font-medium">Date:</span>
+          <div className="flex items-center gap-2 bg-background/50 border border-border/50 rounded-lg px-3 py-1.5 shadow-sm shrink-0">
+            <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-xs text-muted-foreground font-medium shrink-0">Date:</span>
             <Input 
               type="date" 
               value={dateFrom} 
               onChange={e => setDateFrom(e.target.value)} 
-              className="w-[130px] h-8 text-xs border-0 bg-transparent pl-1.5 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm" 
+              className="w-[145px] h-8 text-xs border-0 bg-transparent px-1 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm cursor-pointer" 
               title="Start Date"
             />
-            <span className="text-muted-foreground text-xs font-medium">to</span>
+            <span className="text-muted-foreground text-xs font-medium shrink-0 px-1">to</span>
             <Input 
               type="date" 
               value={dateTo} 
               onChange={e => setDateTo(e.target.value)} 
-              className="w-[130px] h-8 text-xs border-0 bg-transparent pl-1.5 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm" 
+              className="w-[145px] h-8 text-xs border-0 bg-transparent px-1 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm cursor-pointer" 
               title="End Date"
             />
             {(dateFrom || dateTo) && (
               <button 
                 onClick={() => { setDateFrom(''); setDateTo(''); }} 
-                className="text-xs text-muted-foreground hover:text-foreground underline px-1.5"
+                className="text-xs text-muted-foreground hover:text-foreground underline px-2 shrink-0 ml-1"
                 title="Clear date filter"
               >
                 Clear
