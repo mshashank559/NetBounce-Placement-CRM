@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Phone, Users, CheckCircle, DollarSign, Calendar, ShieldAlert } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { getISTYearAndMonth, getISTDateString } from '@/lib/dateUtils';
+import { getISTDateString } from '@/lib/dateUtils';
 import { recordAuthActivity } from '@/lib/auditLogger';
 
 const SalesTLDashboardPage: React.FC = () => {
@@ -26,16 +26,9 @@ const SalesTLDashboardPage: React.FC = () => {
     }
   }, [user, role]);
 
-  // ── Date Range Calendar Filter (Default: Current Month) ──
-  const [dateFrom, setDateFrom] = useState(() => {
-    const { year, month } = getISTYearAndMonth(new Date());
-    return `${year}-${String(month).padStart(2, '0')}-01`;
-  });
-  const [dateTo, setDateTo] = useState(() => {
-    const { year, month } = getISTYearAndMonth(new Date());
-    const lastDay = new Date(year, month, 0).getDate();
-    return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-  });
+  // ── Date Range Calendar Filter (Starts empty so all current data is immediately visible, or filterable by range) ──
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   // Robust date parser that handles YYYY-MM-DD, DD-MM-YYYY, DD/MM/YYYY and ISO timestamps
   const parseDateToISTString = (rawDate: any): string => {
@@ -58,6 +51,7 @@ const SalesTLDashboardPage: React.FC = () => {
 
   // Helper to check if a date string falls inside [dateFrom, dateTo]
   const isDateInRange = (dateInput: string | null | undefined) => {
+    if (!dateFrom && !dateTo) return true;
     if (!dateInput) return false;
     const istDate = parseDateToISTString(dateInput);
     if (!istDate) return false;
@@ -77,13 +71,10 @@ const SalesTLDashboardPage: React.FC = () => {
 
       let query = supabase.from('profiles').select('*').in('user_id', userIds);
       if (role === 'SALES_TM') {
-        // Sales Member: strictly own profile
         query = query.eq('user_id', user.id);
       } else if (role === 'SALES_TL') {
-        // Sales TL: strictly own profile + mapped team members
         query = query.or(`reports_to.eq.${user.id},user_id.eq.${user.id}`);
       }
-      // ADMIN gets all sales profiles
 
       const { data: profiles } = await query;
       return (profiles || []).sort((a, b) => {
@@ -150,12 +141,11 @@ const SalesTLDashboardPage: React.FC = () => {
     enabled: !!user && !!role && memberUserIds.length > 0,
   });
 
-  // ── 4. Fetch lead closures with fallback to RPC get_revenue_closures_v2 ──
+  // ── 4. Fetch lead closures with RPC get_revenue_closures_v2 + direct query fallback ──
   const { data: closures = [] } = useQuery({
     queryKey: ['sales-perf-closures', user?.id, role, memberUserIds, viewMode],
     queryFn: async () => {
       if (!user) return [];
-      // 1. Try secure RPC get_revenue_closures_v2
       try {
         const viewType = (role === 'SALES_TM' || viewMode === 'personal') ? 'my_view' : (role === 'SALES_TL' ? 'team_view' : 'global_view');
         const { data: rpcData, error: rpcErr } = await (supabase as any).rpc('get_revenue_closures_v2', { view_type: viewType });
@@ -166,7 +156,6 @@ const SalesTLDashboardPage: React.FC = () => {
         console.warn('RPC failed, falling back to direct table query', err);
       }
 
-      // 2. Direct table query with lead join
       const { data: directData } = await supabase.from('lead_closures').select('*, leads(*)');
       return directData || [];
     },
@@ -181,13 +170,12 @@ const SalesTLDashboardPage: React.FC = () => {
     return salesMembers.map(member => {
       const memberLeads = allLeads.filter(l => l.assigned_to === member.user_id);
       
-      // Actual calls only (excluding emails/WhatsApp)
+      // Actual calls only
       const memberCalls = callActivities.filter(c => c.user_id === member.user_id && c.isCall);
-
       const todayCalls = memberCalls.filter(c => parseDateToISTString(c.created_at) === today).length;
       const totalCalls = memberCalls.filter(c => isDateInRange(c.created_at)).length;
 
-      // Status breakdown for all active leads assigned to member
+      // Status breakdown
       const statusBreakdown: Record<string, number> = {};
       memberLeads.forEach(l => {
         const s = l.lead_status || 'New';
@@ -208,53 +196,46 @@ const SalesTLDashboardPage: React.FC = () => {
       const paidLeadIds = new Set<string>();
 
       memberClosureRecords.forEach((c: any) => {
-        let leadPaidRevenueInRange = 0;
-        let hasPaidSlotInRange = false;
+        let leadPaidRevenue = 0;
+        let hasPaidSlot = false;
         const paidSlotsSummary: string[] = [];
 
-        // 1. Upfront Amount (Paid at closing: c.created_at)
-        if (Number(c.upfront_amount) > 0) {
-          const upfrontDate = c.created_at;
-          if (isDateInRange(upfrontDate)) {
-            leadPaidRevenueInRange += Number(c.upfront_amount);
-            hasPaidSlotInRange = true;
-          }
-          paidSlotsSummary.push(`Upfront: $${Number(c.upfront_amount).toLocaleString()} (Paid)`);
-        }
-
-        // 2. Slot 1 (If slot1 is true/paid)
-        if (c.slot1 && Number(c.slot1_amount) > 0) {
+        // 1. Slot 1 (If slot1 is marked as paid)
+        const isSlot1Paid = c.slot1 === true || c.slot1 === 'true';
+        if (isSlot1Paid && Number(c.slot1_amount) > 0) {
           const slot1Date = c.slot1_due_date || c.created_at;
           if (isDateInRange(slot1Date)) {
-            leadPaidRevenueInRange += Number(c.slot1_amount);
-            hasPaidSlotInRange = true;
+            leadPaidRevenue += Number(c.slot1_amount);
+            hasPaidSlot = true;
           }
           paidSlotsSummary.push(`S1: $${Number(c.slot1_amount).toLocaleString()} (Paid)`);
         } else if (c.slot1_amount !== null && c.slot1_amount !== undefined && Number(c.slot1_amount) > 0) {
           paidSlotsSummary.push(`S1: $${Number(c.slot1_amount).toLocaleString()} (Unpaid)`);
         }
 
-        // 3. Slot 2 (If slot2 is true/paid)
-        if (c.slot2 && Number(c.slot2_amount) > 0) {
+        // 2. Slot 2 (If slot2 is marked as paid)
+        const isSlot2Paid = c.slot2 === true || c.slot2 === 'true';
+        if (isSlot2Paid && Number(c.slot2_amount) > 0) {
           const slot2Date = c.next_slot_due_date || c.created_at;
           if (isDateInRange(slot2Date)) {
-            leadPaidRevenueInRange += Number(c.slot2_amount);
-            hasPaidSlotInRange = true;
+            leadPaidRevenue += Number(c.slot2_amount);
+            hasPaidSlot = true;
           }
           paidSlotsSummary.push(`S2: $${Number(c.slot2_amount).toLocaleString()} (Paid)`);
         } else if (c.slot2_amount !== null && c.slot2_amount !== undefined && Number(c.slot2_amount) > 0) {
           paidSlotsSummary.push(`S2: $${Number(c.slot2_amount).toLocaleString()} (Unpaid)`);
         }
 
-        // 4. Additional Slots
+        // 3. Additional Slots
         if (Array.isArray(c.additional_slots)) {
           c.additional_slots.forEach((slot: any, idx: number) => {
             const slotNum = slot.slot_number || (idx + 3);
-            if (slot.paid === true && Number(slot.amount) > 0) {
+            const isAddSlotPaid = slot.paid === true || slot.paid === 'true';
+            if (isAddSlotPaid && Number(slot.amount) > 0) {
               const addSlotDate = slot.due_date || slot.paid_at || c.created_at;
               if (isDateInRange(addSlotDate)) {
-                leadPaidRevenueInRange += Number(slot.amount);
-                hasPaidSlotInRange = true;
+                leadPaidRevenue += Number(slot.amount);
+                hasPaidSlot = true;
               }
               paidSlotsSummary.push(`S${slotNum}: $${Number(slot.amount).toLocaleString()} (Paid)`);
             } else if (slot.amount !== null && slot.amount !== undefined && Number(slot.amount) > 0) {
@@ -263,26 +244,43 @@ const SalesTLDashboardPage: React.FC = () => {
           });
         }
 
-        // 5. Fallback: If no slots specified but closure has on-offer amount
-        if (!hasPaidSlotInRange && paidSlotsSummary.length === 0 && Number(c.amount) > 0) {
+        // 4. Upfront Amount:
+        // If neither slot1 nor slot2 was marked paid, but upfront_amount was paid
+        if (Number(c.upfront_amount) > 0) {
+          if (!isSlot1Paid && !isSlot2Paid) {
+            const upfrontDate = c.created_at;
+            if (isDateInRange(upfrontDate)) {
+              leadPaidRevenue += Number(c.upfront_amount);
+              hasPaidSlot = true;
+            }
+            paidSlotsSummary.unshift(`Upfront: $${Number(c.upfront_amount).toLocaleString()} (Paid)`);
+          } else {
+            paidSlotsSummary.unshift(`Upfront: $${Number(c.upfront_amount).toLocaleString()}`);
+          }
+        }
+
+        // 5. Fallback: If closure amount exists and no other slot breakdown
+        if (leadPaidRevenue === 0 && !hasPaidSlot && Number(c.amount) > 0 && paidSlotsSummary.length === 0) {
           if (isDateInRange(c.created_at)) {
-            leadPaidRevenueInRange += Number(c.amount);
-            hasPaidSlotInRange = true;
+            leadPaidRevenue += Number(c.amount);
+            hasPaidSlot = true;
             paidSlotsSummary.push(`Amount: $${Number(c.amount).toLocaleString()} (Paid)`);
           }
         }
 
-        if (hasPaidSlotInRange) {
+        // Check if any payment was recognized in range or overall
+        if (hasPaidSlot || (leadPaidRevenue > 0)) {
           paidLeadIds.add(c.lead_id || c.id);
-          totalRevenue += leadPaidRevenueInRange;
+          totalRevenue += leadPaidRevenue;
         }
 
-        // Keep records with payment info for the details list
-        if (hasPaidSlotInRange || paidSlotsSummary.some(s => s.includes('(Paid)')) || (!dateFrom && !dateTo)) {
+        // If this closure has any paid slots, include in the display list
+        const isOverallPaid = isSlot1Paid || isSlot2Paid || (Number(c.upfront_amount) > 0) || (Array.isArray(c.additional_slots) && c.additional_slots.some((s: any) => s.paid === true));
+        if (hasPaidSlot || (!dateFrom && !dateTo && isOverallPaid)) {
           paidClosureItems.push({
             ...c,
             paidSlotsSummary,
-            leadPaidRevenueInRange
+            leadPaidRevenue
           });
         }
       });
@@ -309,11 +307,10 @@ const SalesTLDashboardPage: React.FC = () => {
     if (role === 'SALES_TM' || viewMode === 'personal') {
       return memberStats.filter(m => m.user_id === user?.id);
     }
-    // Team View: Sales TL + all team members mapped under them (or all for Admin)
     return memberStats;
   }, [memberStats, viewMode, user?.id, role]);
 
-  // ── 7. Summary Header KPIs ──
+  // ── 7. Summary Header KPIs (Sum total across all displayed members) ──
   const summaryKPIs = useMemo(() => {
     const activeLeadsCount = displayedStats.reduce((s, m) => s + m.activeLeads, 0);
     const totalClosuresCount = displayedStats.reduce((s, m) => s + m.closedCount, 0);
@@ -395,7 +392,7 @@ const SalesTLDashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Summary KPI Cards Grid (5 Cards) */}
+      {/* Summary KPI Cards Grid (5 Cards - Sum Total Across All Members) */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <Card className="glass-card hover:nb-glow transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -463,14 +460,14 @@ const SalesTLDashboardPage: React.FC = () => {
                     <Badge variant="outline" className="text-xs">
                       Active: {m.activeLeads}
                     </Badge>
-                    <Badge variant="secondary" className="text-xs bg-green-500/10 text-green-600">
+                    <Badge variant="secondary" className="text-xs bg-green-500/10 text-green-600 font-semibold">
                       Paid Closures: {m.closedCount}
                     </Badge>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* 2 Call metrics (Leads Today and Leads Month removed) */}
+                {/* 2 Call metrics */}
                 <div className="grid grid-cols-2 md:grid-cols-2 gap-3">
                   <div className="bg-accent/30 rounded-lg p-3">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
