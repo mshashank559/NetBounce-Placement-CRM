@@ -65,8 +65,8 @@ const AssignLeadsPage: React.FC = () => {
         if (error) throw error;
         
         if (data && data.length > 0) {
-          // Genuinely fresh unassigned leads (exclude explicit Reassign pool leads)
-          const freshLeads = data.filter(l => l.assignment_type !== 'Reassign');
+          // Genuinely fresh unassigned leads (exclude explicit Reassign or Team pool leads)
+          const freshLeads = data.filter(l => l.assignment_type !== 'Reassign' && l.assignment_type !== 'Team');
           allLeads = [...allLeads, ...freshLeads];
           if (data.length < step) {
             hasMore = false;
@@ -117,8 +117,8 @@ const AssignLeadsPage: React.FC = () => {
       return (allLeads || [])
         .filter(lead => {
           if (['closed', 'enrolled', 'won', 'lost'].includes((lead.lead_status || '').toLowerCase())) return false;
-          // Case 1: Explicitly sent to Reassignment pool by Admin
-          if (lead.assignment_type === 'Reassign') return true;
+          // Case 1: Explicitly sent to Reassignment / Team pool by Admin
+          if (lead.assignment_type === 'Reassign' || lead.assignment_type === 'Team') return true;
           // Case 2: Currently assigned lead exceeding aging threshold
           if (lead.assigned_to) {
             const threshold = getStatusThreshold(lead.lead_status);
@@ -144,8 +144,8 @@ const AssignLeadsPage: React.FC = () => {
     if (!agingLeads) return [];
     if (role === 'SALES_TL' || activeTlId) {
       return agingLeads.filter(lead => {
-        // If lead was reassigned specifically under this TL's queue
-        if (lead.team_lead_id === activeTlId) return true;
+        // If lead was reassigned specifically under this TL's queue or assigned to this TL
+        if (lead.team_lead_id === activeTlId || lead.assigned_to === activeTlId) return true;
         if (lead.assigned_to) {
           const assignee = profilesMap?.[lead.assigned_to];
           return assignee?.reports_to === activeTlId;

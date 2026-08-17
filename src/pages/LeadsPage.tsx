@@ -528,7 +528,7 @@ const LeadsPage: React.FC = () => {
         assigned_to: userId,
         assignment_type: type || 'Personal',
         team_lead_id: teamLeadId,
-        assigned_at: new Date().toISOString(),
+        assigned_at: lead?.assigned_at || new Date().toISOString(),
       } as any).eq('unique_id', leadId);
       if (error) throw error;
 
@@ -564,9 +564,11 @@ const LeadsPage: React.FC = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['aging-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['unassigned-leads'] });
       queryClient.invalidateQueries({ queryKey: ['salestl-leads'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      toast.success('Lead assigned successfully!');
+      toast.success('Lead updated successfully!');
     },
     onError: (err: Error) => toast.error(err.message),
   });
