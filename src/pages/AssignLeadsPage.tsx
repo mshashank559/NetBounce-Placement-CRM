@@ -28,6 +28,7 @@ const AssignLeadsPage: React.FC = () => {
   const [selectedTeamMember, setSelectedTeamMember] = useState<Record<string, string>>({});
   const [assignTarget, setAssignTarget] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [reassignSearchQuery, setReassignSearchQuery] = useState('');
   const [selectedLead, setSelectedLead] = useState<any>(null);
   const [selectedReassignTarget, setSelectedReassignTarget] = useState<Record<string, string>>({});
   const [bdMemberFilter, setBdMemberFilter] = useState<string>('all');
@@ -156,6 +157,20 @@ const AssignLeadsPage: React.FC = () => {
     return agingLeads;
   }, [agingLeads, role, profilesMap, activeTlId]);
 
+  const searchedAgingLeads = useMemo(() => {
+    if (!filteredAgingLeads) return [];
+    if (!reassignSearchQuery.trim()) return filteredAgingLeads;
+    const q = reassignSearchQuery.toLowerCase().trim();
+    return filteredAgingLeads.filter(lead => {
+      const name = (lead.name || '').toLowerCase();
+      const email = (lead.email || '').toLowerCase();
+      const phone = (lead.phone || '').toLowerCase();
+      const displayId = ((lead as any).display_id || '').toLowerCase();
+      const uniqueId = (lead.unique_id || '').toLowerCase();
+      return name.includes(q) || email.includes(q) || phone.includes(q) || displayId.includes(q) || uniqueId.includes(q);
+    });
+  }, [filteredAgingLeads, reassignSearchQuery]);
+
   const { data: salesMembers } = useQuery({
     queryKey: ['sales-members', activeTlId, role],
     queryFn: async () => {
@@ -176,6 +191,16 @@ const AssignLeadsPage: React.FC = () => {
       })) || [];
     },
   });
+
+  const reassignCandidates = useMemo(() => {
+    if (!salesMembers) return [];
+    if (role === 'ADMIN' || role === 'LEAD_TL') {
+      // Admin assigns to Sales TLs
+      return salesMembers.filter(m => m.role === 'SALES_TL').sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
+    }
+    // Sales TL assigns to their team members
+    return salesMembers.filter(m => m.user_id !== user?.id).sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
+  }, [salesMembers, role, user?.id]);
 
   const { data: teamQueueLeads } = useQuery({
     queryKey: ['team-queue-leads', activeTlId],
@@ -392,20 +417,30 @@ const AssignLeadsPage: React.FC = () => {
   });
 
   const reassignMutation = useMutation({
-    mutationFn: async ({ leadId, tlId, queueType }: { leadId: string, tlId: string, queueType: 'Personal' | 'Team' }) => {
+    mutationFn: async ({ leadId, targetUserId }: { leadId: string; targetUserId: string }) => {
       const lead = agingLeads?.find(l => l.unique_id === leadId);
       if (!lead) return;
 
+      const targetMember = salesMembers?.find(m => m.user_id === targetUserId);
+      const isTargetTL = targetMember?.role === 'SALES_TL' || (role === 'ADMIN' && targetMember?.role !== 'SALES_TM');
+
+      // If assigned to a Sales TL -> enters that TL's Team Pool ("Leads To Be Reassigned")
+      // If assigned to a Sales Member -> assigned directly to that Sales Member ("Personal")
+      const newAssignmentType = isTargetTL ? 'Team' : 'Personal';
+      const newTeamLeadId = isTargetTL ? targetUserId : (targetMember?.reports_to || lead.team_lead_id || activeTlId || user!.id);
+
       const { error } = await supabase.from('leads').update({
-        assigned_to: tlId,
-        assignment_type: queueType,
-        team_lead_id: tlId // Update team ownership
+        assigned_to: targetUserId,
+        assignment_type: newAssignmentType,
+        team_lead_id: newTeamLeadId,
+        // preserve lead.assigned_at so age/cycle doesn't reset
+        assigned_at: lead.assigned_at || new Date().toISOString()
       } as any).eq('unique_id', leadId);
       
       if (error) throw error;
 
       const performerName = profile?.full_name || 'System';
-      const tlName = salesMembers?.find(m => m.user_id === tlId)?.full_name || 'Sales TL';
+      const targetName = targetMember?.full_name || profilesMap?.[targetUserId]?.full_name || 'Sales Assignee';
       const prevOwnerId = lead.assigned_to;
       const prevOwnerName = prevOwnerId ? (profilesMap?.[prevOwnerId]?.full_name || 'Unknown') : 'Unassigned Pool';
 
@@ -414,18 +449,18 @@ const AssignLeadsPage: React.FC = () => {
         changed_by: user!.id,
         action_type: 'RE_ASSIGN',
         old_value: prevOwnerId || 'Unassigned',
-        new_value: tlId,
-        comments: `Re-assigned from ${prevOwnerName} to ${tlName} by ${performerName}`
+        new_value: targetUserId,
+        comments: `Re-assigned from ${prevOwnerName} to ${targetName} by ${performerName}`
       });
 
       const msg = prevOwnerId
-        ? `Lead "${lead.name}" has been reassigned from ${prevOwnerName} to ${tlName} by ${performerName}.`
-        : `Lead "${lead.name}" has been assigned from ${prevOwnerName} to ${tlName} by ${performerName}.`;
+        ? `Lead "${lead.name}" has been reassigned from ${prevOwnerName} to ${targetName} by ${performerName}.`
+        : `Lead "${lead.name}" has been assigned from ${prevOwnerName} to ${targetName} by ${performerName}.`;
 
       const notifs = [
-        { user_id: tlId, title: prevOwnerId ? 'Lead Reassigned' : 'Lead Assigned', message: msg, type: 'reassign', lead_id: leadId }
+        { user_id: targetUserId, title: prevOwnerId ? 'Lead Reassigned' : 'Lead Assigned', message: msg, type: 'reassign', lead_id: leadId }
       ];
-      if (lead.assigned_to) {
+      if (lead.assigned_to && lead.assigned_to !== targetUserId) {
         notifs.push({ user_id: lead.assigned_to, title: 'Lead Reassigned', message: msg, type: 'reassign', lead_id: leadId });
       }
       await supabase.from('notifications').insert(notifs);
@@ -433,6 +468,7 @@ const AssignLeadsPage: React.FC = () => {
     onSuccess: () => {
       toast.success('Lead successfully reassigned');
       queryClient.invalidateQueries({ queryKey: ['aging-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['unassigned-leads'] });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
     },
     onError: (err: Error) => toast.error(err.message)
@@ -789,16 +825,30 @@ const AssignLeadsPage: React.FC = () => {
 
       <Card className="glass-card">
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <UserPlus className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg font-display">Lead To Be Reassigned ({filteredAgingLeads?.length || 0} pending)</CardTitle>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-primary" />
+              <CardTitle className="text-lg font-display">Lead To Be Reassigned ({searchedAgingLeads?.length || 0} pending)</CardTitle>
+            </div>
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search name, email, phone, id..."
+                value={reassignSearchQuery}
+                onChange={(e) => setReassignSearchQuery(e.target.value)}
+                className="pl-8 h-8 text-xs bg-background/50 border-border/60"
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent>
           {agingLoading ? (
             <p className="text-muted-foreground text-center py-4">Analyzing lifecycle aging...</p>
-          ) : !filteredAgingLeads?.length ? (
-            <p className="text-muted-foreground text-center py-4">No aging leads require reassignment at this time.</p>
+          ) : !searchedAgingLeads?.length ? (
+            <p className="text-muted-foreground text-center py-4">
+              {reassignSearchQuery ? 'No matching leads found.' : 'No aging leads require reassignment at this time.'}
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -812,7 +862,7 @@ const AssignLeadsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredAgingLeads.map((lead) => {
+                  {searchedAgingLeads.map((lead) => {
                     const assignedProfile = lead.assigned_to && profilesMap?.[lead.assigned_to];
                     const tlProfile = lead.team_lead_id && profilesMap?.[lead.team_lead_id];
                     const targetVal = selectedReassignTarget[lead.unique_id] || '';
@@ -822,6 +872,7 @@ const AssignLeadsPage: React.FC = () => {
                           <div className="font-mono text-xs text-muted-foreground">{(lead as any).display_id || '—'}</div>
                           <div className="font-medium text-foreground">{lead.name}</div>
                           <div className="text-xs text-muted-foreground">{lead.email}</div>
+                          {lead.phone && <div className="text-[11px] text-muted-foreground">{lead.phone}</div>}
                         </td>
                         <td className="p-3">
                           <Badge variant="secondary" className="bg-orange-500/10 text-orange-600 border border-orange-500/20">{lead.lead_status}</Badge>
@@ -863,52 +914,31 @@ const AssignLeadsPage: React.FC = () => {
                               value={targetVal} 
                               onValueChange={(val) => setSelectedReassignTarget(prev => ({ ...prev, [lead.unique_id]: val }))}
                             >
-                              <SelectTrigger className="w-36 h-8 text-xs">
-                                <SelectValue placeholder="Assign to..." />
+                              <SelectTrigger className="w-40 h-8 text-xs">
+                                <SelectValue placeholder={role === 'ADMIN' || role === 'LEAD_TL' ? "Select Sales TL..." : "Select Member..."} />
                               </SelectTrigger>
                               <SelectContent>
-                                {salesMembers?.filter(m => {
-                                  if (role === 'ADMIN' || role === 'LEAD_TL') return m.role === 'SALES_TL';
-                                  return true;
-                                }).map(m => 
-                                  m.role === 'SALES_TL' ? (
-                                    <React.Fragment key={m.user_id}>
-                                      <SelectItem value={`${m.user_id}_Personal`}>{m.full_name} -- Personal</SelectItem>
-                                      <SelectItem value={`${m.user_id}_Team`}>{m.full_name} -- Team</SelectItem>
-                                    </React.Fragment>
-                                  ) : (
-                                    <SelectItem key={`${m.user_id}_Personal`} value={`${m.user_id}_Personal`}>{m.full_name} -- Personal</SelectItem>
-                                  )
-                                )}
+                                {reassignCandidates.map(m => (
+                                  <SelectItem key={m.user_id} value={m.user_id}>
+                                    {m.full_name} {m.role === 'SALES_TL' ? '(TL)' : ''}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                             
                             <Button 
                               size="sm" 
-                              variant="outline" 
-                              className="text-xs h-8"
+                              variant="default" 
+                              className="text-xs h-8 px-2.5 flex items-center gap-1.5"
                               disabled={!targetVal || reassignMutation.isPending}
                               onClick={() => {
-                                const [id] = targetVal.split('_');
-                                reassignMutation.mutate({ leadId: lead.unique_id, tlId: id, queueType: 'Personal' });
+                                reassignMutation.mutate({ leadId: lead.unique_id, targetUserId: targetVal });
                                 setSelectedReassignTarget(prev => { const n = { ...prev }; delete n[lead.unique_id]; return n; });
                               }}
-                              title="Assign to Personal Queue"
+                              title="Reassign Lead"
                             >
-                              <User className="h-3 w-3" />
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              className="text-xs h-8 nb-gradient"
-                              disabled={!targetVal || reassignMutation.isPending}
-                              onClick={() => {
-                                const [id] = targetVal.split('_');
-                                reassignMutation.mutate({ leadId: lead.unique_id, tlId: id, queueType: 'Team' });
-                                setSelectedReassignTarget(prev => { const n = { ...prev }; delete n[lead.unique_id]; return n; });
-                              }}
-                              title="Assign to Master Queue"
-                            >
-                              <RefreshCw className="h-3 w-3" />
+                              <User className="h-3.5 w-3.5" />
+                              <span>Assign</span>
                             </Button>
                           </div>
                         </td>
