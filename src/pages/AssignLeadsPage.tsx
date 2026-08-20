@@ -94,32 +94,32 @@ const AssignLeadsPage: React.FC = () => {
     enabled: !!user,
   });
 
+  const getStatusThreshold = (status?: string | null): number => {
+    if (!status) return 5;
+    const s = status.trim().toLowerCase();
+    if (s.includes('hot')) return 90;
+    if (s.includes('qualif')) return 60;
+    if (s.includes('connect')) return 30;
+    if (s.includes('dnr1') || s === 'dnr 1') return 20;
+    if (s.includes('dnr2') || s === 'dnr 2') return 15;
+    if (s.includes('dnr3') || s === 'dnr 3') return 10;
+    if (s.includes('dnr')) return 15;
+    if (s.includes('non') || s.includes('not interest')) return 2;
+    if (s.includes('new')) return 5;
+    if (s.includes('stagnant') || s.includes('follow')) return 7;
+    return 10;
+  };
+
   const { data: agingLeads, isLoading: agingLoading } = useQuery({
     queryKey: ['aging-leads'],
     queryFn: async () => {
       const allLeads = await fetchAllLeads();
-      
-      const getStatusThreshold = (status?: string | null): number => {
-        if (!status) return 5;
-        const s = status.trim().toLowerCase();
-        if (s.includes('hot')) return 90;
-        if (s.includes('qualif')) return 60;
-        if (s.includes('connect')) return 30;
-        if (s.includes('dnr1') || s === 'dnr 1') return 20;
-        if (s.includes('dnr2') || s === 'dnr 2') return 15;
-        if (s.includes('dnr3') || s === 'dnr 3') return 10;
-        if (s.includes('dnr')) return 15;
-        if (s.includes('non') || s.includes('not interest')) return 2;
-        if (s.includes('new')) return 5;
-        if (s.includes('stagnant') || s.includes('follow')) return 7;
-        return 10;
-      };
 
       return (allLeads || [])
         .filter(lead => {
           if (['closed', 'enrolled', 'won', 'lost'].includes((lead.lead_status || '').toLowerCase())) return false;
-          // Case 1: Explicitly sent to Reassignment / Team pool by Admin
-          if (lead.assignment_type === 'Reassign' || lead.assignment_type === 'Team') return true;
+          // Case 1: Explicitly sent to Reassignment pool by Admin
+          if (lead.assignment_type === 'Reassign') return true;
           // Case 2: Currently assigned lead exceeding aging threshold
           if (lead.assigned_to) {
             const threshold = getStatusThreshold(lead.lead_status);
@@ -239,9 +239,18 @@ const AssignLeadsPage: React.FC = () => {
 
   const filteredTeamQueueLeads = useMemo(() => {
     if (!teamQueueLeads) return [];
-    const reassignmentIds = new Set((filteredAgingLeads || []).map(l => l.unique_id));
-    return teamQueueLeads.filter(l => l.assignment_type === 'Team' && l.assignment_type !== 'Reassign' && !reassignmentIds.has(l.unique_id));
-  }, [teamQueueLeads, filteredAgingLeads]);
+    return teamQueueLeads.filter(lead => {
+      // Must be Team queue assignment
+      if (lead.assignment_type !== 'Team') return false;
+      // Must NOT be Reassign type
+      if (lead.assignment_type === 'Reassign') return false;
+      // Exclude leads exceeding aging threshold
+      const threshold = getStatusThreshold(lead.lead_status);
+      const lastActionDate = lead.updated_at || lead.assigned_at || lead.created_at;
+      const days = lastActionDate ? getWorkingDaysDifference(lastActionDate, new Date()) : 0;
+      return days < threshold;
+    });
+  }, [teamQueueLeads]);
 
   const filteredUnassigned = useMemo(() => {
     if (!unassignedLeads) return [];
