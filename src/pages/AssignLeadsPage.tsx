@@ -216,7 +216,6 @@ const AssignLeadsPage: React.FC = () => {
           .from('leads')
           .select('*')
           .eq('assigned_to', activeTlId)
-          .eq('assignment_type', 'Team')
           .order('created_at', { ascending: false })
           .range(from, from + step - 1);
           
@@ -237,6 +236,12 @@ const AssignLeadsPage: React.FC = () => {
     },
     enabled: !!activeTlId,
   });
+
+  const filteredTeamQueueLeads = useMemo(() => {
+    if (!teamQueueLeads) return [];
+    const reassignmentIds = new Set((filteredAgingLeads || []).map(l => l.unique_id));
+    return teamQueueLeads.filter(l => l.assignment_type === 'Team' && l.assignment_type !== 'Reassign' && !reassignmentIds.has(l.unique_id));
+  }, [teamQueueLeads, filteredAgingLeads]);
 
   const filteredUnassigned = useMemo(() => {
     if (!unassignedLeads) return [];
@@ -259,8 +264,8 @@ const AssignLeadsPage: React.FC = () => {
   }, [unassignedLeads, searchQuery, bdMemberFilter]);
 
   const filteredTeamQueue = useMemo(() => {
-    if (!teamQueueLeads) return [];
-    let list = teamQueueLeads;
+    if (!filteredTeamQueueLeads) return [];
+    let list = filteredTeamQueueLeads;
 
     if (bdMemberFilter !== 'all') {
       list = list.filter(l => l.lead_generated_by === bdMemberFilter);
@@ -276,7 +281,7 @@ const AssignLeadsPage: React.FC = () => {
       const idMatch = String(l.display_id || '').toLowerCase().includes(raw) || (digits.length >= 2 && String(l.display_id || '').toLowerCase().includes(digits)) || String(l.unique_id || '').toLowerCase().includes(raw);
       return nameMatch || emailMatch || phoneMatch || idMatch;
     });
-  }, [teamQueueLeads, searchQuery, bdMemberFilter]);
+  }, [filteredTeamQueueLeads, searchQuery, bdMemberFilter]);
 
   const assignMutation = useMutation({
     mutationFn: async ({ leadId, selection }: { leadId: string; selection: string }) => {
