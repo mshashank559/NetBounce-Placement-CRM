@@ -120,26 +120,26 @@ const UserManagementPage: React.FC = () => {
       if (editForm.role && editForm.role !== editUser.role) {
         const { error: roleError } = await supabase
           .from('user_roles')
-          .update({ role: editForm.role as any })
-          .eq('user_id', editUser.user_id);
+          .upsert({ user_id: editUser.user_id, role: editForm.role as any }, { onConflict: 'user_id' });
         if (roleError) throw roleError;
       }
 
-      // 3. Update profiles table
+      // 3. Update profiles table (full_name and reports_to)
       const profileUpdates: any = {};
       if (editForm.full_name.trim()) profileUpdates.full_name = editForm.full_name.trim();
-      if (editForm.role) profileUpdates.role = editForm.role;
       if (editForm.role === 'SALES_TM') {
         profileUpdates.reports_to = editForm.reports_to || null;
       } else {
         profileUpdates.reports_to = null;
       }
 
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update(profileUpdates)
-        .eq('user_id', editUser.user_id);
-      if (profileError) throw profileError;
+      if (Object.keys(profileUpdates).length > 0) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update(profileUpdates)
+          .eq('user_id', editUser.user_id);
+        if (profileError) throw profileError;
+      }
 
       // 4. Lead Ownership Preservation:
       // If promoted to SALES_TL, update team_lead_id on existing owned leads
