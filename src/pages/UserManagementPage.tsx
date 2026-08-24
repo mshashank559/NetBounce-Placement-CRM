@@ -31,7 +31,7 @@ const UserManagementPage: React.FC = () => {
 
   // ── Edit user state ────────────────────────────────────────
   const [editUser, setEditUser] = useState<any | null>(null);
-  const [editForm, setEditForm] = useState({ full_name: '', email: '', password: '' });
+  const [editForm, setEditForm] = useState({ full_name: '', email: '', password: '', role: '', reports_to: '' });
   const [isSaving, setIsSaving] = useState(false);
 
   const { data: users } = useQuery({
@@ -49,16 +49,9 @@ const UserManagementPage: React.FC = () => {
     },
   });
 
-  const { data: teamLeads } = useQuery({
-    queryKey: ['team-leads'],
-    queryFn: async () => {
-      const { data: roles } = await supabase.from('user_roles').select('user_id').eq('role', 'SALES_TL');
-      if (!roles) return [];
-      const { data: profiles } = await supabase.from('profiles').select('*').in('user_id', roles.map(r => r.user_id));
-      return profiles || [];
-    }
-  });
+  const teamLeads = users?.filter(u => u.role === 'SALES_TL');
 
+  // ── Create user ────────────────────────────────────────────
   const createUser = useMutation({
     mutationFn: async () => {
       const cleanedEmail = form.email.replace(/['"]/g, '').trim();
@@ -98,36 +91,75 @@ const UserManagementPage: React.FC = () => {
   // ── Open edit dialog ───────────────────────────────────────
   const handleEditOpen = (u: any) => {
     setEditUser(u);
-    setEditForm({ full_name: u.full_name || '', email: u.email || '', password: '' });
+    setEditForm({
+      full_name: u.full_name || '',
+      email: u.email || '',
+      password: '',
+      role: u.role || '',
+      reports_to: u.reports_to || '',
+    });
   };
 
   // ── Save edited user ───────────────────────────────────────
   const handleEditSave = async () => {
     if (!editUser) return;
-    if (!editForm.full_name.trim() && !editForm.email.trim() && !editForm.password.trim()) {
-      toast.error('Please fill in at least one field to update.');
-      return;
-    }
     setIsSaving(true);
     try {
-      // Call the update_user_by_admin RPC — this handles email/name/password updates
-      // AND, when a password is supplied, deletes all active sessions + writes audit log.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any).rpc('update_user_by_admin', {
-        target_user_id: editUser.user_id,
-        new_full_name:  editForm.full_name.trim()  || null,
-        new_email:      editForm.email.replace(/['"]/g, '').trim() || null,
-        new_password:   editForm.password.trim()    || null,
-      });
-      if (error) throw new Error(error.message);
+      // 1. Call RPC update_user_by_admin if name, email, or password provided
+      if (editForm.full_name.trim() || editForm.email.trim() || editForm.password.trim()) {
+        const { error } = await (supabase as any).rpc('update_user_by_admin', {
+          target_user_id: editUser.user_id,
+          new_full_name:  editForm.full_name.trim()  || null,
+          new_email:      editForm.email.replace(/['"]/g, '').trim() || null,
+          new_password:   editForm.password.trim()    || null,
+        });
+        if (error) throw new Error(error.message);
+      }
+
+      // 2. Update role in user_roles table if changed
+      if (editForm.role && editForm.role !== editUser.role) {
+        const { error: roleError } = await supabase
+          .from('user_roles')
+          .update({ role: editForm.role as any })
+          .eq('user_id', editUser.user_id);
+        if (roleError) throw roleError;
+      }
+
+      // 3. Update profiles table
+      const profileUpdates: any = {};
+      if (editForm.full_name.trim()) profileUpdates.full_name = editForm.full_name.trim();
+      if (editForm.role) profileUpdates.role = editForm.role;
+      if (editForm.role === 'SALES_TM') {
+        profileUpdates.reports_to = editForm.reports_to || null;
+      } else {
+        profileUpdates.reports_to = null;
+      }
+
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update(profileUpdates)
+        .eq('user_id', editUser.user_id);
+      if (profileError) throw profileError;
+
+      // 4. Lead Ownership Preservation:
+      // If promoted to SALES_TL, update team_lead_id on existing owned leads
+      // so team queue / TL dashboard reflects correctly while maintaining assigned_to ownership
+      if (editForm.role === 'SALES_TL' && editUser.role !== 'SALES_TL') {
+        await supabase
+          .from('leads')
+          .update({ team_lead_id: editUser.user_id } as any)
+          .eq('assigned_to', editUser.user_id);
+      }
 
       const isPasswordChange = !!editForm.password.trim();
       toast.success(
         isPasswordChange
-          ? 'Password reset successfully. The user has been signed out of all devices.'
+          ? 'Password reset and user details updated successfully.'
           : 'User updated successfully!'
       );
       queryClient.invalidateQueries({ queryKey: ['all-users'] });
+      queryClient.invalidateQueries({ queryKey: ['profiles'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
       setEditUser(null);
     } catch (err: any) {
       toast.error(err.message ?? 'Failed to update user');
@@ -283,6 +315,30 @@ const UserManagementPage: React.FC = () => {
               />
               <p className="text-xs text-muted-foreground mt-1">This updates their login email. All existing data stays mapped automatically.</p>
             </div>
+            <div>
+              <Label>Role</Label>
+              <Select value={editForm.role} onValueChange={v => setEditForm(f => ({ ...f, role: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
+                <SelectContent>
+                  {ROLES.map(r => (
+                    <SelectItem key={r} value={r}>{r.replace('_', ' ')}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {editForm.role === 'SALES_TM' && (
+              <div>
+                <Label>Reports To (Sales TL)</Label>
+                <Select value={editForm.reports_to} onValueChange={v => setEditForm(f => ({ ...f, reports_to: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select Team Lead" /></SelectTrigger>
+                  <SelectContent>
+                    {teamLeads?.filter(tl => tl.user_id !== editUser?.user_id).map(tl => (
+                      <SelectItem key={tl.user_id} value={tl.user_id}>{tl.full_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div>
               <Label>New Password</Label>
               <Input
