@@ -548,7 +548,11 @@ const AssignLeadsPage: React.FC = () => {
     mutationFn: async () => {
       const targetMembers = salesMembers?.filter(m => m.role === 'SALES_TM') || [];
       if (!targetMembers || targetMembers.length === 0) throw new Error('No sales team members available');
-      if (!teamQueueLeads || teamQueueLeads.length === 0) throw new Error('No team queue leads');
+
+      // Strictly filter eligible leads: ONLY leads meant for team queue (assignment_type === 'Team')
+      // Completely EXCLUDE Sales TL's own directly assigned personal leads (assignment_type === 'Personal')
+      const eligibleLeads = (filteredTeamQueue || []).filter(l => l.assignment_type === 'Team' && l.assignment_type !== 'Personal');
+      if (!eligibleLeads || eligibleLeads.length === 0) throw new Error('No team queue leads available for distribution');
 
       // Group lead unique_ids by salesUserId
       const groups: Record<string, string[]> = {};
@@ -556,7 +560,7 @@ const AssignLeadsPage: React.FC = () => {
         groups[m.user_id] = [];
       });
 
-      teamQueueLeads.forEach((lead, i) => {
+      eligibleLeads.forEach((lead, i) => {
         const targetMember = targetMembers[i % targetMembers.length];
         groups[targetMember.user_id].push(lead.unique_id);
       });
@@ -586,7 +590,7 @@ const AssignLeadsPage: React.FC = () => {
         const notifs: any[] = [];
         
         for (const leadId of leadIds) {
-          const lName = teamQueueLeads.find(l => l.unique_id === leadId)?.name || 'Lead';
+          const lName = eligibleLeads.find(l => l.unique_id === leadId)?.name || 'Lead';
           targets.forEach(tId => {
             notifs.push({
               user_id: tId,
