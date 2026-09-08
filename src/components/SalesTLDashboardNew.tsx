@@ -1138,8 +1138,8 @@ const SalesTLDashboard: React.FC = () => {
                               <Eye className="h-4 w-4" />
                             </Button>
 
-                            {/* Assign to Team Member Button (for Sales TL) */}
-                            {role === 'SALES_TL' && (
+                            {/* Assign to Team Member Button (for Sales TL) - Hidden in Global View */}
+                            {role === 'SALES_TL' && viewMode !== 'global' && (
                               <div className="relative reassign-dropdown-container">
                                 <Button
                                   size="sm"
