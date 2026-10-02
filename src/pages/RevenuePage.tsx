@@ -259,11 +259,26 @@ const RevenuePage: React.FC = () => {
 
   // Fetch profiles for Admin view to resolve Sales TL names & mapping
   const { data: profiles } = useQuery<any[]>({
-    queryKey: ['profiles-all-revenue'],
+    queryKey: ['profiles-all-revenue-v3'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('profiles').select('*');
-      if (error) throw error;
-      return data || [];
+      try {
+        const [pRes, rRes] = await Promise.all([
+          supabase.from('profiles').select('user_id, full_name, email, reports_to'),
+          supabase.from('user_roles').select('user_id, role')
+        ]);
+        const pList = pRes.data || [];
+        const rList = rRes.data || [];
+        const rolesMap: Record<string, string> = {};
+        rList.forEach((r: any) => { rolesMap[r.user_id] = r.role; });
+
+        return pList.map((p: any) => ({
+          ...p,
+          role: rolesMap[p.user_id] || ''
+        }));
+      } catch (e) {
+        console.warn('Profiles query error in RevenuePage:', e);
+        return [];
+      }
     },
     enabled: role === 'ADMIN',
   });
@@ -396,6 +411,11 @@ const RevenuePage: React.FC = () => {
     return filteredClosuresForGrid.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   }, [filteredClosuresForGrid, page]);
 
+  const activeMonthLabel = useMemo(() => {
+    if (monthFilter === 'all') return 'All Months';
+    return MONTHS_OPTIONS.find(m => m.value === monthFilter)?.label || 'Selected Month';
+  }, [monthFilter]);
+
   // Authorization check for the page
   if (role !== 'ADMIN' && role !== 'SALES_TL' && role !== 'ACCOUNTANT') {
     return <div className="text-center text-muted-foreground p-8">Access denied</div>;
@@ -419,11 +439,6 @@ const RevenuePage: React.FC = () => {
     if (role === 'ADMIN' || role === 'ACCOUNTANT') return true;
     return c.assigned_to === user?.id || c.lead_generated_by === user?.id;
   };
-
-  const activeMonthLabel = useMemo(() => {
-    if (monthFilter === 'all') return 'All Months';
-    return MONTHS_OPTIONS.find(m => m.value === monthFilter)?.label || 'Selected Month';
-  }, [monthFilter]);
 
   return (
     <div className="space-y-6 pb-12">
