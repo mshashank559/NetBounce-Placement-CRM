@@ -30,11 +30,28 @@ const formatDate = (dateString?: string) => {
   });
 };
 
+const MONTHS_OPTIONS = [
+  { value: 'all', label: 'All Months' },
+  { value: '01', label: 'January' },
+  { value: '02', label: 'February' },
+  { value: '03', label: 'March' },
+  { value: '04', label: 'April' },
+  { value: '05', label: 'May' },
+  { value: '06', label: 'June' },
+  { value: '07', label: 'July' },
+  { value: '08', label: 'August' },
+  { value: '09', label: 'September' },
+  { value: '10', label: 'October' },
+  { value: '11', label: 'November' },
+  { value: '12', label: 'December' },
+];
+
 const RevenuePage: React.FC = () => {
   const { user, role } = useAuth();
   const queryClient = useQueryClient();
   const currentYear = new Date().getFullYear();
   const [yearFilter, setYearFilter] = useState(String(currentYear));
+  const [monthFilter, setMonthFilter] = useState<string>('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [activeView, setActiveView] = useState<'my_view' | 'team_view' | 'restricted_view'>('my_view');
@@ -183,12 +200,13 @@ const RevenuePage: React.FC = () => {
       if (dateFrom && paymentDateStr < dateFrom) return false;
       if (dateTo && paymentDateStr > dateTo) return false;
       if (!dateFrom && !dateTo) {
-        const { year } = getISTYearAndMonth(p.date);
+        const { year, month } = getISTYearAndMonth(p.date);
         if (year !== parseInt(yearFilter)) return false;
+        if (monthFilter !== 'all' && month !== parseInt(monthFilter, 10)) return false;
       }
       return true;
     });
-  }, [allPayments, dateFrom, dateTo, yearFilter]);
+  }, [allPayments, dateFrom, dateTo, yearFilter, monthFilter]);
 
   const monthlyRevenue = useMemo(() => {
     const months: Record<string, number> = {};
@@ -228,7 +246,7 @@ const RevenuePage: React.FC = () => {
   const currentMonthKey = currentIST.key;
 
   const currentMonthRevenue = useMemo(() => {
-    if (dateFrom || dateTo) {
+    if (dateFrom || dateTo || monthFilter !== 'all') {
       return filteredPayments.reduce((s, p) => s + p.amount, 0);
     }
     return allPayments.reduce((s, p) => {
@@ -237,7 +255,7 @@ const RevenuePage: React.FC = () => {
       if (key !== currentMonthKey) return s;
       return s + p.amount;
     }, 0);
-  }, [allPayments, filteredPayments, dateFrom, dateTo, currentMonthKey]);
+  }, [allPayments, filteredPayments, dateFrom, dateTo, monthFilter, currentMonthKey]);
 
   // Fetch profiles for Admin view to resolve Sales TL names & mapping
   const { data: profiles } = useQuery<any[]>({
@@ -349,8 +367,9 @@ const RevenuePage: React.FC = () => {
         if (dateFrom && dStr < dateFrom) return false;
         if (dateTo && dStr > dateTo) return false;
         if (!dateFrom && !dateTo) {
-          const { year } = getISTYearAndMonth(dateVal);
+          const { year, month } = getISTYearAndMonth(dateVal);
           if (year !== parseInt(yearFilter)) return false;
+          if (monthFilter !== 'all' && month !== parseInt(monthFilter, 10)) return false;
         }
         return true;
       };
@@ -370,7 +389,7 @@ const RevenuePage: React.FC = () => {
       }
       return hasPaymentInFilter;
     });
-  }, [sortedClosures, dateFrom, dateTo, yearFilter]);
+  }, [sortedClosures, dateFrom, dateTo, yearFilter, monthFilter]);
 
   // Filter closures specifically for pagination in the data table
   const paginatedClosures = useMemo(() => {
@@ -401,6 +420,11 @@ const RevenuePage: React.FC = () => {
     return c.assigned_to === user?.id || c.lead_generated_by === user?.id;
   };
 
+  const activeMonthLabel = useMemo(() => {
+    if (monthFilter === 'all') return 'All Months';
+    return MONTHS_OPTIONS.find(m => m.value === monthFilter)?.label || 'Selected Month';
+  }, [monthFilter]);
+
   return (
     <div className="space-y-6 pb-12">
       {/* Header and Switchable Tabs */}
@@ -420,23 +444,34 @@ const RevenuePage: React.FC = () => {
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1.5 bg-background px-2.5 rounded-md border border-input h-10 shrink-0">
             <span className="text-xs text-muted-foreground font-medium pr-1 select-none">Date:</span>
-            <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-[130px] h-8 text-xs border-0 bg-transparent pl-1.5 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm" />
+            <Input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} className="w-[130px] h-8 text-xs border-0 bg-transparent pl-1.5 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm" />
             <span className="text-muted-foreground text-xs px-0.5 select-none">—</span>
-            <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="w-[130px] h-8 text-xs border-0 bg-transparent pl-1.5 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm" />
+            <Input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }} className="w-[130px] h-8 text-xs border-0 bg-transparent pl-1.5 pr-3 focus-visible:ring-0 focus-visible:ring-offset-0 focus:bg-accent/40 rounded-sm" />
             {(dateFrom || dateTo) && (
-              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => { setDateFrom(''); setDateTo(''); }}>
+              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => { setDateFrom(''); setDateTo(''); setPage(1); }}>
                 <XCircle className="h-4 w-4" />
               </Button>
             )}
           </div>
 
-          <Select value={yearFilter} onValueChange={setYearFilter} disabled={!!(dateFrom || dateTo)}>
-            <SelectTrigger className="w-24 h-10">
+          <Select value={monthFilter} onValueChange={val => { setMonthFilter(val); setPage(1); }} disabled={!!(dateFrom || dateTo)}>
+            <SelectTrigger className="w-32 h-10 text-xs">
+              <SelectValue placeholder="Month" />
+            </SelectTrigger>
+            <SelectContent>
+              {MONTHS_OPTIONS.map(m => (
+                <SelectItem key={m.value} value={m.value} className="text-xs">{m.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={yearFilter} onValueChange={val => { setYearFilter(val); setPage(1); }} disabled={!!(dateFrom || dateTo)}>
+            <SelectTrigger className="w-24 h-10 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {[currentYear, currentYear - 1, currentYear - 2].map(y => (
-                <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                <SelectItem key={y} value={String(y)} className="text-xs">{y}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -449,7 +484,11 @@ const RevenuePage: React.FC = () => {
           <Card className="glass-card nb-glow h-full flex flex-col justify-between">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                {dateFrom || dateTo ? 'Selected Range Revenue' : 'Monthly Revenue'}
+                {dateFrom || dateTo
+                  ? 'Selected Range Revenue'
+                  : monthFilter !== 'all'
+                  ? `${activeMonthLabel} ${yearFilter} Revenue`
+                  : 'Monthly Revenue'}
               </CardTitle>
               <Calendar className="h-4 w-4 text-primary" />
             </CardHeader>
@@ -466,6 +505,8 @@ const RevenuePage: React.FC = () => {
               <p className="text-xs text-muted-foreground mt-1">
                 {dateFrom || dateTo
                   ? `${dateFrom ? formatDate(dateFrom) : 'Start'} — ${dateTo ? formatDate(dateTo) : 'End'}`
+                  : monthFilter !== 'all'
+                  ? `${activeMonthLabel} ${yearFilter}`
                   : 'Current month'}
               </p>
             </CardContent>
