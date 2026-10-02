@@ -528,7 +528,7 @@ const LeadsPage: React.FC = () => {
         assigned_to: userId,
         assignment_type: type || 'Personal',
         team_lead_id: teamLeadId,
-        assigned_at: lead?.assigned_at || new Date().toISOString(),
+        assigned_at: (lead as any)?.assigned_at || new Date().toISOString(),
       } as any).eq('unique_id', leadId);
       if (error) throw error;
 

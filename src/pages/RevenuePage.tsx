@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DollarSign, TrendingUp, Calendar, Lock, Pencil, Trash2, CheckCircle2, XCircle } from 'lucide-react';
+import { DollarSign, TrendingUp, Calendar, Lock, Pencil, Trash2, CheckCircle2, XCircle, Trophy } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -239,6 +239,82 @@ const RevenuePage: React.FC = () => {
     }, 0);
   }, [allPayments, filteredPayments, dateFrom, dateTo, currentMonthKey]);
 
+  // Fetch profiles for Admin view to resolve Sales TL names & mapping
+  const { data: profiles } = useQuery<any[]>({
+    queryKey: ['profiles-all-revenue'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('profiles').select('*');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: role === 'ADMIN',
+  });
+
+  const tlLeaderboard = useMemo(() => {
+    if (role !== 'ADMIN' || !profiles || profiles.length === 0) return [];
+
+    const profilesById: Record<string, any> = {};
+    const tlsById: Record<string, any> = {};
+
+    profiles.forEach(p => {
+      profilesById[p.user_id] = p;
+      if (p.role === 'sales_tl' || p.role === 'SALES_TL') {
+        tlsById[p.user_id] = p;
+      }
+    });
+
+    const userToTLMap: Record<string, string> = {};
+    profiles.forEach(p => {
+      if (p.role === 'sales_tl' || p.role === 'SALES_TL') {
+        userToTLMap[p.user_id] = p.user_id;
+      } else if (p.reports_to && tlsById[p.reports_to]) {
+        userToTLMap[p.user_id] = p.reports_to;
+      }
+    });
+
+    const tlRevenueMap: Record<string, { tlId: string; tlName: string; tlEmail: string; revenue: number; dealsCount: number }> = {};
+
+    // Initialize all TLs so they appear in leaderboard even if $0 in selected period
+    Object.values(tlsById).forEach(tl => {
+      tlRevenueMap[tl.user_id] = {
+        tlId: tl.user_id,
+        tlName: tl.full_name || tl.email || 'Sales TL',
+        tlEmail: tl.email || '',
+        revenue: 0,
+        dealsCount: 0
+      };
+    });
+
+    filteredPayments.forEach(p => {
+      const c = p.closure;
+      const assignedUserId = c?.assigned_to;
+      const effectiveTLId = c?.team_lead_id || userToTLMap[assignedUserId] || assignedUserId;
+
+      if (effectiveTLId && tlRevenueMap[effectiveTLId]) {
+        tlRevenueMap[effectiveTLId].revenue += p.amount;
+        tlRevenueMap[effectiveTLId].dealsCount += 1;
+      } else if (effectiveTLId) {
+        // Fallback for TL or Admin assigned lead
+        const tlObj = profilesById[effectiveTLId];
+        const name = tlObj ? (tlObj.full_name || tlObj.email) : 'Direct / Unassigned';
+        if (!tlRevenueMap[effectiveTLId]) {
+          tlRevenueMap[effectiveTLId] = {
+            tlId: effectiveTLId,
+            tlName: name,
+            tlEmail: tlObj?.email || '',
+            revenue: 0,
+            dealsCount: 0
+          };
+        }
+        tlRevenueMap[effectiveTLId].revenue += p.amount;
+        tlRevenueMap[effectiveTLId].dealsCount += 1;
+      }
+    });
+
+    return Object.values(tlRevenueMap)
+      .sort((a, b) => b.revenue - a.revenue);
+  }, [role, profiles, filteredPayments]);
+
   // Helper to find the latest payment date for a closure to sort by
   const getLatestPaymentDate = (c: any) => {
     const dates: string[] = [];
@@ -368,9 +444,9 @@ const RevenuePage: React.FC = () => {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className={`grid grid-cols-1 ${role === 'ADMIN' ? 'lg:grid-cols-3 md:grid-cols-3' : 'md:grid-cols-2'} gap-4`}>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <Card className="glass-card nb-glow">
+          <Card className="glass-card nb-glow h-full flex flex-col justify-between">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 {dateFrom || dateTo ? 'Selected Range Revenue' : 'Monthly Revenue'}
@@ -395,8 +471,9 @@ const RevenuePage: React.FC = () => {
             </CardContent>
           </Card>
         </motion.div>
+
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <Card className="glass-card">
+          <Card className="glass-card h-full flex flex-col justify-between">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Yearly Revenue</CardTitle>
               <TrendingUp className="h-4 w-4 text-primary" />
@@ -417,6 +494,51 @@ const RevenuePage: React.FC = () => {
             </CardContent>
           </Card>
         </motion.div>
+
+        {role === 'ADMIN' && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+            <Card className="glass-card border-primary/20 bg-primary/5 h-full flex flex-col">
+              <CardHeader className="flex flex-row items-center justify-between pb-2 pt-3 px-4 shrink-0">
+                <CardTitle className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                  <Trophy className="h-4 w-4 text-amber-500" />
+                  Sales TL Leaderboard
+                </CardTitle>
+                <Badge variant="outline" className="text-[10px] uppercase tracking-wider font-semibold border-amber-500/30 text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0">
+                  Admin Only
+                </Badge>
+              </CardHeader>
+              <CardContent className="px-4 pb-3 pt-0 flex-1 min-h-0">
+                <div className="max-h-[110px] overflow-y-auto pr-1 space-y-1.5 scrollbar-thin">
+                  {tlLeaderboard.length === 0 ? (
+                    <div className="text-xs text-muted-foreground text-center py-4">No team data for selected period</div>
+                  ) : (
+                    tlLeaderboard.map((tl, index) => (
+                      <div key={tl.tlId || index} className="flex items-center justify-between p-1.5 rounded-lg bg-background/80 border border-border/50 text-xs hover:bg-background transition-colors">
+                        <div className="flex items-center gap-2 min-w-0 pr-2">
+                          <span className={`flex items-center justify-center h-5 w-5 rounded-full text-[10px] shrink-0 ${
+                            index === 0 ? 'bg-amber-500 text-amber-950 font-black shadow-sm' :
+                            index === 1 ? 'bg-slate-300 text-slate-900 font-bold' :
+                            index === 2 ? 'bg-amber-700/80 text-amber-100 font-bold' :
+                            'bg-muted text-muted-foreground font-semibold'
+                          }`}>
+                            {index + 1}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="font-semibold truncate text-foreground text-xs leading-none">{tl.tlName}</p>
+                            <p className="text-[10px] text-muted-foreground truncate mt-0.5">{tl.dealsCount} paid deal{tl.dealsCount !== 1 ? 's' : ''}</p>
+                          </div>
+                        </div>
+                        <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 shrink-0 text-xs">
+                          ${tl.revenue.toLocaleString()}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
       </div>
 
       {/* Monthly Revenue Breakdown Chart */}
