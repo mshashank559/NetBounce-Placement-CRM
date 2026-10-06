@@ -384,16 +384,11 @@ const SalesTLDashboard: React.FC = () => {
       if (viewMode === 'personal' && assignedTo && assignedTo !== user?.id) return;
       if (viewMode === 'team' && assignedTo && assignedTo !== user?.id && !myTeamIds.has(assignedTo)) return;
 
-      // 1. Slot 1 (If slot1 is true/paid) or fallback upfront
-      if (c.slot1 && Number(c.slot1_amount) > 0) {
+      // 1. Slot 1 (ONLY if slot1 is true / marked as paid)
+      if (c.slot1 && Number(c.slot1_amount || c.upfront_amount) > 0) {
         payments.push({
-          amount: Number(c.slot1_amount),
+          amount: Number(c.slot1_amount || c.upfront_amount),
           date: c.slot1_due_date || c.created_at
-        });
-      } else if (Number(c.upfront_amount) > 0) {
-        payments.push({
-          amount: Number(c.upfront_amount),
-          date: c.created_at
         });
       }
       // 2. Slot 2 (If slot2 is true/paid)
@@ -1107,7 +1102,7 @@ const SalesTLDashboard: React.FC = () => {
                         <td className="p-2 text-xs">{new Date(lead.updated_at).toLocaleDateString()}</td>
                         <td className="p-2 text-xs">
                           {closure ? (() => {
-                            const s1 = closure.slot1 ? (Number(closure.slot1_amount) || 0) : 0;
+                            const s1 = closure.slot1 ? (Number(closure.slot1_amount || closure.upfront_amount) || 0) : 0;
                             const s2 = closure.slot2 ? (Number(closure.slot2_amount) || 0) : 0;
                             let additional = 0;
                             if (Array.isArray(closure.additional_slots)) {
