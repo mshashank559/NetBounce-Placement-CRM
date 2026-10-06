@@ -46,17 +46,28 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
     enabled: open,
   });
 
+  const isUUID = (val: any): boolean =>
+    typeof val === 'string' && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(val);
+
   const { data: closure } = useQuery({
-    queryKey: ['closure', lead.unique_id, lead.display_id, lead.id],
+    queryKey: ['closure', lead?.unique_id, lead?.display_id, lead?.id],
     queryFn: async () => {
-      const targetIds = Array.from(new Set([lead.unique_id, lead.display_id, lead.id ? String(lead.id) : null].filter(Boolean)));
-      for (const targetId of targetIds) {
-        const { data } = await supabase.from('lead_closures').select('*').eq('lead_id', targetId as string).maybeSingle();
-        if (data) return data;
+      if (!lead) return null;
+      let targetUuid = isUUID(lead.unique_id) ? lead.unique_id : null;
+      if (!targetUuid) {
+        if (lead.display_id) {
+          const { data } = await supabase.from('leads').select('unique_id').eq('display_id', lead.display_id).maybeSingle();
+          if (data?.unique_id) targetUuid = data.unique_id;
+        } else if (lead.id) {
+          const { data } = await supabase.from('leads').select('unique_id').eq('id', lead.id).maybeSingle();
+          if (data?.unique_id) targetUuid = data.unique_id;
+        }
       }
-      return null;
+      if (!targetUuid || !isUUID(targetUuid)) return null;
+      const { data } = await supabase.from('lead_closures').select('*').eq('lead_id', targetUuid).maybeSingle();
+      return data;
     },
-    enabled: open && (!!lead.unique_id || !!lead.display_id || !!lead.id),
+    enabled: open && !!lead,
   });
 
   const { data: generatedByProfile } = useQuery({

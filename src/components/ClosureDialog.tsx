@@ -59,18 +59,28 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
     setAdditionalSlots(prev => prev.map((s, i) => i === index ? { ...s, [field]: value } : s));
   };
 
+  const isUUID = (val: any): boolean =>
+    typeof val === 'string' && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(val);
+
   const { data: closure, isSuccess: isClosureLoaded } = useQuery({
-    queryKey: ['closure', lead?.unique_id, lead?.display_id, lead?.id],
+    queryKey: ['closure', lead?.unique_id || lead?.display_id || lead?.id],
     queryFn: async () => {
       if (!lead) return null;
-      const targetIds = Array.from(new Set([lead.unique_id, lead.display_id, lead.id ? String(lead.id) : null].filter(Boolean)));
-      for (const targetId of targetIds) {
-        const { data } = await supabase.from('lead_closures').select('*').eq('lead_id', targetId as string).maybeSingle();
-        if (data) return data;
+      let targetUuid = isUUID(lead.unique_id) ? lead.unique_id : null;
+      if (!targetUuid) {
+        if (lead.display_id) {
+          const { data } = await supabase.from('leads').select('unique_id').eq('display_id', lead.display_id).maybeSingle();
+          if (data?.unique_id) targetUuid = data.unique_id;
+        } else if (lead.id) {
+          const { data } = await supabase.from('leads').select('unique_id').eq('id', lead.id).maybeSingle();
+          if (data?.unique_id) targetUuid = data.unique_id;
+        }
       }
-      return null;
+      if (!targetUuid || !isUUID(targetUuid)) return null;
+      const { data } = await supabase.from('lead_closures').select('*').eq('lead_id', targetUuid).maybeSingle();
+      return data;
     },
-    enabled: open && (!!lead?.unique_id || !!lead?.display_id || !!lead?.id),
+    enabled: open && !!lead,
   });
 
   React.useEffect(() => {
@@ -123,11 +133,23 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
       if (!form.amount || parseFloat(form.amount) <= 0) throw new Error('On-Offer Amount is required');
       if (form.percentage === '' || parseFloat(form.percentage) < 0) throw new Error('Percentage is required');
 
+      let targetUuid = isUUID(lead.unique_id) ? lead.unique_id : null;
+      if (!targetUuid) {
+        if (lead.display_id) {
+          const { data } = await supabase.from('leads').select('unique_id').eq('display_id', lead.display_id).maybeSingle();
+          if (data?.unique_id) targetUuid = data.unique_id;
+        } else if (lead.id) {
+          const { data } = await supabase.from('leads').select('unique_id').eq('id', lead.id).maybeSingle();
+          if (data?.unique_id) targetUuid = data.unique_id;
+        }
+      }
+      if (!targetUuid || !isUUID(targetUuid)) throw new Error('Could not resolve valid lead UUID for closure submission');
+
       // Update lead status to Closed and sync email
-      await supabase.from('leads').update({ lead_status: 'Closed' as any, email: cleanedCandidateEmail }).eq('unique_id', lead.unique_id);
+      await supabase.from('leads').update({ lead_status: 'Closed' as any, email: cleanedCandidateEmail }).eq('unique_id', targetUuid);
 
       await supabase.from('lead_history_logs').insert({
-        lead_id: lead.unique_id,
+        lead_id: targetUuid,
         changed_by: user!.id,
         action_type: 'STATUS_CHANGE',
         old_value: lead.lead_status || 'New',
@@ -137,7 +159,7 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
 
       // Build closure payload with new fields
       const closurePayload: any = {
-        lead_id: lead.unique_id,
+        lead_id: targetUuid,
         plan: form.plan as any,
         interview_plan: form.interview_plan,
         interviews_guaranteed: form.interviews_guaranteed ? parseInt(form.interviews_guaranteed) || null : null,
@@ -175,14 +197,14 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
       if (!error) {
         await supabase.from('leads')
           .update({ email: cleanedCandidateEmail } as any)
-          .eq('unique_id', lead.unique_id);
+          .eq('unique_id', targetUuid);
       }
 
       if (error) {
         // If the error is about unknown columns, retry with only the standard columns
         if (error.code === '42703' || error.message?.includes('column')) {
           const fallbackPayload: any = {
-            lead_id: lead.unique_id,
+            lead_id: targetUuid,
             plan: form.plan as any,
             interview_plan: form.interview_plan,
             upfront_amount: parseFloat(form.upfront_amount) || 0,
@@ -211,7 +233,7 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
           if (fallbackErr) throw fallbackErr;
 
           const paymentDetails = `[Closure Payment] Amount: $${form.amount}, Percentage: ${form.percentage}%, Slot1 Due: ${form.slot1_due_date || 'N/A'}, Next Slot Due: ${form.next_slot_due_date || 'N/A'}, Additional Slots: ${JSON.stringify(additionalSlots)}`;
-          await supabase.from('leads').update({ comment: paymentDetails, email: cleanedCandidateEmail } as any).eq('unique_id', lead.unique_id);
+          await supabase.from('leads').update({ comment: paymentDetails, email: cleanedCandidateEmail } as any).eq('unique_id', targetUuid);
         } else {
           throw error;
         }
@@ -248,7 +270,7 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
           title: 'Lead Closed',
           message: `${lead.name} has been closed successfully.`,
           type: 'closure',
-          lead_id: lead.unique_id,
+          lead_id: targetUuid,
         }));
         await supabase.from('notifications').insert(notifications);
       }
@@ -264,7 +286,7 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
           title: 'New Revenue Generated',
           message: `New revenue of $${totalRevenue.toFixed(2)} generated from ${lead.name}.`,
           type: 'revenue',
-          lead_id: lead.unique_id,
+          lead_id: targetUuid,
         }));
         await supabase.from('notifications').insert(revenueNotifs);
       }
