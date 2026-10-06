@@ -148,13 +148,15 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
       // Update lead status to Closed and sync email
       await supabase.from('leads').update({ lead_status: 'Closed' as any, email: cleanedCandidateEmail }).eq('unique_id', targetUuid);
 
+      const closureLogSummary = `[Closure Details] Plan: ${form.plan} | Upfront: $${form.upfront_amount} | Payment Mode: ${form.payment_mode}${form.amount ? ` | On-Offer: $${form.amount} (${form.percentage || 0}%)` : ''}${form.movement.trim() ? ` | Remarks: ${form.movement.trim()}` : ''}`;
+
       await supabase.from('lead_history_logs').insert({
         lead_id: targetUuid,
         changed_by: user!.id,
         action_type: 'STATUS_CHANGE',
         old_value: lead.lead_status || 'New',
         new_value: 'Closed',
-        comments: form.movement.trim() || null
+        comments: closureLogSummary
       });
 
       // Build closure payload with new fields

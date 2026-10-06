@@ -227,25 +227,73 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
     enabled: open,
   });
 
+  const effectiveClosure = React.useMemo(() => {
+    if (closure) return closure;
+    if (!lead) return null;
+
+    const commentStr = lead.comment || '';
+    if (commentStr.includes('[Closure Payment]') || commentStr.includes('[Closure Details]')) {
+      const planMatch = commentStr.match(/Plan:\s*([^|,\n]+)/);
+      const upfrontMatch = commentStr.match(/Upfront:\s*\$?([0-9.]+)/) || commentStr.match(/Amount:\s*\$?([0-9.]+)/);
+      const modeMatch = commentStr.match(/Payment Mode:\s*([^|,\n]+)/) || commentStr.match(/Mode:\s*([^|,\n]+)/);
+      const amountMatch = commentStr.match(/On-Offer:\s*\$?([0-9.]+)/) || commentStr.match(/Amount:\s*\$?([0-9.]+)/);
+      const percentageMatch = commentStr.match(/Percentage:\s*([0-9.]+)%/);
+
+      return {
+        plan: planMatch ? planMatch[1].trim() : 'Standard',
+        upfront_amount: upfrontMatch ? parseFloat(upfrontMatch[1]) : 0,
+        payment_mode: modeMatch ? modeMatch[1].trim() : 'N/A',
+        amount: amountMatch ? parseFloat(amountMatch[1]) : null,
+        percentage: percentageMatch ? parseFloat(percentageMatch[1]) : null,
+        interview_plan: false,
+        interviews_guaranteed: null,
+      };
+    }
+
+    if (statusHistory && Array.isArray(statusHistory)) {
+      const closureLog = statusHistory.find((l: any) => l.new_value === 'Closed' && l.comments && (l.comments.includes('[Closure Details]') || l.comments.includes('[Closure Payment]')));
+      if (closureLog) {
+        const cStr = closureLog.comments;
+        const planMatch = cStr.match(/Plan:\s*([^|,\n]+)/);
+        const upfrontMatch = cStr.match(/Upfront:\s*\$?([0-9.]+)/);
+        const modeMatch = cStr.match(/Payment Mode:\s*([^|,\n]+)/);
+        const amountMatch = cStr.match(/On-Offer:\s*\$?([0-9.]+)/);
+        const percentageMatch = cStr.match(/Percentage:\s*([0-9.]+)%/);
+
+        return {
+          plan: planMatch ? planMatch[1].trim() : 'Standard',
+          upfront_amount: upfrontMatch ? parseFloat(upfrontMatch[1]) : 0,
+          payment_mode: modeMatch ? modeMatch[1].trim() : 'N/A',
+          amount: amountMatch ? parseFloat(amountMatch[1]) : null,
+          percentage: percentageMatch ? parseFloat(percentageMatch[1]) : null,
+          interview_plan: false,
+          interviews_guaranteed: null,
+        };
+      }
+    }
+
+    return null;
+  }, [closure, lead, statusHistory]);
+
   const parsedOnOfferAmount = React.useMemo(() => {
-    if (closure && closure.amount != null) return `$${closure.amount}`;
+    if (effectiveClosure && effectiveClosure.amount != null) return `$${effectiveClosure.amount}`;
     
     // Parse from lead.comment if available
-    if (lead?.comment && lead.comment.includes('[Closure Payment]')) {
-      const match = lead.comment.match(/Amount:\s*\$?([0-9.]+)/);
+    if (lead?.comment && (lead.comment.includes('[Closure Payment]') || lead.comment.includes('[Closure Details]'))) {
+      const match = lead.comment.match(/Amount:\s*\$?([0-9.]+)/) || lead.comment.match(/On-Offer:\s*\$?([0-9.]+)/);
       if (match && match[1]) {
         return `$${match[1]}`;
       }
     }
     return null;
-  }, [closure, lead?.comment]);
+  }, [effectiveClosure, lead?.comment]);
 
   const parsedData = React.useMemo(() => {
     const data = {
-      percentage: closure?.percentage != null ? `${closure.percentage}%` : null,
-      slot1_due_date: closure?.slot1_due_date ? formatToIST(closure.slot1_due_date) : null,
-      next_slot_due_date: closure?.next_slot_due_date ? formatToIST(closure.next_slot_due_date) : null,
-      additional_slots: Array.isArray(closure?.additional_slots) ? (closure.additional_slots as any[]) : null,
+      percentage: effectiveClosure?.percentage != null ? `${effectiveClosure.percentage}%` : null,
+      slot1_due_date: effectiveClosure?.slot1_due_date ? formatToIST(effectiveClosure.slot1_due_date) : null,
+      next_slot_due_date: effectiveClosure?.next_slot_due_date ? formatToIST(effectiveClosure.next_slot_due_date) : null,
+      additional_slots: Array.isArray(effectiveClosure?.additional_slots) ? (effectiveClosure.additional_slots as any[]) : null,
     };
 
     if (lead?.comment && lead.comment.includes('[Closure Payment]')) {
@@ -415,19 +463,19 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
               </div>
             )}
 
-            {closure ? (
+            {effectiveClosure ? (
               <div className="p-4 rounded-lg bg-green-500/5 border border-green-500/20">
                 <h4 className="text-sm font-semibold mb-3 text-green-600 flex items-center gap-1.5">
                   <CheckCircle2 className="h-4 w-4" /> Closure Details
                 </h4>
                 <div className="grid grid-cols-2 gap-3 text-sm">
-                  <Field label="Plan" value={closure.plan} />
-                  <Field label="Interview Plan" value={closure.interview_plan ? 'Yes' : 'No'} />
-                  {closure.interviews_guaranteed !== null && closure.interviews_guaranteed !== undefined && (
-                    <Field label="Number of Interviews" value={String(closure.interviews_guaranteed)} />
+                  <Field label="Plan" value={effectiveClosure.plan} />
+                  <Field label="Interview Plan" value={effectiveClosure.interview_plan ? 'Yes' : 'No'} />
+                  {effectiveClosure.interviews_guaranteed !== null && effectiveClosure.interviews_guaranteed !== undefined && (
+                    <Field label="Number of Interviews" value={String(effectiveClosure.interviews_guaranteed)} />
                   )}
-                  <Field label="Upfront Amount" value={`$${closure.upfront_amount}`} />
-                  <Field label="Payment Mode" value={closure.payment_mode} />
+                  <Field label="Upfront Amount" value={`$${effectiveClosure.upfront_amount}`} />
+                  <Field label="Payment Mode" value={effectiveClosure.payment_mode} />
                   {(parsedOnOfferAmount || parsedData.percentage != null) && (
                     <div className="col-span-2 grid grid-cols-2 gap-3">
                       {parsedOnOfferAmount ? (
@@ -442,9 +490,9 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                       )}
                     </div>
                   )}
-                  {closure.slot1_amount !== null && closure.slot1_amount !== undefined && (
+                  {effectiveClosure.slot1_amount !== null && effectiveClosure.slot1_amount !== undefined && (
                     <div className="col-span-2 grid grid-cols-2 gap-3">
-                      <Field label="Slot 1 Amount" value={`$${closure.slot1_amount} (${closure.slot1 ? 'Paid' : 'Unpaid'})`} />
+                      <Field label="Slot 1 Amount" value={`$${effectiveClosure.slot1_amount} (${effectiveClosure.slot1 ? 'Paid' : 'Unpaid'})`} />
                       {parsedData.slot1_due_date ? (
                         <Field label="Slot 1 Due Date" value={parsedData.slot1_due_date} />
                       ) : (
@@ -452,9 +500,9 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                       )}
                     </div>
                   )}
-                  {closure.slot2_amount !== null && closure.slot2_amount !== undefined && (
+                  {effectiveClosure.slot2_amount !== null && effectiveClosure.slot2_amount !== undefined && (
                     <div className="col-span-2 grid grid-cols-2 gap-3">
-                      <Field label="Next Slot Amount" value={`$${closure.slot2_amount} (${closure.slot2 ? 'Paid' : 'Unpaid'})`} />
+                      <Field label="Next Slot Amount" value={`$${effectiveClosure.slot2_amount} (${effectiveClosure.slot2 ? 'Paid' : 'Unpaid'})`} />
                       {parsedData.next_slot_due_date ? (
                         <Field label="Next Slot Due Date" value={parsedData.next_slot_due_date} />
                       ) : (
@@ -477,19 +525,19 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                   <div className="col-span-2 bg-background/50 p-3 rounded-md border border-green-500/10 shadow-sm select-text">
                     <span className="text-xs text-muted-foreground block mb-1">Candidate Email ID</span>
                     <p className="text-sm font-semibold text-foreground select-text">
-                      {closure.candidate_email || lead.email || 'None specified'}
+                      {effectiveClosure.candidate_email || lead.email || 'None specified'}
                     </p>
                   </div>
                   <div className="col-span-2 bg-background/50 p-3 rounded-md border border-green-500/10 shadow-sm select-text">
                     <span className="text-xs text-muted-foreground block mb-1">Final Payment Conditions</span>
                     <p className="text-sm font-semibold text-foreground whitespace-pre-wrap select-text">
-                      {closure.final_payment_conditions || 'None specified'}
+                      {effectiveClosure.final_payment_conditions || 'None specified'}
                     </p>
                   </div>
                   <div className="col-span-2 bg-background/50 p-3 rounded-md border border-green-500/10 shadow-sm select-text">
                     <span className="text-xs text-muted-foreground block mb-1">Current agreed payment conditions</span>
                     <p className="text-sm font-semibold text-foreground whitespace-pre-wrap select-text">
-                      {closure.current_agreed_payment_conditions || 'None specified'}
+                      {effectiveClosure.current_agreed_payment_conditions || 'None specified'}
                     </p>
                   </div>
                 </div>
@@ -571,6 +619,16 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                           <p className="mt-2 text-sm text-foreground/90 bg-accent/20 p-2 rounded leading-relaxed border-l-2 border-primary/50">
                             {log.comments}
                           </p>
+                        )}
+
+                        {log.new_value === 'Closed' && effectiveClosure && (
+                          <div className="mt-2 text-xs bg-green-500/10 border border-green-500/20 p-2 rounded text-green-700 dark:text-green-400 space-y-1">
+                            <div className="font-semibold flex items-center gap-1">
+                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> Payment Plan Details:
+                            </div>
+                            <div>Plan: <strong>{effectiveClosure.plan}</strong> | Upfront: <strong>${effectiveClosure.upfront_amount}</strong> | Mode: <strong>{effectiveClosure.payment_mode}</strong></div>
+                            {effectiveClosure.amount != null && <div>On-Offer Amount: <strong>${effectiveClosure.amount}</strong> ({effectiveClosure.percentage || 0}%)</div>}
+                          </div>
                         )}
                       </div>
                     </div>
