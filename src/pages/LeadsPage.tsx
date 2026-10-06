@@ -1527,7 +1527,7 @@ const LeadsPage: React.FC = () => {
 
       {/* ── Dialogs ──────────────────────────────────────────────── */}
       {selectedLead && (
-        <LeadDetailDialog lead={selectedLead} open={!!selectedLead} onClose={() => setSelectedLead(null)} />
+        <LeadDetailDialog lead={selectedLead} open={!!selectedLead} onClose={() => setSelectedLead(null)} onOpenClosure={(l) => setClosureLead(l)} />
       )}
       {closureLead && (
         <ClosureDialog
@@ -1563,6 +1563,7 @@ const LeadsPage: React.FC = () => {
           open={!!editLead}
           onClose={() => setEditLead(null)}
           queryKeys={[['leads'], ['leads-with-comments']]}
+          onOpenClosure={(l) => setClosureLead(l)}
         />
       )}
 

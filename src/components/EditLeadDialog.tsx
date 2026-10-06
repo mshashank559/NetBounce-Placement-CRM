@@ -28,6 +28,7 @@ interface EditLeadDialogProps {
   onClose: () => void;
   lead: any;
   queryKeys?: any[][];
+  onOpenClosure?: (lead: any) => void;
 }
 
 // Normalize DB value (null / undefined → '') for comparison
@@ -38,6 +39,7 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
   onClose,
   lead,
   queryKeys = [['leads']],
+  onOpenClosure,
 }) => {
   const { user, role } = useAuth();
   const queryClient = useQueryClient();
@@ -304,6 +306,9 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
       globalQueryKeys.forEach(qk => queryClient.invalidateQueries({ queryKey: qk }));
       
       onClose();
+      if (formData.lead_status === 'Closed' && onOpenClosure) {
+        onOpenClosure({ ...lead, ...formData, lead_status: 'Closed' });
+      }
     },
 
     onError: (error: any) => {

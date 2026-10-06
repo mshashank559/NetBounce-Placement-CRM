@@ -31,9 +31,10 @@ interface LeadDetailDialogProps {
   lead: any;
   open: boolean;
   onClose: () => void;
+  onOpenClosure?: (lead: any) => void;
 }
 
-const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose }) => {
+const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose, onOpenClosure }) => {
   const { user, role } = useAuth();
 
   const { data: followups } = useQuery({
@@ -403,7 +404,7 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
               </div>
             )}
 
-            {closure && (
+            {closure ? (
               <div className="p-4 rounded-lg bg-green-500/5 border border-green-500/20">
                 <h4 className="text-sm font-semibold mb-3 text-green-600 flex items-center gap-1.5">
                   <CheckCircle2 className="h-4 w-4" /> Closure Details
@@ -482,7 +483,27 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
                   </div>
                 </div>
               </div>
-            )}
+            ) : lead?.lead_status === 'Closed' ? (
+              <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-sm flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-amber-500" />
+                  <span>Lead is marked as Closed, but closure payment & plan details have not been submitted yet.</span>
+                </div>
+                {onOpenClosure && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      onClose();
+                      onOpenClosure(lead);
+                    }}
+                    className="border-amber-500/30 text-amber-600 hover:bg-amber-500/10 shrink-0 ml-2"
+                  >
+                    Fill Closure Details
+                  </Button>
+                )}
+              </div>
+            ) : null}
           </TabsContent>
 
           {/* Tab 2: Status History logs */}
