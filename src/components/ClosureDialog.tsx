@@ -60,13 +60,17 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
   };
 
   const { data: closure, isSuccess: isClosureLoaded } = useQuery({
-    queryKey: ['closure', lead?.unique_id],
+    queryKey: ['closure', lead?.unique_id, lead?.display_id, lead?.id],
     queryFn: async () => {
-      if (!lead?.unique_id) return null;
-      const { data } = await supabase.from('lead_closures').select('*').eq('lead_id', lead.unique_id).maybeSingle();
-      return data;
+      if (!lead) return null;
+      const targetIds = Array.from(new Set([lead.unique_id, lead.display_id, lead.id ? String(lead.id) : null].filter(Boolean)));
+      for (const targetId of targetIds) {
+        const { data } = await supabase.from('lead_closures').select('*').eq('lead_id', targetId as string).maybeSingle();
+        if (data) return data;
+      }
+      return null;
     },
-    enabled: open && !!lead?.unique_id,
+    enabled: open && (!!lead?.unique_id || !!lead?.display_id || !!lead?.id),
   });
 
   React.useEffect(() => {
@@ -276,7 +280,7 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
       queryClient.invalidateQueries({ queryKey: ['salestl-leads'] });
       queryClient.invalidateQueries({ queryKey: ['all-leads-accountant'] });
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['closure', lead.unique_id] });
+      queryClient.invalidateQueries({ queryKey: ['closure'] });
       queryClient.invalidateQueries({ queryKey: ['all-closures'] });
       queryClient.invalidateQueries({ queryKey: ['revenue-closures'] });
       onClose();

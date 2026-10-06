@@ -46,12 +46,16 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
   });
 
   const { data: closure } = useQuery({
-    queryKey: ['closure', lead.unique_id],
+    queryKey: ['closure', lead.unique_id, lead.display_id, lead.id],
     queryFn: async () => {
-      const { data } = await supabase.from('lead_closures').select('*').eq('lead_id', lead.unique_id).maybeSingle();
-      return data;
+      const targetIds = Array.from(new Set([lead.unique_id, lead.display_id, lead.id ? String(lead.id) : null].filter(Boolean)));
+      for (const targetId of targetIds) {
+        const { data } = await supabase.from('lead_closures').select('*').eq('lead_id', targetId as string).maybeSingle();
+        if (data) return data;
+      }
+      return null;
     },
-    enabled: open && !!lead.unique_id,
+    enabled: open && (!!lead.unique_id || !!lead.display_id || !!lead.id),
   });
 
   const { data: generatedByProfile } = useQuery({
@@ -399,7 +403,7 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
               </div>
             )}
 
-            {closure && isSameTeam && (
+            {closure && (
               <div className="p-4 rounded-lg bg-green-500/5 border border-green-500/20">
                 <h4 className="text-sm font-semibold mb-3 text-green-600 flex items-center gap-1.5">
                   <CheckCircle2 className="h-4 w-4" /> Closure Details
