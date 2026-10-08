@@ -72,7 +72,7 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
           const { data } = await supabase.from('leads').select('unique_id').eq('display_id', lead.display_id).maybeSingle();
           if (data?.unique_id) targetUuid = data.unique_id;
         } else if (lead.id) {
-          const { data } = await supabase.from('leads').select('unique_id').eq('id', lead.id).maybeSingle();
+          const { data } = await (supabase.from('leads') as any).select('unique_id').eq('id', lead.id).maybeSingle();
           if (data?.unique_id) targetUuid = data.unique_id;
         }
       }
@@ -139,7 +139,7 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
           const { data } = await supabase.from('leads').select('unique_id').eq('display_id', lead.display_id).maybeSingle();
           if (data?.unique_id) targetUuid = data.unique_id;
         } else if (lead.id) {
-          const { data } = await supabase.from('leads').select('unique_id').eq('id', lead.id).maybeSingle();
+          const { data } = await (supabase.from('leads') as any).select('unique_id').eq('id', lead.id).maybeSingle();
           if (data?.unique_id) targetUuid = data.unique_id;
         }
       }

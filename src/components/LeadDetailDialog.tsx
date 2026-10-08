@@ -59,7 +59,7 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
           const { data } = await supabase.from('leads').select('unique_id').eq('display_id', lead.display_id).maybeSingle();
           if (data?.unique_id) targetUuid = data.unique_id;
         } else if (lead.id) {
-          const { data } = await supabase.from('leads').select('unique_id').eq('id', lead.id).maybeSingle();
+          const { data } = await (supabase.from('leads') as any).select('unique_id').eq('id', lead.id).maybeSingle();
           if (data?.unique_id) targetUuid = data.unique_id;
         }
       }
@@ -218,7 +218,7 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
     enabled: open,
   });
 
-  const effectiveClosure = React.useMemo(() => {
+  const effectiveClosure: any = React.useMemo(() => {
     if (closure) return closure;
     if (!lead) return null;
 
