@@ -191,8 +191,8 @@ const LeadsPage: React.FC = () => {
   const { data: leadsData, isLoading } = useQuery({
     queryKey: ['leads', user?.id, role, page, search, statusFilter, monthFilter, dateFrom, dateTo, memberFilter, bdMemberFilter],
     queryFn: async () => {
-      // Auto-trigger stagnant leads scan
-      await supabase.rpc('update_stagnant_leads');
+      // Auto-trigger stagnant leads scan in background (non-blocking)
+      supabase.rpc('update_stagnant_leads').catch(() => {});
 
       let query = supabase.from('leads').select('*', { count: 'exact' });
 

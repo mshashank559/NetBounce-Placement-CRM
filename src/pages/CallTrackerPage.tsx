@@ -30,6 +30,7 @@ const CallTrackerPage: React.FC = () => {
       const { data } = await supabase.from('profiles').select('user_id, full_name');
       return data || [];
     },
+    staleTime: 1000 * 60 * 15,
     enabled: !!user,
   });
 
@@ -48,12 +49,50 @@ const CallTrackerPage: React.FC = () => {
         .eq('reports_to', user.id);
       return data || [];
     },
+    staleTime: 1000 * 60 * 15,
     enabled: !!user && role === 'SALES_TL',
   });
 
   const teamMemberIds = useMemo(() => {
     return teamMembers.map(m => m.user_id);
   }, [teamMembers]);
+
+  // Fast counts for KPI cards (takes ~20ms, eliminates 0-0 delay)
+  const { data: callCounts } = useQuery({
+    queryKey: ['call-tracker-counts', user?.id, role, viewMode, teamMemberIds],
+    queryFn: async () => {
+      if (!user) return { todayCalls: 0, totalCalls: 0 };
+      const today = getISTDateString(new Date());
+
+      let baseTotal = supabase
+        .from('followups')
+        .select('*', { count: 'exact', head: true })
+        .or('way_of_contact.is.null,way_of_contact.ilike.call');
+
+      let baseToday = supabase
+        .from('followups')
+        .select('*', { count: 'exact', head: true })
+        .or('way_of_contact.is.null,way_of_contact.ilike.call')
+        .gte('created_at', `${today}T00:00:00+05:30`);
+
+      if (role === 'SALES_TM') {
+        baseTotal = baseTotal.eq('user_id', user.id);
+        baseToday = baseToday.eq('user_id', user.id);
+      } else if (role === 'SALES_TL') {
+        const allowedIds = viewMode === 'my' ? [user.id] : [user.id, ...teamMemberIds];
+        baseTotal = baseTotal.in('user_id', allowedIds);
+        baseToday = baseToday.in('user_id', allowedIds);
+      }
+
+      const [{ count: totalCalls }, { count: todayCalls }] = await Promise.all([baseTotal, baseToday]);
+      return {
+        todayCalls: todayCalls || 0,
+        totalCalls: totalCalls || 0,
+      };
+    },
+    staleTime: 1000 * 60 * 3,
+    enabled: !!user && (role !== 'SALES_TL' || !!teamMembers),
+  });
 
   // 3. Fetch call logs (followups table since it holds the notes/comments)
   const { data: followups = [], isLoading } = useQuery({
@@ -65,7 +104,8 @@ const CallTrackerPage: React.FC = () => {
       let query = supabase
         .from('followups')
         .select('*, leads(name)')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(1000);
 
       if (role === 'SALES_TM') {
         // Sales member: can only see their own logs
@@ -86,6 +126,7 @@ const CallTrackerPage: React.FC = () => {
       if (error) throw error;
       return data || [];
     },
+    staleTime: 1000 * 60 * 5,
     enabled: !!user && (role !== 'SALES_TL' || !!teamMembers),
   });
 
@@ -114,6 +155,10 @@ const CallTrackerPage: React.FC = () => {
 
   // Compute live KPIs dynamically based on what is currently displayed
   const stats = useMemo(() => {
+    if (callCounts) {
+      return callCounts;
+    }
+
     let todayCalls = 0;
     let totalCalls = 0;
 
@@ -132,7 +177,7 @@ const CallTrackerPage: React.FC = () => {
       todayCalls,
       totalCalls,
     };
-  }, [filteredFollowups]);
+  }, [filteredFollowups, callCounts]);
 
   if (role !== 'SALES_TM' && role !== 'SALES_TL' && role !== 'ADMIN' && role !== 'PROCESS_ANALYST') {
     return <div className="text-center text-muted-foreground p-8">Access denied</div>;

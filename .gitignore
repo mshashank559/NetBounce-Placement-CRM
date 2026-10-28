@@ -24,3 +24,5 @@ dist-ssr
 *.sw?
 scratch/
 .vercel
+migration_backup/
+supabase/.temp/

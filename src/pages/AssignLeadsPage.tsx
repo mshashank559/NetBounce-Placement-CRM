@@ -13,7 +13,7 @@ import { Shuffle, UserPlus, AlertCircle, User, RefreshCw, Search, Eye } from 'lu
 import { useLocation } from 'react-router-dom';
 import LeadDetailDialog from '@/components/LeadDetailDialog';
 import { getWorkingDaysDifference } from '@/lib/dateUtils';
-import { fetchAllLeads } from '@/lib/leads';
+import { fetchAllLeads, invalidateLeadsCache } from '@/lib/leads';
 import { DebouncedSearchInput } from '@/components/ui/DebouncedSearchInput';
 
 const AssignLeadsPage: React.FC = () => {
@@ -43,6 +43,7 @@ const AssignLeadsPage: React.FC = () => {
       const { data: profilesData } = await supabase.from('profiles').select('user_id, full_name').in('user_id', userIds);
       return (profilesData || []).sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
     },
+    staleTime: 1000 * 60 * 15,
     enabled: !!user,
   });
 
@@ -80,6 +81,7 @@ const AssignLeadsPage: React.FC = () => {
       }
       return allLeads;
     },
+    staleTime: 1000 * 60 * 3,
     enabled: (role === 'ADMIN' || role === 'LEAD_TL') && !!user,
   });
 
@@ -91,6 +93,7 @@ const AssignLeadsPage: React.FC = () => {
       data?.forEach(p => { map[p.user_id] = { full_name: p.full_name, email: p.email, reports_to: p.reports_to }; });
       return map;
     },
+    staleTime: 1000 * 60 * 15,
     enabled: !!user,
   });
 
@@ -138,6 +141,7 @@ const AssignLeadsPage: React.FC = () => {
         })
         .sort((a, b) => b.aging_days - a.aging_days);
     },
+    staleTime: 1000 * 60 * 3,
     enabled: !!user,
   });
 
@@ -190,6 +194,7 @@ const AssignLeadsPage: React.FC = () => {
         role: roles.find(r => r.user_id === p.user_id)?.role
       })) || [];
     },
+    staleTime: 1000 * 60 * 15,
   });
 
   const reassignCandidates = useMemo(() => {
@@ -234,6 +239,7 @@ const AssignLeadsPage: React.FC = () => {
       }
       return allLeads;
     },
+    staleTime: 1000 * 60 * 3,
     enabled: !!activeTlId,
   });
 
@@ -349,7 +355,9 @@ const AssignLeadsPage: React.FC = () => {
       });
     },
     onSuccess: () => {
+      invalidateLeadsCache();
       queryClient.invalidateQueries({ queryKey: ['unassigned-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['aging-leads'] });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       toast.success('Lead assigned!');
     },
@@ -423,7 +431,9 @@ const AssignLeadsPage: React.FC = () => {
       }
     },
     onSuccess: () => {
+      invalidateLeadsCache();
       queryClient.invalidateQueries({ queryKey: ['unassigned-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['aging-leads'] });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       toast.success('Round robin assignment complete!');
     },
@@ -480,9 +490,11 @@ const AssignLeadsPage: React.FC = () => {
       await supabase.from('notifications').insert(notifs);
     },
     onSuccess: () => {
+      invalidateLeadsCache();
       toast.success('Lead successfully reassigned');
       queryClient.invalidateQueries({ queryKey: ['aging-leads'] });
       queryClient.invalidateQueries({ queryKey: ['unassigned-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['team-queue-leads'] });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
     },
     onError: (err: Error) => toast.error(err.message)
@@ -537,7 +549,9 @@ const AssignLeadsPage: React.FC = () => {
       });
     },
     onSuccess: () => {
+      invalidateLeadsCache();
       queryClient.invalidateQueries({ queryKey: ['team-queue-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['aging-leads'] });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       toast.success('Lead assigned from Team Queue!');
     },
@@ -616,7 +630,9 @@ const AssignLeadsPage: React.FC = () => {
       }
     },
     onSuccess: () => {
+      invalidateLeadsCache();
       queryClient.invalidateQueries({ queryKey: ['team-queue-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['aging-leads'] });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       toast.success('Team queue round robin complete!');
     },
