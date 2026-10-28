@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,6 +16,279 @@ import { getWorkingDaysDifference } from '@/lib/dateUtils';
 import { fetchAllLeads, invalidateLeadsCache } from '@/lib/leads';
 import { DebouncedSearchInput } from '@/components/ui/DebouncedSearchInput';
 
+interface UnassignedLeadRowProps {
+  lead: any;
+  salesDropdownOptions: Array<{ user_id: string; full_name: string; role: string }>;
+  generatorName?: string;
+  onAssign: (leadId: string, selection: string) => void;
+  isPending: boolean;
+}
+
+const UnassignedLeadRow: React.FC<UnassignedLeadRowProps> = React.memo(({
+  lead,
+  salesDropdownOptions,
+  generatorName,
+  onAssign,
+  isPending,
+}) => {
+  const [selection, setSelection] = useState<string>('');
+
+  const handleAssign = () => {
+    if (!selection) return;
+    onAssign(lead.unique_id, selection);
+    setSelection('');
+  };
+
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-accent/30 gap-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="font-medium text-sm truncate">{lead.name}</p>
+          {generatorName && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+              By: {generatorName}
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-1 mt-0.5">
+          <span className="text-xs text-muted-foreground truncate">{lead.email} · {lead.phone}</span>
+          {lead.lead_source && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-500/10 text-blue-500">{lead.lead_source}</span>
+          )}
+          {lead.lead_category && (
+            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
+              lead.lead_category === 'Hot' ? 'bg-orange-500/10 text-orange-500' : 'bg-slate-500/10 text-slate-400'
+            }`}>{lead.lead_category}</span>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Select
+          value={selection}
+          onValueChange={setSelection}
+        >
+          <SelectTrigger className="w-48 h-8 text-xs">
+            <SelectValue placeholder="Select salesperson" />
+          </SelectTrigger>
+          <SelectContent>
+            {salesDropdownOptions.map(m => 
+              m.role === 'SALES_TL' ? (
+                <React.Fragment key={m.user_id}>
+                  <SelectItem value={`${m.user_id}_Personal`}>{m.full_name} -- Personal</SelectItem>
+                  <SelectItem value={`${m.user_id}_Team`}>{m.full_name} -- Team</SelectItem>
+                </React.Fragment>
+              ) : (
+                <SelectItem key={`${m.user_id}_Personal`} value={`${m.user_id}_Personal`}>{m.full_name} -- Personal</SelectItem>
+              )
+            )}
+          </SelectContent>
+        </Select>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={!selection || isPending}
+          onClick={handleAssign}
+        >
+          <UserPlus className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
+});
+
+interface TeamQueueLeadRowProps {
+  lead: any;
+  salesMembers: any[];
+  activeTlId: string;
+  profilesMap?: Record<string, { full_name: string; email: string; reports_to: string | null }>;
+  generatorName?: string;
+  role: string | null;
+  onAssign: (leadId: string, salesUserId: string) => void;
+  isPending: boolean;
+}
+
+const TeamQueueLeadRow: React.FC<TeamQueueLeadRowProps> = React.memo(({
+  lead,
+  salesMembers,
+  activeTlId,
+  profilesMap,
+  generatorName,
+  role,
+  onAssign,
+  isPending,
+}) => {
+  const [selection, setSelection] = useState<string>('');
+
+  const handleAssign = () => {
+    if (!selection) return;
+    onAssign(lead.unique_id, selection);
+    setSelection('');
+  };
+
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-accent/30 gap-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="font-medium text-sm truncate">{lead.name}</p>
+          {generatorName && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+              By: {generatorName}
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-1 mt-0.5">
+          <span className="text-xs text-muted-foreground truncate">{lead.email} · {lead.phone}</span>
+          {lead.lead_source && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-500/10 text-blue-500">{lead.lead_source}</span>
+          )}
+          {lead.lead_category && (
+            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
+              lead.lead_category === 'Hot' ? 'bg-orange-500/10 text-orange-500' : 'bg-slate-500/10 text-slate-400'
+            }`}>{lead.lead_category}</span>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Select
+          value={selection}
+          onValueChange={setSelection}
+        >
+          <SelectTrigger className="w-48 h-8 text-xs">
+            <SelectValue placeholder="Select salesperson" />
+          </SelectTrigger>
+          <SelectContent>
+            {(role === 'SALES_TL' || role === 'ADMIN') && activeTlId && profilesMap?.[activeTlId] && (
+              <>
+                <SelectItem value={activeTlId}>
+                  {profilesMap[activeTlId].full_name} (Assign to Me / Self)
+                </SelectItem>
+                <SelectSeparator />
+              </>
+            )}
+            {salesMembers?.filter(m => m.role === 'SALES_TM' && m.user_id !== activeTlId).map(m => (
+              <SelectItem key={m.user_id} value={m.user_id}>{m.full_name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={!selection || isPending}
+          onClick={handleAssign}
+        >
+          <UserPlus className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
+});
+
+interface AgingLeadRowProps {
+  lead: any;
+  profilesMap?: Record<string, { full_name: string; email: string; reports_to: string | null }>;
+  reassignCandidates: any[];
+  role: string | null;
+  onView: (lead: any) => void;
+  onReassign: (leadId: string, targetUserId: string) => void;
+  isPending: boolean;
+}
+
+const AgingLeadRow: React.FC<AgingLeadRowProps> = React.memo(({
+  lead,
+  profilesMap,
+  reassignCandidates,
+  role,
+  onView,
+  onReassign,
+  isPending,
+}) => {
+  const [selection, setSelection] = useState<string>('');
+  const assignedProfile = lead.assigned_to && profilesMap?.[lead.assigned_to];
+  const tlProfile = lead.team_lead_id && profilesMap?.[lead.team_lead_id];
+
+  const handleReassign = () => {
+    if (!selection) return;
+    onReassign(lead.unique_id, selection);
+    setSelection('');
+  };
+
+  return (
+    <tr className="border-b border-border/50 hover:bg-accent/30 transition-colors">
+      <td className="p-3">
+        <div className="font-mono text-xs text-muted-foreground">{(lead as any).display_id || '—'}</div>
+        <div className="font-medium text-foreground">{lead.name}</div>
+        <div className="text-xs text-muted-foreground">{lead.email}</div>
+        {lead.phone && <div className="text-[11px] text-muted-foreground">{lead.phone}</div>}
+      </td>
+      <td className="p-3">
+        <Badge variant="secondary" className="bg-orange-500/10 text-orange-600 border border-orange-500/20">{lead.lead_status}</Badge>
+      </td>
+      <td className="p-3">
+        {assignedProfile ? (
+          <div>
+            <p className="text-xs font-semibold text-foreground">{assignedProfile.full_name}</p>
+            <p className="text-xs text-muted-foreground">{assignedProfile.email}</p>
+          </div>
+        ) : tlProfile ? (
+          <div>
+            <span className="text-xs font-semibold text-orange-600 bg-orange-500/10 px-1.5 py-0.5 rounded">Reassign Pool</span>
+            <p className="text-[11px] text-muted-foreground mt-0.5">TL: {tlProfile.full_name}</p>
+          </div>
+        ) : (
+          <span className="text-xs text-muted-foreground italic">Reassign Pool</span>
+        )}
+      </td>
+      <td className="p-3">
+        <span className="text-xs font-medium text-orange-500 bg-orange-500/10 px-2 py-1 rounded inline-flex items-center gap-1">
+          <AlertCircle className="h-3 w-3" />
+          {lead.aging_days} Days
+        </span>
+      </td>
+      <td className="p-3 text-right">
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 w-8 p-0"
+            onClick={() => onView(lead)}
+            title="View Details"
+          >
+            <Eye className="h-4 w-4 text-muted-foreground hover:text-primary" />
+          </Button>
+
+          <Select 
+            value={selection} 
+            onValueChange={setSelection}
+          >
+            <SelectTrigger className="w-40 h-8 text-xs">
+              <SelectValue placeholder={role === 'ADMIN' || role === 'LEAD_TL' ? "Select Sales TL..." : "Select Member..."} />
+            </SelectTrigger>
+            <SelectContent>
+              {reassignCandidates.map(m => (
+                <SelectItem key={m.user_id} value={m.user_id}>
+                  {m.full_name} {m.role === 'SALES_TL' ? '(TL)' : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          <Button 
+            size="sm" 
+            variant="default" 
+            className="text-xs h-8 px-2.5 flex items-center gap-1.5"
+            disabled={!selection || isPending}
+            onClick={handleReassign}
+            title="Reassign Lead"
+          >
+            <User className="h-3.5 w-3.5" />
+            <span>Assign</span>
+          </Button>
+        </div>
+      </td>
+    </tr>
+  );
+});
+
 const AssignLeadsPage: React.FC = () => {
   const { role, user, profile } = useAuth();
   const location = useLocation();
@@ -24,13 +297,9 @@ const AssignLeadsPage: React.FC = () => {
   const activeTlId = (role === 'SALES_TL') ? user?.id : (paramTlId || '');
 
   const queryClient = useQueryClient();
-  const [selectedSales, setSelectedSales] = useState<Record<string, string>>({});
-  const [selectedTeamMember, setSelectedTeamMember] = useState<Record<string, string>>({});
-  const [assignTarget, setAssignTarget] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [reassignSearchQuery, setReassignSearchQuery] = useState('');
   const [selectedLead, setSelectedLead] = useState<any>(null);
-  const [selectedReassignTarget, setSelectedReassignTarget] = useState<Record<string, string>>({});
   const [bdMemberFilter, setBdMemberFilter] = useState<string>('all');
 
   // Fetch all BD users (LEAD_GEN and LEAD_TL) for filter dropdown
@@ -117,29 +386,30 @@ const AssignLeadsPage: React.FC = () => {
     queryKey: ['aging-leads'],
     queryFn: async () => {
       const allLeads = await fetchAllLeads();
+      const now = new Date();
+      const results: any[] = [];
 
-      return (allLeads || [])
-        .filter(lead => {
-          if (['closed', 'enrolled', 'won', 'lost'].includes((lead.lead_status || '').toLowerCase())) return false;
-          // Case 1: Explicitly sent to Reassignment pool by Admin
-          if (lead.assignment_type === 'Reassign') return true;
-          // Case 2: Currently assigned lead exceeding aging threshold
-          if (lead.assigned_to) {
-            const threshold = getStatusThreshold(lead.lead_status);
-            const lastActionDate = lead.updated_at || lead.assigned_at || lead.created_at;
-            const days = lastActionDate ? getWorkingDaysDifference(lastActionDate, new Date()) : 100;
-            return days >= threshold;
-          }
-          return false;
-        })
-        .map(lead => {
-          const threshold = getStatusThreshold(lead.lead_status);
-          const lastActionDate = lead.updated_at || lead.assigned_at || lead.created_at;
-          const days = lastActionDate ? getWorkingDaysDifference(lastActionDate, new Date()) : 100;
-          
-          return { ...lead, aging_days: days, threshold };
-        })
-        .sort((a, b) => b.aging_days - a.aging_days);
+      for (const lead of (allLeads || [])) {
+        const statusLower = (lead.lead_status || '').toLowerCase();
+        if (['closed', 'enrolled', 'won', 'lost'].includes(statusLower)) {
+          continue;
+        }
+
+        const isReassign = lead.assignment_type === 'Reassign';
+        if (!isReassign && !lead.assigned_to) {
+          continue;
+        }
+
+        const threshold = getStatusThreshold(lead.lead_status);
+        const lastActionDate = lead.updated_at || lead.assigned_at || lead.created_at;
+        const days = lastActionDate ? getWorkingDaysDifference(lastActionDate, now) : 100;
+
+        if (isReassign || days >= threshold) {
+          results.push({ ...lead, aging_days: days, threshold });
+        }
+      }
+
+      return results.sort((a, b) => b.aging_days - a.aging_days);
     },
     staleTime: 1000 * 60 * 3,
     enabled: !!user,
@@ -206,6 +476,14 @@ const AssignLeadsPage: React.FC = () => {
     // Sales TL assigns to their team members
     return salesMembers.filter(m => m.user_id !== user?.id).sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
   }, [salesMembers, role, user?.id]);
+
+  const salesDropdownOptions = useMemo(() => {
+    if (!salesMembers) return [];
+    if (role === 'ADMIN' || role === 'LEAD_TL') {
+      return salesMembers.filter(m => m.role === 'SALES_TL');
+    }
+    return salesMembers;
+  }, [salesMembers, role]);
 
   const { data: teamQueueLeads } = useQuery({
     queryKey: ['team-queue-leads', activeTlId],
@@ -354,14 +632,26 @@ const AssignLeadsPage: React.FC = () => {
         comments: logComment
       });
     },
+    onMutate: async ({ leadId }) => {
+      await queryClient.cancelQueries({ queryKey: ['unassigned-leads'] });
+      const previousUnassigned = queryClient.getQueryData<any[]>(['unassigned-leads']);
+      if (previousUnassigned) {
+        queryClient.setQueryData<any[]>(['unassigned-leads'], previousUnassigned.filter(l => l.unique_id !== leadId));
+      }
+      return { previousUnassigned };
+    },
+    onError: (err: Error, _vars, context) => {
+      if (context?.previousUnassigned) {
+        queryClient.setQueryData(['unassigned-leads'], context.previousUnassigned);
+      }
+      toast.error(err.message);
+    },
     onSuccess: () => {
       invalidateLeadsCache();
       queryClient.invalidateQueries({ queryKey: ['unassigned-leads'] });
-      queryClient.invalidateQueries({ queryKey: ['aging-leads'] });
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['team-queue-leads'] });
       toast.success('Lead assigned!');
     },
-    onError: (err: Error) => toast.error(err.message),
   });
 
   const roundRobin = useMutation({
@@ -489,15 +779,27 @@ const AssignLeadsPage: React.FC = () => {
       }
       await supabase.from('notifications').insert(notifs);
     },
+    onMutate: async ({ leadId }) => {
+      await queryClient.cancelQueries({ queryKey: ['aging-leads'] });
+      const previousAging = queryClient.getQueryData<any[]>(['aging-leads']);
+      if (previousAging) {
+        queryClient.setQueryData<any[]>(['aging-leads'], previousAging.filter(l => l.unique_id !== leadId));
+      }
+      return { previousAging };
+    },
+    onError: (err: Error, _vars, context) => {
+      if (context?.previousAging) {
+        queryClient.setQueryData(['aging-leads'], context.previousAging);
+      }
+      toast.error(err.message);
+    },
     onSuccess: () => {
       invalidateLeadsCache();
       toast.success('Lead successfully reassigned');
       queryClient.invalidateQueries({ queryKey: ['aging-leads'] });
       queryClient.invalidateQueries({ queryKey: ['unassigned-leads'] });
       queryClient.invalidateQueries({ queryKey: ['team-queue-leads'] });
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
     },
-    onError: (err: Error) => toast.error(err.message)
   });
 
   const assignTeamLeadMutation = useMutation({
@@ -548,15 +850,38 @@ const AssignLeadsPage: React.FC = () => {
         comments: logComment
       });
     },
+    onMutate: async ({ leadId }) => {
+      await queryClient.cancelQueries({ queryKey: ['team-queue-leads', activeTlId] });
+      const previousTeamQueue = queryClient.getQueryData<any[]>(['team-queue-leads', activeTlId]);
+      if (previousTeamQueue) {
+        queryClient.setQueryData<any[]>(['team-queue-leads', activeTlId], previousTeamQueue.filter(l => l.unique_id !== leadId));
+      }
+      return { previousTeamQueue };
+    },
+    onError: (err: Error, _vars, context) => {
+      if (context?.previousTeamQueue) {
+        queryClient.setQueryData(['team-queue-leads', activeTlId], context.previousTeamQueue);
+      }
+      toast.error(err.message);
+    },
     onSuccess: () => {
       invalidateLeadsCache();
       queryClient.invalidateQueries({ queryKey: ['team-queue-leads'] });
-      queryClient.invalidateQueries({ queryKey: ['aging-leads'] });
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
       toast.success('Lead assigned from Team Queue!');
     },
-    onError: (err: Error) => toast.error(err.message),
   });
+
+  const handleAssignLead = useCallback((leadId: string, selection: string) => {
+    assignMutation.mutate({ leadId, selection });
+  }, [assignMutation]);
+
+  const handleAssignTeamLead = useCallback((leadId: string, salesUserId: string) => {
+    assignTeamLeadMutation.mutate({ leadId, salesUserId });
+  }, [assignTeamLeadMutation]);
+
+  const handleReassignLead = useCallback((leadId: string, targetUserId: string) => {
+    reassignMutation.mutate({ leadId, targetUserId });
+  }, [reassignMutation]);
 
   const roundRobinTeam = useMutation({
     mutationFn: async () => {
@@ -691,70 +1016,14 @@ const AssignLeadsPage: React.FC = () => {
                 {filteredUnassigned.map((lead) => {
                   const generatorName = (lead as any).generated_by_name || (lead.lead_generated_by && profilesMap?.[lead.lead_generated_by]?.full_name);
                   return (
-                    <div
+                    <UnassignedLeadRow
                       key={lead.unique_id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-accent/30 gap-3"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-medium text-sm truncate">{lead.name}</p>
-                          {generatorName && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
-                              By: {generatorName}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                          <span className="text-xs text-muted-foreground truncate">{lead.email} · {lead.phone}</span>
-                          {lead.lead_source && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-500/10 text-blue-500">{lead.lead_source}</span>
-                          )}
-                          {lead.lead_category && (
-                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                              lead.lead_category === 'Hot' ? 'bg-orange-500/10 text-orange-500' : 'bg-slate-500/10 text-slate-400'
-                            }`}>{lead.lead_category}</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Select
-                          value={selectedSales[lead.unique_id] || ''}
-                          onValueChange={(v) => setSelectedSales(prev => ({ ...prev, [lead.unique_id]: v }))}
-                        >
-                          <SelectTrigger className="w-48 h-8 text-xs">
-                            <SelectValue placeholder="Select salesperson" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {salesMembers?.filter(m => {
-                              // If Admin or BD TL, only show Sales TLs
-                              if (role === 'ADMIN' || role === 'LEAD_TL') return m.role === 'SALES_TL';
-                              // If Sales TL, only show their team members (already filtered in query)
-                              return true;
-                            }).map(m => 
-                              m.role === 'SALES_TL' ? (
-                                <React.Fragment key={m.user_id}>
-                                  <SelectItem value={`${m.user_id}_Personal`}>{m.full_name} -- Personal</SelectItem>
-                                  <SelectItem value={`${m.user_id}_Team`}>{m.full_name} -- Team</SelectItem>
-                                </React.Fragment>
-                              ) : (
-                                <SelectItem key={`${m.user_id}_Personal`} value={`${m.user_id}_Personal`}>{m.full_name} -- Personal</SelectItem>
-                              )
-                            )}
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={!selectedSales[lead.unique_id]}
-                          onClick={() => {
-                            assignMutation.mutate({ leadId: lead.unique_id, selection: selectedSales[lead.unique_id] });
-                            setSelectedSales(prev => { const n = { ...prev }; delete n[lead.unique_id]; return n; });
-                          }}
-                        >
-                          <UserPlus className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
+                      lead={lead}
+                      salesDropdownOptions={salesDropdownOptions}
+                      generatorName={generatorName}
+                      onAssign={handleAssignLead}
+                      isPending={assignMutation.isPending}
+                    />
                   );
                 })}
               </div>
@@ -789,66 +1058,17 @@ const AssignLeadsPage: React.FC = () => {
                 {filteredTeamQueue.map((lead) => {
                   const generatorName = (lead as any).generated_by_name || (lead.lead_generated_by && profilesMap?.[lead.lead_generated_by]?.full_name);
                   return (
-                    <div
+                    <TeamQueueLeadRow
                       key={lead.unique_id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-accent/30 gap-3"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-medium text-sm truncate">{lead.name}</p>
-                          {generatorName && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
-                              By: {generatorName}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                          <span className="text-xs text-muted-foreground truncate">{lead.email} · {lead.phone}</span>
-                          {lead.lead_source && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-500/10 text-blue-500">{lead.lead_source}</span>
-                          )}
-                          {lead.lead_category && (
-                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                              lead.lead_category === 'Hot' ? 'bg-orange-500/10 text-orange-500' : 'bg-slate-500/10 text-slate-400'
-                            }`}>{lead.lead_category}</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Select
-                          value={selectedTeamMember[lead.unique_id] || ''}
-                          onValueChange={(v) => setSelectedTeamMember(prev => ({ ...prev, [lead.unique_id]: v }))}
-                        >
-                          <SelectTrigger className="w-48 h-8 text-xs">
-                            <SelectValue placeholder="Select salesperson" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(role === 'SALES_TL' || role === 'ADMIN') && activeTlId && profilesMap?.[activeTlId] && (
-                              <>
-                                <SelectItem value={activeTlId}>
-                                  {profilesMap[activeTlId].full_name} (Assign to Me / Self)
-                                </SelectItem>
-                                <SelectSeparator />
-                              </>
-                            )}
-                            {salesMembers?.filter(m => m.role === 'SALES_TM' && m.user_id !== activeTlId).map(m => (
-                              <SelectItem key={m.user_id} value={m.user_id}>{m.full_name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={!selectedTeamMember[lead.unique_id] || assignTeamLeadMutation.isPending}
-                          onClick={() => {
-                            assignTeamLeadMutation.mutate({ leadId: lead.unique_id, salesUserId: selectedTeamMember[lead.unique_id] });
-                            setSelectedTeamMember(prev => { const n = { ...prev }; delete n[lead.unique_id]; return n; });
-                          }}
-                        >
-                          <UserPlus className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
+                      lead={lead}
+                      salesMembers={salesMembers || []}
+                      activeTlId={activeTlId}
+                      profilesMap={profilesMap}
+                      generatorName={generatorName}
+                      role={role}
+                      onAssign={handleAssignTeamLead}
+                      isPending={assignTeamLeadMutation.isPending}
+                    />
                   );
                 })}
               </div>
@@ -896,89 +1116,18 @@ const AssignLeadsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {searchedAgingLeads.map((lead) => {
-                    const assignedProfile = lead.assigned_to && profilesMap?.[lead.assigned_to];
-                    const tlProfile = lead.team_lead_id && profilesMap?.[lead.team_lead_id];
-                    const targetVal = selectedReassignTarget[lead.unique_id] || '';
-                    return (
-                      <tr key={lead.unique_id} className="border-b border-border/50 hover:bg-accent/30 transition-colors">
-                        <td className="p-3">
-                          <div className="font-mono text-xs text-muted-foreground">{(lead as any).display_id || '—'}</div>
-                          <div className="font-medium text-foreground">{lead.name}</div>
-                          <div className="text-xs text-muted-foreground">{lead.email}</div>
-                          {lead.phone && <div className="text-[11px] text-muted-foreground">{lead.phone}</div>}
-                        </td>
-                        <td className="p-3">
-                          <Badge variant="secondary" className="bg-orange-500/10 text-orange-600 border border-orange-500/20">{lead.lead_status}</Badge>
-                        </td>
-                        <td className="p-3">
-                          {assignedProfile ? (
-                            <div>
-                              <p className="text-xs font-semibold text-foreground">{assignedProfile.full_name}</p>
-                              <p className="text-xs text-muted-foreground">{assignedProfile.email}</p>
-                            </div>
-                          ) : tlProfile ? (
-                            <div>
-                              <span className="text-xs font-semibold text-orange-600 bg-orange-500/10 px-1.5 py-0.5 rounded">Reassign Pool</span>
-                              <p className="text-[11px] text-muted-foreground mt-0.5">TL: {tlProfile.full_name}</p>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground italic">Reassign Pool</span>
-                          )}
-                        </td>
-                        <td className="p-3">
-                          <span className="text-xs font-medium text-orange-500 bg-orange-500/10 px-2 py-1 rounded inline-flex items-center gap-1">
-                            <AlertCircle className="h-3 w-3" />
-                            {lead.aging_days} Days
-                          </span>
-                        </td>
-                        <td className="p-3 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 w-8 p-0"
-                              onClick={() => setSelectedLead(lead)}
-                              title="View Details"
-                            >
-                              <Eye className="h-4 w-4 text-muted-foreground hover:text-primary" />
-                            </Button>
-
-                            <Select 
-                              value={targetVal} 
-                              onValueChange={(val) => setSelectedReassignTarget(prev => ({ ...prev, [lead.unique_id]: val }))}
-                            >
-                              <SelectTrigger className="w-40 h-8 text-xs">
-                                <SelectValue placeholder={role === 'ADMIN' || role === 'LEAD_TL' ? "Select Sales TL..." : "Select Member..."} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {reassignCandidates.map(m => (
-                                  <SelectItem key={m.user_id} value={m.user_id}>
-                                    {m.full_name} {m.role === 'SALES_TL' ? '(TL)' : ''}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            
-                            <Button 
-                              size="sm" 
-                              variant="default" 
-                              className="text-xs h-8 px-2.5 flex items-center gap-1.5"
-                              disabled={!targetVal || reassignMutation.isPending}
-                              onClick={() => {
-                                reassignMutation.mutate({ leadId: lead.unique_id, targetUserId: targetVal });
-                                setSelectedReassignTarget(prev => { const n = { ...prev }; delete n[lead.unique_id]; return n; });
-                              }}
-                              title="Reassign Lead"
-                            >
-                              <User className="h-3.5 w-3.5" />
-                              <span>Assign</span>
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {searchedAgingLeads.map((lead) => (
+                    <AgingLeadRow
+                      key={lead.unique_id}
+                      lead={lead}
+                      profilesMap={profilesMap}
+                      reassignCandidates={reassignCandidates}
+                      role={role}
+                      onView={setSelectedLead}
+                      onReassign={handleReassignLead}
+                      isPending={reassignMutation.isPending}
+                    />
+                  ))}
                 </tbody>
               </table>
             </div>
