@@ -188,7 +188,7 @@ const LeadsPage: React.FC = () => {
   }, [search, statusFilter, monthFilter, dateFrom, dateTo, memberFilter, bdMemberFilter]);
 
   // ── Fetch leads (role-scoped, server-side filtered, paginated) ─
-  const { data: leadsData, isLoading } = useQuery({
+  const { data: leadsData, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['leads', user?.id, role, page, search, statusFilter, monthFilter, dateFrom, dateTo, memberFilter, bdMemberFilter],
     queryFn: async () => {
       // Auto-trigger stagnant leads scan in background (non-blocking)
@@ -1138,10 +1138,22 @@ const LeadsPage: React.FC = () => {
       {/* ── Leads Table ───────────────────────────────────────── */}
       <Card className="glass-card">
         <CardContent className="p-0">
-          {(!leadsData && isLoading) ? (
-            <div className="p-8 text-center text-muted-foreground">Loading leads...</div>
+          {isLoading ? (
+            <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-3">
+              <RefreshCw className="h-6 w-6 animate-spin text-primary" />
+              <span>Loading leads...</span>
+            </div>
+          ) : isError ? (
+            <div className="p-12 text-center text-destructive flex flex-col items-center justify-center gap-3">
+              <AlertTriangle className="h-8 w-8 text-destructive" />
+              <div className="font-semibold text-base">Failed to load leads from database</div>
+              <p className="text-xs text-muted-foreground max-w-md">{(error as any)?.message || 'An error occurred while connecting to the database.'}</p>
+              <Button size="sm" variant="outline" onClick={() => refetch()} className="gap-2 mt-1">
+                <RefreshCw className="h-4 w-4" /> Retry Query
+              </Button>
+            </div>
           ) : filtered.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground">No leads found</div>
+            <div className="p-12 text-center text-muted-foreground">No leads found</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

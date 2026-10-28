@@ -25,48 +25,72 @@ export async function fetchAllLeads(forceFresh = false) {
   }
 
   pendingPromise = (async () => {
+    const STEP = 1000;
     try {
+      // 1. Try to get exact total lead count
+      let total = 0;
       const { count, error: countErr } = await supabase
         .from('leads')
         .select('*', { count: 'exact', head: true });
 
-      const total = count ?? 0;
+      if (!countErr && typeof count === 'number' && count > 0) {
+        total = count;
+      } else {
+        const { count: c2 } = await supabase
+          .from('leads')
+          .select('unique_id', { count: 'exact', head: true });
+        if (typeof c2 === 'number' && c2 > 0) total = c2;
+      }
 
-      if (total === 0) {
-        const { data: fallbackData } = await supabase
+      // 2. If total is known, parallel download all chunks with retry
+      if (total > 0) {
+        const chunkPromises = [];
+        for (let from = 0; from < total; from += STEP) {
+          const to = Math.min(from + STEP - 1, total - 1);
+          chunkPromises.push((async () => {
+            let attempts = 0;
+            while (attempts < 3) {
+              attempts++;
+              const res = await supabase
+                .from('leads')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .range(from, to);
+
+              if (!res.error && res.data) {
+                return res.data;
+              }
+              if (attempts < 3) {
+                await new Promise(r => setTimeout(r, 400 * attempts));
+              }
+            }
+            return [];
+          })());
+        }
+
+        const chunkResults = await Promise.all(chunkPromises);
+        const allLeads = chunkResults.flat();
+        if (allLeads.length > 0) {
+          cachedLeads = allLeads;
+          lastFetchTime = Date.now();
+          return allLeads;
+        }
+      }
+
+      // 3. Fallback: Sequential paging if count was 0 or parallel chunks returned empty
+      let from = 0;
+      let allLeads: any[] = [];
+      while (true) {
+        const { data, error } = await supabase
           .from('leads')
           .select('*')
           .order('created_at', { ascending: false })
-          .limit(3000);
-        cachedLeads = fallbackData || [];
-        lastFetchTime = Date.now();
-        return cachedLeads;
-      }
+          .range(from, from + STEP - 1);
 
-      const step = 1000;
-      const chunkPromises = [];
-
-      for (let from = 0; from < total; from += step) {
-        const to = Math.min(from + step - 1, total - 1);
-        chunkPromises.push(
-          supabase
-            .from('leads')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .range(from, to)
-        );
-      }
-
-      const chunkResults = await Promise.all(chunkPromises);
-      let allLeads: any[] = [];
-      for (const r of chunkResults) {
-        if (r.error) {
-          console.error('Error fetching leads chunk:', r.error);
-          continue;
-        }
-        if (r.data) {
-          allLeads.push(...r.data);
-        }
+        if (error || !data || data.length === 0) break;
+        allLeads.push(...data);
+        if (data.length < STEP) break;
+        from += STEP;
       }
 
       cachedLeads = allLeads;
@@ -74,8 +98,23 @@ export async function fetchAllLeads(forceFresh = false) {
       return allLeads;
     } catch (err) {
       console.error('fetchAllLeads exception:', err);
-      const { data } = await supabase.from('leads').select('*').limit(3000);
-      return data || [];
+      // Emergency fallback with sequential paging, never capping at 1000
+      let from = 0;
+      let allLeads: any[] = [];
+      try {
+        while (true) {
+          const { data, error } = await supabase
+            .from('leads')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .range(from, from + STEP - 1);
+          if (error || !data || data.length === 0) break;
+          allLeads.push(...data);
+          if (data.length < STEP) break;
+          from += STEP;
+        }
+      } catch {}
+      return allLeads.length > 0 ? allLeads : (cachedLeads || []);
     } finally {
       pendingPromise = null;
     }
