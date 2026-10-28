@@ -310,6 +310,20 @@ const SalesMemberDashboard: React.FC = () => {
 
       // Apply smart targeted search filter
       if (isSearching) {
+        try {
+          const { data: rpcData, error: rpcError } = await (supabase.rpc as any)('search_leads', {
+            search_term: nameSearch.trim(),
+            role_user_id: user?.id,
+            user_role: viewMode === 'personal' ? 'SALES_TM' : undefined
+          });
+          if (!rpcError && rpcData) {
+            return {
+              leads: rpcData,
+              totalCount: rpcData.length,
+            };
+          }
+        } catch {}
+
         const raw = nameSearch.trim();
         const digitsOnly = raw.replace(/\D/g, '');
         const cleanStr = raw.replace(/\s+/g, '');

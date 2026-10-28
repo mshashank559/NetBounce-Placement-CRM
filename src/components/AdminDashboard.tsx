@@ -645,12 +645,19 @@ const AdminDashboard: React.FC = () => {
     }
     if (searchQuery) {
       const q = searchQuery.toLowerCase().trim();
-      fLeads = fLeads.filter(
-        l => l.name?.toLowerCase().includes(q) || 
-             l.email?.toLowerCase().includes(q) || 
-             l.phone?.toLowerCase().includes(q) || 
-             (l.display_id || '').toLowerCase().includes(q)
-      );
+      const qDigits = q.replace(/\D/g, '');
+      fLeads = fLeads.filter(l => {
+        const lDigits = (l.phone || '').replace(/\D/g, '');
+        const phoneMatch = qDigits.length >= 4 
+          ? (lDigits.includes(qDigits) || (l.phone || '').toLowerCase().includes(q))
+          : (l.phone || '').toLowerCase().includes(q);
+        return (
+          l.name?.toLowerCase().includes(q) || 
+          l.email?.toLowerCase().includes(q) || 
+          phoneMatch || 
+          (l.display_id || '').toLowerCase().includes(q)
+        );
+      });
     }
     return { leads: fLeads, closures: fClosures };
   }, [leads, leadClosures, monthFilter, statusFilter, teamFilter, searchQuery, allUsers, dateFrom, dateTo]);
@@ -675,12 +682,17 @@ const AdminDashboard: React.FC = () => {
       if (globalSalesMemberFilter !== 'all' && l.assigned_to !== globalSalesMemberFilter) return false;
       if (selectedGenerator !== 'all' && l.lead_generated_by !== selectedGenerator) return false;
       if (globalSearch) {
-        const q = globalSearch.toLowerCase();
+        const q = globalSearch.toLowerCase().trim();
+        const qDigits = q.replace(/\D/g, '');
+        const lDigits = (l.phone || '').replace(/\D/g, '');
+        const phoneMatch = qDigits.length >= 4 
+          ? (lDigits.includes(qDigits) || (l.phone || '').toLowerCase().includes(q))
+          : (l.phone || '').toLowerCase().includes(q);
         return (
           l.name?.toLowerCase().includes(q) ||
           l.email?.toLowerCase().includes(q) ||
           (l.display_id || '').toLowerCase().includes(q) ||
-          l.phone?.toLowerCase().includes(q)
+          phoneMatch
         );
       }
       return true;

@@ -216,6 +216,21 @@ const LeadsPage: React.FC = () => {
 
       // 1. Smart targeted search filter
       if (search.trim()) {
+        try {
+          const { data: rpcData, error: rpcError } = await (supabase.rpc as any)('search_leads', {
+            search_term: search.trim(),
+            role_user_id: user?.id,
+            user_role: role
+          });
+
+          if (!rpcError && rpcData) {
+            return {
+              leads: rpcData,
+              totalCount: rpcData.length,
+            };
+          }
+        } catch {}
+
         const raw = search.trim();
         const digitsOnly = raw.replace(/\D/g, '');
         const cleanStr = raw.replace(/\s+/g, '');
