@@ -288,9 +288,9 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
       }
     },
 
-    onSuccess: () => {
-      const statusChanged = updatedData.lead_status && updatedData.lead_status !== norm(lead.lead_status);
-      toast.success(statusChanged ? `Lead status updated to "${updatedData.lead_status}" successfully` : 'Lead updated successfully');
+    onSuccess: (_data, variables) => {
+      const statusChanged = variables.lead_status && variables.lead_status !== norm(lead.lead_status);
+      toast.success(statusChanged ? `Lead status updated to "${variables.lead_status}" successfully` : 'Lead updated successfully');
       queryKeys.forEach(qk => queryClient.invalidateQueries({ queryKey: qk }));
       
       const globalQueryKeys = [
