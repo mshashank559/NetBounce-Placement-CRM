@@ -314,8 +314,16 @@ const LeadsPage: React.FC = () => {
       const from = (page - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
-      const { data, count, error } = await query
-        .order('created_at', { ascending: false })
+      let orderQuery = query;
+      if (role === 'SALES_TL' || role === 'SALES_TM') {
+        orderQuery = orderQuery
+          .order('assigned_at', { ascending: false, nullsFirst: false })
+          .order('created_at', { ascending: false });
+      } else {
+        orderQuery = orderQuery.order('created_at', { ascending: false });
+      }
+
+      const { data, count, error } = await orderQuery
         .range(from, to);
 
       if (error) throw error;
@@ -331,7 +339,14 @@ const LeadsPage: React.FC = () => {
   });
 
   const leads = useMemo(() => {
-    const serverLeads = leadsData?.leads || [];
+    let serverLeads = leadsData?.leads || [];
+    if (role === 'SALES_TL' || role === 'SALES_TM') {
+      serverLeads = [...serverLeads].sort((a: any, b: any) => {
+        const timeA = new Date(a.assigned_at || a.created_at).getTime();
+        const timeB = new Date(b.assigned_at || b.created_at).getTime();
+        return timeB - timeA;
+      });
+    }
     if (!search.trim()) return serverLeads;
 
     const raw = search.trim().toLowerCase();
@@ -345,7 +360,7 @@ const LeadsPage: React.FC = () => {
     });
 
     return inMem;
-  }, [leadsData?.leads, search]);
+  }, [leadsData?.leads, search, role]);
 
   const totalCount = search.trim() ? leads.length : (leadsData?.totalCount || 0);
 
@@ -405,28 +420,11 @@ const LeadsPage: React.FC = () => {
   const { data: closureData = [] } = useQuery({
     queryKey: ['account-closures', user?.id, role],
     queryFn: async () => {
-      let query = supabase.from('lead_closures').select('*');
-      if (role === 'SALES_TM') {
-        const { data: myLeads } = await supabase.from('leads').select('unique_id').or(`assigned_to.eq.${user!.id},lead_generated_by.eq.${user!.id}`);
-        const leadIds = myLeads?.map(l => l.unique_id) || [];
-        if (leadIds.length === 0) return [];
-        query = query.in('lead_id', leadIds);
-      } else if (role === 'SALES_TL') {
-        const { data: teamProfiles } = await supabase
-          .from('profiles')
-          .select('user_id')
-          .or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
-        const teamUserIds = teamProfiles?.map(p => p.user_id) || [user!.id];
-        const { data: leadsInTeam } = await supabase
-          .from('leads')
-          .select('unique_id')
-          .or(`assigned_to.in.(${teamUserIds.join(',')}),team_lead_id.eq.${user!.id}`);
-        const teamLeadIds = leadsInTeam?.map(l => l.unique_id) || [];
-        if (teamLeadIds.length === 0) return [];
-        query = query.in('lead_id', teamLeadIds);
+      const { data, error } = await supabase.from('lead_closures').select('*');
+      if (error) {
+        console.warn('Closure fetch note:', error);
+        return [];
       }
-      const { data, error } = await query;
-      if (error) throw error;
       return data || [];
     },
     enabled: !!user && (role === 'ADMIN' || role === 'SALES_TL' || role === 'SALES_TM'),

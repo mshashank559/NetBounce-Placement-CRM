@@ -42,6 +42,7 @@ const DashboardLayout: React.FC = memo(() => {
       return data?.length || 0;
     },
     enabled: !!user?.id,
+    retry: false,
     refetchInterval: 30000, // refresh every 30s
   });
 

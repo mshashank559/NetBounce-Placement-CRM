@@ -321,6 +321,16 @@ const SalesTLDashboard: React.FC = () => {
       if (statusFilter !== 'all' && l.lead_status !== statusFilter) return false;
       return true;
     });
+
+    if (viewMode !== 'global') {
+      list.sort((a, b) => {
+        const timeA = new Date(a.assigned_at || a.created_at).getTime();
+        const timeB = new Date(b.assigned_at || b.created_at).getTime();
+        return timeB - timeA;
+      });
+    }
+
+    return list;
   }, [leads, viewMode, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, user?.id, myTeamIds, globalMemberFilter, globalLeadGenFilter]);
 
   // ── Unassigned to team member (pool leads) ──

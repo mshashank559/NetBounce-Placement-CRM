@@ -35,10 +35,15 @@ export const useSLA = () => {
 
       // ── Batch Query: Fetch all notifications created today ──
       // This allows us to perform O(1) in-memory de-duplication instead of running individual select queries inside loops.
-      const { data: todayNotifications } = await supabase
+      const { data: todayNotifications, error: todayError } = await supabase
         .from('notifications')
         .select('lead_id, type')
         .gte('created_at', todayStart);
+
+      if (todayError) {
+        // If unauthenticated or token expired, abort SLA checks immediately to avoid 401 flood
+        return;
+      }
 
       const existingNotifsSet = new Set<string>();
       todayNotifications?.forEach(n => {
@@ -46,6 +51,17 @@ export const useSLA = () => {
           existingNotifsSet.add(`${n.lead_id}_${n.type}`);
         }
       });
+
+      const safeInsertNotifs = async (notifsToInsert: any[]) => {
+        if (!notifsToInsert.length) return true;
+        const { error } = await supabase.from('notifications').insert(notifsToInsert);
+        if (error) {
+          if ((error as any).status === 401 || (error as any).code === '401') {
+            return false;
+          }
+        }
+        return true;
+      };
 
       // ── Rule 1: Unassigned Lead (5 Working Days) Rule ──
       const fiveDaysAgo = getWorkingDaysAgo(5);
@@ -78,7 +94,8 @@ export const useSLA = () => {
                 type: 'sla_sales_update_missed',
                 lead_id: lead.unique_id,
               }));
-              await supabase.from('notifications').insert(notifs);
+              const ok = await safeInsertNotifs(notifs);
+              if (!ok) return;
               targets.forEach(() => existingNotifsSet.add(key));
             }
           }
@@ -97,25 +114,25 @@ export const useSLA = () => {
         const analysts = await getRoleUserIds(['PROCESS_ANALYST']);
         const dispatchTargets = Array.from(new Set([...admins, ...accountants, ...analysts]));
 
-        const closedLeadIds = closures.map(l => l.unique_id);
+        const closedLeadIdsSet = new Set(closures.map(l => l.unique_id));
 
-        // Batch fetch all lead closures for these closed leads
+        // Batch fetch lead closures without passing hundreds of IDs in URL
         const { data: allLeadClosures } = await supabase
           .from('lead_closures')
           .select('lead_id, created_at')
-          .in('lead_id', closedLeadIds)
           .lt('created_at', twentyFourHoursAgo);
 
         const closureCreatedMap = new Map<string, string>();
         allLeadClosures?.forEach(c => {
-          closureCreatedMap.set(c.lead_id, c.created_at);
+          if (closedLeadIdsSet.has(c.lead_id)) {
+            closureCreatedMap.set(c.lead_id, c.created_at);
+          }
         });
 
-        // Batch fetch all performas for these closed leads
+        // Batch fetch all performas
         const { data: allPerformas } = await supabase
           .from('performas')
-          .select('lead_id')
-          .in('lead_id', closedLeadIds);
+          .select('lead_id');
         
         const performasLeadIdSet = new Set(allPerformas?.map(p => p.lead_id) || []);
 
@@ -138,7 +155,8 @@ export const useSLA = () => {
                   type: 'sla_document_pending',
                   lead_id: lead.unique_id,
                 }));
-                await supabase.from('notifications').insert(notifs);
+                const ok = await safeInsertNotifs(notifs);
+                if (!ok) return;
                 existingNotifsSet.add(key);
               }
             }
@@ -160,7 +178,7 @@ export const useSLA = () => {
         for (const ledger of dueToday) {
           const key = `${ledger.lead_id}_payment_due`;
           if (!existingNotifsSet.has(key) && paymentTargets.length > 0) {
-            await supabase.from('notifications').insert(
+            const ok = await safeInsertNotifs(
               paymentTargets.map(userId => ({
                 user_id: userId,
                 title: '💰 Payment Due Today',
@@ -169,6 +187,7 @@ export const useSLA = () => {
                 lead_id: ledger.lead_id,
               }))
             );
+            if (!ok) return;
             existingNotifsSet.add(key);
           }
         }
@@ -187,7 +206,7 @@ export const useSLA = () => {
         for (const ledger of overdueLeads) {
           const key = `${ledger.lead_id}_payment_overdue_escalation`;
           if (!existingNotifsSet.has(key) && admins.length > 0) {
-            await supabase.from('notifications').insert(
+            const ok = await safeInsertNotifs(
               admins.map(userId => ({
                 user_id: userId,
                 title: '🚨 Payment Overdue Escalation',
@@ -196,6 +215,7 @@ export const useSLA = () => {
                 lead_id: ledger.lead_id,
               }))
             );
+            if (!ok) return;
             existingNotifsSet.add(key);
           }
         }
@@ -289,7 +309,8 @@ export const useSLA = () => {
                     type: 'sla_followup_reminder',
                     lead_id: lead.unique_id,
                   }));
-                  await supabase.from('notifications').insert(notificationsToInsert);
+                  const ok = await safeInsertNotifs(notificationsToInsert);
+                  if (!ok) return;
                   existingNotifsSet.add(key);
                 }
               }

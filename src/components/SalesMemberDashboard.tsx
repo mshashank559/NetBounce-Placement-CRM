@@ -398,8 +398,16 @@ const SalesMemberDashboard: React.FC = () => {
       const from = (page - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
-      const { data, count, error } = await query
-        .order('created_at', { ascending: false })
+      let orderQuery = query;
+      if (viewMode === 'personal') {
+        orderQuery = orderQuery
+          .order('assigned_at', { ascending: false, nullsFirst: false })
+          .order('created_at', { ascending: false });
+      } else {
+        orderQuery = orderQuery.order('created_at', { ascending: false });
+      }
+
+      const { data, count, error } = await orderQuery
         .range(from, to);
 
       if (error) throw error;
