@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Phone, User, Calendar, MessageSquare, Search } from 'lucide-react';
-import { getISTDateString } from '@/lib/dateUtils';
+import { getISTDateString, getShiftStart, isInCurrentShift, getBDBusinessDate } from '@/lib/dateUtils';
 
 const CallTrackerPage: React.FC = () => {
   const { user, role } = useAuth();
@@ -61,8 +61,8 @@ const CallTrackerPage: React.FC = () => {
   const { data: callCounts } = useQuery({
     queryKey: ['call-tracker-counts', user?.id, role, viewMode, teamMemberIds],
     queryFn: async () => {
-      if (!user) return { todayCalls: 0, totalCalls: 0 };
-      const today = getISTDateString(new Date());
+      const shiftStart = getShiftStart();
+      const today = getBDBusinessDate(new Date()) || getISTDateString(new Date());
 
       let baseTotal = supabase
         .from('followups')
@@ -73,7 +73,7 @@ const CallTrackerPage: React.FC = () => {
         .from('followups')
         .select('*', { count: 'exact', head: true })
         .or('way_of_contact.is.null,way_of_contact.ilike.call')
-        .gte('created_at', `${today}T00:00:00+05:30`);
+        .gte('created_at', shiftStart.toISOString());
 
       if (role === 'SALES_TM') {
         baseTotal = baseTotal.eq('user_id', user.id);
@@ -162,12 +162,14 @@ const CallTrackerPage: React.FC = () => {
     let todayCalls = 0;
     let totalCalls = 0;
 
-    const today = getISTDateString(new Date());
+    const shiftStart = getShiftStart();
+    const today = getBDBusinessDate(new Date()) || getISTDateString(new Date());
     filteredFollowups.forEach((item: any) => {
       const isCall = !item.way_of_contact || item.way_of_contact.trim().toUpperCase() === 'CALL';
       if (isCall) {
         totalCalls++;
-        if (getISTDateString(item.created_at) === today) {
+        const itemDate = new Date(item.created_at);
+        if (itemDate >= shiftStart || isInCurrentShift(item.created_at) || getISTDateString(item.created_at) === today) {
           todayCalls++;
         }
       }

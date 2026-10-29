@@ -184,3 +184,5 @@ export const isInCurrentShift = (isoDate: string | null | undefined): boolean =>
   if (!isoDate) return false;
   return getBDBusinessDate(isoDate) === getBDBusinessDate(new Date());
 };
+
+export const getBusinessDate = getBDBusinessDate;

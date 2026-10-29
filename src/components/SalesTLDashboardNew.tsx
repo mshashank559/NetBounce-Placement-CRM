@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { TrendingUp, CheckCircle, Phone, DollarSign, AlertTriangle, Clock, UserPlus, Eye, Search, RefreshCw, XCircle } from 'lucide-react';
 import LeadDetailDialog from './LeadDetailDialog';
-import { getWorkingDaysDifference, getISTYearAndMonth, getISTDateString, formatToISTDateString } from '@/lib/dateUtils';
+import { getWorkingDaysDifference, getISTYearAndMonth, getISTDateString, formatToISTDateString, getBDBusinessDate, isInCurrentShift, getShiftStart } from '@/lib/dateUtils';
 import { useDeferredRender } from '@/hooks/useDeferredRender';
 import { DebouncedSearchInput } from '@/components/ui/DebouncedSearchInput';
 import {
@@ -246,7 +246,7 @@ const SalesTLDashboard: React.FC = () => {
           id: c.id,
           user_id: c.user_id,
           lead_id: c.lead_id,
-          call_date: c.call_date || getISTDateString(c.created_at),
+          call_date: c.call_date || getBDBusinessDate(c.created_at) || getISTDateString(c.created_at),
           call_count: c.call_count || 1
         });
       });
@@ -255,7 +255,7 @@ const SalesTLDashboard: React.FC = () => {
           id: f.id,
           user_id: f.user_id,
           lead_id: f.lead_id,
-          call_date: getISTDateString(f.created_at),
+          call_date: getBDBusinessDate(f.created_at) || getISTDateString(f.created_at),
           call_count: 1
         });
       });

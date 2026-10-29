@@ -19,7 +19,7 @@ import LeadDetailDialog from '@/components/LeadDetailDialog';
 import CallActivityDialog from '@/components/CallActivityDialog';
 import ClosureDialog from '@/components/ClosureDialog';
 import AccountantCommentDialog from '@/components/AccountantCommentDialog';
-import { getWorkingDaysDifference, getISTYearAndMonth, getISTDateString, formatToISTDateString } from '@/lib/dateUtils';
+import { getWorkingDaysDifference, getISTYearAndMonth, getISTDateString, formatToISTDateString, isInCurrentShift, getShiftStart, getBDBusinessDate } from '@/lib/dateUtils';
 import { useDeferredRender } from '@/hooks/useDeferredRender';
 import { DebouncedSearchInput } from '@/components/ui/DebouncedSearchInput';
 
@@ -575,14 +575,18 @@ const SalesMemberDashboard: React.FC = () => {
     return followups.filter((f: any) => !f.way_of_contact || f.way_of_contact.trim().toUpperCase() === 'CALL');
   }, [followups]);
 
-  const today = getISTDateString(new Date());
+  const shiftStart = getShiftStart();
+  const today = getBDBusinessDate(new Date()) || getISTDateString(new Date());
   const activeLeads = statsLeads.filter(l => l.lead_status !== 'Closed').length;
   const closures = statsLeads.filter(l => l.lead_status === 'Closed').length;
   
   // Strictly count today's actual calls
   const todayCalls = useMemo(() => {
-    return actualCalls.filter((c: any) => getISTDateString(c.created_at) === today).length;
-  }, [actualCalls, today]);
+    return actualCalls.filter((c: any) => {
+      const d = new Date(c.created_at);
+      return d >= shiftStart || isInCurrentShift(c.created_at) || getISTDateString(c.created_at) === today;
+    }).length;
+  }, [actualCalls, today, shiftStart]);
 
   const currentISTMonth = getISTYearAndMonth(new Date()).month;
   const targetMonth = parseInt(monthFilter === 'all' ? String(currentISTMonth) : monthFilter);

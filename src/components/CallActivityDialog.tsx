@@ -12,7 +12,7 @@ import { Phone, Send, FileText, Plus, Trash2, Calendar } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { getISTDateString } from '@/lib/dateUtils';
+import { getISTDateString, getBDBusinessDate } from '@/lib/dateUtils';
 
 interface CallActivityDialogProps {
   lead: any;
@@ -171,7 +171,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
         throw new Error('Document remarks are required when Send Document is checked');
       }
 
-      const todayDate = getISTDateString(new Date());
+      const todayDate = getBDBusinessDate(new Date()) || getISTDateString(new Date());
 
       // 1. Log the call only if the communication method is 'Call' (Way of Contact is source of truth)
       const isCallContact = wayOfContact.trim().toLowerCase() === 'call';
@@ -466,7 +466,8 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
       if (statusToCheck === 'Closed') {
         toast.success(`Lead successfully closed and payment logged!`);
       } else {
-        toast.success(`Call logged! Next follow-up: ${nextDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`);
+        const statusMsg = newStatus && newStatus !== currentStatus ? `Status updated to "${newStatus}"! ` : '';
+        toast.success(`${statusMsg}Call logged! Next follow-up: ${nextDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`);
       }
       onClose();
     },
