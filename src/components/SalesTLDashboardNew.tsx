@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { fetchAllLeads } from '@/lib/leads';
+import { fetchAllLeads, invalidateLeadsCache } from '@/lib/leads';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -565,13 +565,29 @@ const SalesTLDashboard: React.FC = () => {
         ? `Lead "${lead?.name}" has been reassigned from ${prevOwnerName} to ${memberName} by ${performerName}.`
         : `Lead "${lead?.name}" has been assigned from ${prevOwnerName} to ${memberName} by ${performerName}.`;
 
-      await supabase.from('leads').update({ assigned_to: memberId, assignment_type: 'Personal' }).eq('unique_id', leadId);
+      const { error: updateErr } = await supabase
+        .from('leads')
+        .update({ 
+          assigned_to: memberId, 
+          assignment_type: 'Personal',
+          team_lead_id: user!.id 
+        } as any)
+        .eq('unique_id', leadId);
+      if (updateErr) throw updateErr;
 
-      await supabase.from('notifications').insert([
+      const { error: notifErr } = await supabase.from('notifications').insert([
         { user_id: memberId, title: prevOwnerId ? 'Lead Reassigned' : 'Lead Assigned', message: msg, type: 'assignment', lead_id: leadId },
       ]);
+      if (notifErr) console.warn('Notification insert warning:', notifErr);
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['salestl-leads'] }); toast.success('Lead assigned!'); },
+    onSuccess: () => { 
+      invalidateLeadsCache();
+      queryClient.invalidateQueries({ queryKey: ['salestl-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['team-queue-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['aging-leads'] });
+      toast.success('Lead assigned!'); 
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -587,7 +603,14 @@ const SalesTLDashboard: React.FC = () => {
         ? `Lead "${lead?.name}" has been reassigned from ${prevOwnerName} to ${memberName} by ${performerName}.`
         : `Lead "${lead?.name}" has been assigned from ${prevOwnerName} to ${memberName} by ${performerName}.`;
 
-      await supabase.from('leads').update({ assigned_to: memberId }).eq('unique_id', leadId);
+      const { error: updateErr } = await supabase
+        .from('leads')
+        .update({ 
+          assigned_to: memberId,
+          team_lead_id: user!.id 
+        } as any)
+        .eq('unique_id', leadId);
+      if (updateErr) throw updateErr;
 
       const notifs: any[] = [];
       notifs.push({
@@ -618,9 +641,18 @@ const SalesTLDashboard: React.FC = () => {
         });
       }
 
-      await supabase.from('notifications').insert(notifs);
+      const { error: notifErr } = await supabase.from('notifications').insert(notifs);
+      if (notifErr) console.warn('Notification insert warning:', notifErr);
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['salestl-leads'] }); toast.success('Lead reassigned!'); }
+    onSuccess: () => { 
+      invalidateLeadsCache();
+      queryClient.invalidateQueries({ queryKey: ['salestl-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['team-queue-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['aging-leads'] });
+      toast.success('Lead reassigned!'); 
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   // ── Sales TL Within-Team Reassignment ──
@@ -691,10 +723,15 @@ const SalesTLDashboard: React.FC = () => {
         });
       }
 
-      await supabase.from('notifications').insert(notifs);
+      const { error: notifErr } = await supabase.from('notifications').insert(notifs);
+      if (notifErr) console.warn('Notification insert warning:', notifErr);
     },
     onSuccess: () => {
+      invalidateLeadsCache();
       queryClient.invalidateQueries({ queryKey: ['salestl-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['team-queue-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['aging-leads'] });
       toast.success('Lead reassigned successfully within team!');
     },
     onError: (err: Error) => toast.error(err.message),

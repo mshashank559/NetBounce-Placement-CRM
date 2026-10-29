@@ -867,6 +867,8 @@ const AssignLeadsPage: React.FC = () => {
     onSuccess: () => {
       invalidateLeadsCache();
       queryClient.invalidateQueries({ queryKey: ['team-queue-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['salestl-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
       toast.success('Lead assigned from Team Queue!');
     },
   });
