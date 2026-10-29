@@ -185,30 +185,37 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
           .maybeSingle();
 
         if (existing) {
-          await supabase.from('call_logs')
+          const { error: callUpdateErr } = await supabase.from('call_logs')
             .update({ call_count: (existing.call_count || 0) + 1 })
             .eq('id', existing.id);
+          if (callUpdateErr) console.warn('call_logs update warning:', callUpdateErr);
         } else {
-          await supabase.from('call_logs').insert({
+          const { error: callInsertErr } = await supabase.from('call_logs').insert({
             user_id: user!.id,
             lead_id: lead.unique_id,
             call_date: todayDate,
             call_count: 1,
           });
+          if (callInsertErr) console.warn('call_logs insert warning:', callInsertErr);
         }
       }
 
       // 2. Insert follow-up record — wayOfContact is the source of truth
-      await supabase.from('followups').insert({
+      const { error: followupErr } = await supabase.from('followups').insert({
         lead_id: lead.unique_id,
         user_id: user!.id,
         notes: notes.trim(),
         way_of_contact: wayOfContact,
       });
+      if (followupErr) {
+        console.error('Follow-up insert error:', followupErr);
+        throw new Error(`Failed to save follow-up notes: ${followupErr.message}`);
+      }
 
       // 3. Update lead status and next follow-up date
       const leadUpdatePayload: any = {
-        next_followup_date: (newStatus === 'Closed' || newStatus === 'Non Interested') ? null : (nextFollowUpDate || null)
+        next_followup_date: (newStatus === 'Closed' || newStatus === 'Non Interested') ? null : (nextFollowUpDate || null),
+        updated_at: new Date().toISOString()
       };
 
       if (newStatus && newStatus !== currentStatus) {
@@ -222,7 +229,10 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
         .update(leadUpdatePayload)
         .eq('unique_id', lead.unique_id);
       
-      if (updateLeadErr) throw updateLeadErr;
+      if (updateLeadErr) {
+        console.error('Lead update error:', updateLeadErr);
+        throw new Error(`Failed to update lead: ${updateLeadErr.message}`);
+      }
 
       if (newStatus && newStatus !== currentStatus) {
         if (newStatus === 'Closed') {
@@ -442,6 +452,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
       queryClient.invalidateQueries({ queryKey: ['sm-leads'] });
       queryClient.invalidateQueries({ queryKey: ['salestl-leads'] });
       queryClient.invalidateQueries({ queryKey: ['followups', lead.unique_id] });
+      queryClient.invalidateQueries({ queryKey: ['lead-status-history', lead.unique_id] });
       queryClient.invalidateQueries({ queryKey: ['all-performas'] });
       queryClient.invalidateQueries({ queryKey: ['all-leads-accountant'] });
       queryClient.invalidateQueries({ queryKey: ['account-closures'] });

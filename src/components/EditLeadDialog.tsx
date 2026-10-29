@@ -302,7 +302,9 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
         ['sales-tl-leads'],
         ['salestl-leads'],
         ['all-leads-accountant'],
-        ['leads-with-comments']
+        ['leads-with-comments'],
+        ['lead-status-history', lead.unique_id],
+        ['followups', lead.unique_id],
       ];
       globalQueryKeys.forEach(qk => queryClient.invalidateQueries({ queryKey: qk }));
       
