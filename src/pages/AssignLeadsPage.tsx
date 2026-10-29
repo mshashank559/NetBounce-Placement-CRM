@@ -489,6 +489,12 @@ const AssignLeadsPage: React.FC = () => {
     queryKey: ['team-queue-leads', activeTlId],
     queryFn: async () => {
       if (!activeTlId) return [];
+      const { data: teamProfiles } = await supabase
+        .from('profiles')
+        .select('user_id')
+        .or(`reports_to.eq.${activeTlId},user_id.eq.${activeTlId}`);
+      const teamUserIds = teamProfiles?.map(p => p.user_id) || [activeTlId];
+
       let allLeads: any[] = [];
       let from = 0;
       const step = 1000;
@@ -498,7 +504,7 @@ const AssignLeadsPage: React.FC = () => {
         const { data, error } = await supabase
           .from('leads')
           .select('*')
-          .eq('assigned_to', activeTlId)
+          .or(`assigned_to.eq.${activeTlId},team_lead_id.eq.${activeTlId},and(assigned_to.is.null,lead_generated_by.in.(${teamUserIds.join(',')}))`)
           .order('created_at', { ascending: false })
           .range(from, from + step - 1);
           
@@ -524,8 +530,8 @@ const AssignLeadsPage: React.FC = () => {
   const filteredTeamQueueLeads = useMemo(() => {
     if (!teamQueueLeads) return [];
     return teamQueueLeads.filter(lead => {
-      // Must be Team queue assignment
-      if (lead.assignment_type !== 'Team') return false;
+      // Must be Team queue assignment or unassigned from team member
+      if (lead.assignment_type && lead.assignment_type !== 'Team') return false;
       // Must NOT be Reassign type
       if (lead.assignment_type === 'Reassign') return false;
       // Exclude leads exceeding aging threshold

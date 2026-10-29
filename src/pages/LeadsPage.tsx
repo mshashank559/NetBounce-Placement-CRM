@@ -211,7 +211,7 @@ const LeadsPage: React.FC = () => {
           .select('user_id')
           .or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
         const teamUserIds = teamProfiles?.map(p => p.user_id) || [user!.id];
-        query = query.or(`assigned_to.in.(${teamUserIds.join(',')}),team_lead_id.eq.${user!.id}`);
+        query = query.or(`assigned_to.in.(${teamUserIds.join(',')}),team_lead_id.eq.${user!.id},lead_generated_by.in.(${teamUserIds.join(',')})`);
       }
 
       // 1. Smart targeted search filter

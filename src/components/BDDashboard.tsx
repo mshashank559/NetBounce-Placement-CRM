@@ -187,7 +187,7 @@ const BDDashboard: React.FC = () => {
     // In Global View, always show all leads — the pending filter is irrelevant
     if (viewMode === 'global') return filteredLeads;
     if (queueTab === 'pending') {
-      return filteredLeads.filter(l => l.assignment_type === 'Pending' && l.lead_status !== 'Closed');
+      return filteredLeads.filter(l => (l.assignment_type === 'Pending' || !l.assigned_to) && l.lead_status !== 'Closed');
     }
     return filteredLeads;
   }, [filteredLeads, queueTab, viewMode]);

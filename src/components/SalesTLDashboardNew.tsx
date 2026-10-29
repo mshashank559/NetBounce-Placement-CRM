@@ -117,6 +117,12 @@ const SalesTLDashboard: React.FC = () => {
     queryKey: ['salestl-leads', user?.id, role],
     queryFn: async () => {
       if (role === 'SALES_TL') {
+        const { data: teamProfiles } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
+        const teamUserIds = teamProfiles?.map(p => p.user_id) || [user!.id];
+
         let allLeads: any[] = [];
         let from = 0;
         const step = 1000;
@@ -126,7 +132,7 @@ const SalesTLDashboard: React.FC = () => {
           const { data, error } = await supabase
             .from('leads')
             .select('*')
-            .or(`assigned_to.not.is.null,team_lead_id.eq.${user!.id}`)
+            .or(`assigned_to.in.(${teamUserIds.join(',')}),team_lead_id.eq.${user!.id},lead_generated_by.in.(${teamUserIds.join(',')})`)
             .order('created_at', { ascending: false })
             .range(from, from + step - 1);
             
@@ -287,7 +293,10 @@ const SalesTLDashboard: React.FC = () => {
     return leads.filter(l => {
       if (viewMode === 'personal' && l.assigned_to !== user?.id) return false;
       if (viewMode === 'team') {
-        if (!l.assigned_to || (!myTeamIds.has(l.assigned_to) && l.assigned_to !== user?.id)) return false;
+        const isAssignedToMeOrTeam = l.assigned_to && (myTeamIds.has(l.assigned_to) || l.assigned_to === user?.id);
+        const isMyTeamLead = l.team_lead_id === user?.id;
+        const isGeneratedByMyTeam = l.lead_generated_by && (myTeamIds.has(l.lead_generated_by) || l.lead_generated_by === user?.id);
+        if (!isAssignedToMeOrTeam && !isMyTeamLead && !isGeneratedByMyTeam) return false;
       }
       if (viewMode === 'global') {
         if (!l.assigned_to) return false;
@@ -315,7 +324,10 @@ const SalesTLDashboard: React.FC = () => {
   }, [leads, viewMode, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, user?.id, myTeamIds, globalMemberFilter, globalLeadGenFilter]);
 
   // ── Unassigned to team member (pool leads) ──
-  const poolLeads = leads.filter(l => l.assigned_to === user?.id && l.assignment_type === 'Team');
+  const poolLeads = leads.filter(l => 
+    (l.assigned_to === user?.id && l.assignment_type === 'Team') ||
+    (!l.assigned_to && (l.team_lead_id === user?.id || (l.lead_generated_by && (myTeamIds.has(l.lead_generated_by) || l.lead_generated_by === user?.id))))
+  );
 
   // ── KPIs ──
   const today = getISTDateString(new Date());
