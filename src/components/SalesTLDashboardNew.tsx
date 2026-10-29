@@ -114,9 +114,9 @@ const SalesTLDashboard: React.FC = () => {
 
   // ── Fetch all team leads (assigned to me or my team) ──
   const { data: leads = [] } = useQuery({
-    queryKey: ['salestl-leads', user?.id, role],
+    queryKey: ['salestl-leads', user?.id, role, viewMode],
     queryFn: async () => {
-      if (role === 'SALES_TL') {
+      if (role === 'SALES_TL' && viewMode !== 'global') {
         const { data: teamProfiles } = await supabase
           .from('profiles')
           .select('user_id')

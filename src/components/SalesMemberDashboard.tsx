@@ -314,7 +314,7 @@ const SalesMemberDashboard: React.FC = () => {
           const { data: rpcData, error: rpcError } = await (supabase.rpc as any)('search_leads', {
             search_term: nameSearch.trim(),
             role_user_id: user?.id,
-            user_role: viewMode === 'personal' ? 'SALES_TM' : undefined
+            user_role: viewMode === 'personal' ? 'SALES_TM' : (viewMode === 'global' ? 'GLOBAL' : 'SALES_TM')
           });
           if (!rpcError && rpcData) {
             return {
@@ -350,9 +350,14 @@ const SalesMemberDashboard: React.FC = () => {
           .limit(50);
 
         if (error) throw error;
+        
+        let results = data || [];
+        if (viewMode === 'personal') {
+          results = results.filter((l: any) => l.assigned_to === user!.id);
+        }
         return {
-          leads: data || [],
-          totalCount: data?.length || 0,
+          leads: results,
+          totalCount: results.length,
         };
       }
 

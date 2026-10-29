@@ -109,7 +109,7 @@ const BDMemberDashboard: React.FC = () => {
           const { data: rpcData, error: rpcError } = await (supabase.rpc as any)('search_leads', {
             search_term: nameSearch.trim(),
             role_user_id: user?.id,
-            user_role: viewMode === 'personal' ? 'LEAD_GEN' : undefined
+            user_role: viewMode === 'personal' ? 'LEAD_GEN' : (viewMode === 'global' ? 'GLOBAL' : 'LEAD_GEN')
           });
           if (!rpcError && rpcData) {
             return {
@@ -151,9 +151,14 @@ const BDMemberDashboard: React.FC = () => {
           .limit(50);
 
         if (error) throw error;
+        
+        let results = data || [];
+        if (viewMode === 'personal') {
+          results = results.filter((l: any) => l.lead_generated_by === user!.id);
+        }
         return {
-          leads: data || [],
-          totalCount: data?.length || 0,
+          leads: results,
+          totalCount: results.length,
         };
       }
 

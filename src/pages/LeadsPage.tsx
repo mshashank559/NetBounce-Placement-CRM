@@ -199,6 +199,7 @@ const LeadsPage: React.FC = () => {
       })();
 
       let query = supabase.from('leads').select('*', { count: 'exact' });
+      let teamUserIds: string[] = [user!.id];
 
       // Role permission constraints
       if (role === 'LEAD_GEN') {
@@ -210,7 +211,7 @@ const LeadsPage: React.FC = () => {
           .from('profiles')
           .select('user_id')
           .or(`reports_to.eq.${user!.id},user_id.eq.${user!.id}`);
-        const teamUserIds = teamProfiles?.map(p => p.user_id) || [user!.id];
+        teamUserIds = teamProfiles?.map(p => p.user_id) || [user!.id];
         query = query.or(`assigned_to.in.(${teamUserIds.join(',')}),team_lead_id.eq.${user!.id},lead_generated_by.in.(${teamUserIds.join(',')})`);
       }
 
@@ -257,9 +258,23 @@ const LeadsPage: React.FC = () => {
           .limit(50);
 
         if (error) throw error;
+
+        let results = data || [];
+        if (role === 'SALES_TL') {
+          results = results.filter((l: any) =>
+            teamUserIds.includes(l.assigned_to) ||
+            l.team_lead_id === user!.id ||
+            teamUserIds.includes(l.lead_generated_by)
+          );
+        } else if (role === 'SALES_TM') {
+          results = results.filter((l: any) => l.assigned_to === user!.id || l.lead_generated_by === user!.id);
+        } else if (role === 'LEAD_GEN') {
+          results = results.filter((l: any) => l.lead_generated_by === user!.id);
+        }
+
         return {
-          leads: data || [],
-          totalCount: data?.length || 0,
+          leads: results,
+          totalCount: results.length,
         };
       }
 
@@ -329,7 +344,7 @@ const LeadsPage: React.FC = () => {
       return nameMatch || emailMatch || phoneMatch || idMatch;
     });
 
-    return inMem.length > 0 ? inMem : serverLeads;
+    return inMem;
   }, [leadsData?.leads, search]);
 
   const totalCount = search.trim() ? leads.length : (leadsData?.totalCount || 0);
