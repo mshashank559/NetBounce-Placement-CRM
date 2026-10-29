@@ -50,9 +50,9 @@ const BDDashboard: React.FC = () => {
   }, [viewMode, monthFilter, dateFrom, dateTo, statusFilter, bdMemberFilter, queueTab, nameSearch, globalSalesMemberFilter, globalLeadGenFilter]);
 
   // ── Data Fetching ───────────────────────────────────────
-  const { data: leads, isLoading } = useQuery({
+  const { data: leads, isLoading } = useQuery<any[]>({
     queryKey: ['bdtl-leads-master'],
-    queryFn: fetchAllLeads
+    queryFn: () => fetchAllLeads(),
   });
 
   const { data: profiles } = useQuery({
