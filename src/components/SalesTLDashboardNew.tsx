@@ -97,7 +97,7 @@ const SalesTLDashboard: React.FC = () => {
   const [reassigningLeadId, setReassigningLeadId] = useState<string | null>(null);
   const [monthFilter, setMonthFilter] = useState(() => {
     const saved = localStorage.getItem('netbounce_crm_month_filter_month_num');
-    return saved || String(getISTYearAndMonth(new Date()).month);
+    return saved || 'all';
   });
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -807,7 +807,7 @@ const SalesTLDashboard: React.FC = () => {
             <SelectTrigger className="w-36"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
-              {['DNR1','DNR2','DNR3','Connected','Qualified','Hot Prospect','Closed','Non Interested'].map(s =>
+              {['New','Cold','DNR1','DNR2','DNR3','Connected','Qualified','Hot Prospect','Closed','Non Interested'].map(s =>
                 <SelectItem key={s} value={s}>{s}</SelectItem>
               )}
             </SelectContent>
