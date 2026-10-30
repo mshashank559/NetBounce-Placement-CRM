@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Phone, Users, CheckCircle, DollarSign, Calendar, ShieldAlert } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { getISTDateString, getShiftStart, isInCurrentShift, getBDBusinessDate } from '@/lib/dateUtils';
+import { getISTDateString, getShiftStart, isInCurrentShift, getBDBusinessDate, getUSShiftRange } from '@/lib/dateUtils';
 import { recordAuthActivity } from '@/lib/auditLogger';
 
 const SalesTLDashboardPage: React.FC = () => {
@@ -165,8 +165,7 @@ const SalesTLDashboardPage: React.FC = () => {
   // ── 5. Calculate per-member KPIs using real DB records & Mark-as-Paid truth ──
   const memberStats = useMemo(() => {
     if (!salesMembers.length) return [];
-    const shiftStart = getShiftStart();
-    const today = getBDBusinessDate(new Date()) || getISTDateString(new Date());
+    const { start: shiftStart, end: shiftEnd, businessDate: today } = getUSShiftRange();
 
     return salesMembers.map(member => {
       const memberLeads = allLeads.filter(l => l.assigned_to === member.user_id);
@@ -175,7 +174,7 @@ const SalesTLDashboardPage: React.FC = () => {
       const memberCalls = callActivities.filter(c => c.user_id === member.user_id && c.isCall);
       const todayCalls = memberCalls.filter(c => {
         const d = new Date(c.created_at);
-        return d >= shiftStart || isInCurrentShift(c.created_at) || parseDateToISTString(c.created_at) === today;
+        return (d >= shiftStart && d <= shiftEnd) || isInCurrentShift(c.created_at) || getBDBusinessDate(c.created_at) === today;
       }).length;
       const totalCalls = memberCalls.filter(c => isDateInRange(c.created_at)).length;
 

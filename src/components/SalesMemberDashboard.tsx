@@ -19,7 +19,7 @@ import LeadDetailDialog from '@/components/LeadDetailDialog';
 import CallActivityDialog from '@/components/CallActivityDialog';
 import ClosureDialog from '@/components/ClosureDialog';
 import AccountantCommentDialog from '@/components/AccountantCommentDialog';
-import { getWorkingDaysDifference, getISTYearAndMonth, getISTDateString, formatToISTDateString, isInCurrentShift, getShiftStart, getBDBusinessDate } from '@/lib/dateUtils';
+import { getWorkingDaysDifference, getISTYearAndMonth, getISTDateString, formatToISTDateString, isInCurrentShift, getShiftStart, getBDBusinessDate, getUSShiftRange } from '@/lib/dateUtils';
 import { useDeferredRender } from '@/hooks/useDeferredRender';
 import { DebouncedSearchInput } from '@/components/ui/DebouncedSearchInput';
 
@@ -588,8 +588,7 @@ const SalesMemberDashboard: React.FC = () => {
     return followups.filter((f: any) => !f.way_of_contact || f.way_of_contact.trim().toUpperCase() === 'CALL');
   }, [followups]);
 
-  const shiftStart = getShiftStart();
-  const today = getBDBusinessDate(new Date()) || getISTDateString(new Date());
+  const { start: shiftStart, end: shiftEnd, businessDate: today } = getUSShiftRange();
   const activeLeads = statsLeads.filter(l => l.lead_status !== 'Closed').length;
   const closures = statsLeads.filter(l => l.lead_status === 'Closed').length;
   
@@ -597,9 +596,9 @@ const SalesMemberDashboard: React.FC = () => {
   const todayCalls = useMemo(() => {
     return actualCalls.filter((c: any) => {
       const d = new Date(c.created_at);
-      return d >= shiftStart || isInCurrentShift(c.created_at) || getISTDateString(c.created_at) === today;
+      return (d >= shiftStart && d <= shiftEnd) || isInCurrentShift(c.created_at) || getBDBusinessDate(c.created_at) === today;
     }).length;
-  }, [actualCalls, today, shiftStart]);
+  }, [actualCalls, today, shiftStart, shiftEnd]);
 
   const currentISTMonth = getISTYearAndMonth(new Date()).month;
   const targetMonth = parseInt(monthFilter === 'all' ? String(currentISTMonth) : monthFilter);

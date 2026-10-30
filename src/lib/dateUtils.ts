@@ -100,39 +100,66 @@ export const getWorkingDaysAgo = (days: number, baseDate: Date | string | number
 };
 
 /**
- * Returns the UTC Date object representing the START of the current operational shift.
+ * Returns the US Operational Shift (7:30 PM – 4:30 AM IST) window.
  *
- * Business logic (Option A — confirmed):
- *   The working day runs 7:30 PM IST → 7:30 PM IST (next day).
- *   - If current IST time < 19:30 → shift started at 19:30 the PREVIOUS calendar day.
- *   - If current IST time ≥ 19:30 → shift started at 19:30 TODAY.
- *
- * All "+ Today" counts must use this boundary instead of midnight.
+ * Operational rules:
+ * - Shift runs 7:30 PM IST (19:30) to 4:30 AM IST (04:30 next morning).
+ * - From 19:30 to 23:59 IST: Shift starts TODAY at 19:30 IST, ends tomorrow at 04:30 IST.
+ * - From 00:00 to 04:30 IST (past midnight): Shift started YESTERDAY at 19:30 IST, ends today at 04:30 IST.
+ *   => DOES NOT RESET AT MIDNIGHT 12:00 AM!
+ * - During daytime (04:30 to 19:30 IST): Retains the most recently concluded US shift
+ *   (yesterday 19:30 to today 04:30 IST) for auditing/reporting until the new shift starts at 19:30 IST.
+ * - Includes a 30-minute grace buffer on the end time (up to 05:00 AM IST) for wrap-up calls.
  */
-export const getShiftStart = (): Date => {
-  // IST = UTC + 5:30
+export const getUSShiftRange = (referenceDate: Date = new Date()): {
+  start: Date;
+  end: Date;
+  businessDate: string;
+  label: string;
+} => {
   const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
-
-  // Current time expressed in IST as a plain local-style Date
-  const nowUTC = new Date();
-  const nowIST = new Date(nowUTC.getTime() + IST_OFFSET_MS);
+  const nowIST = new Date(referenceDate.getTime() + IST_OFFSET_MS);
 
   const hours = nowIST.getUTCHours();
   const minutes = nowIST.getUTCMinutes();
   const isPastShiftStart = hours > 19 || (hours === 19 && minutes >= 30);
 
-  // Build a Date representing 19:30 IST on the correct day (in UTC arithmetic)
-  // Start from today midnight UTC-as-IST
-  const shiftDayIST = new Date(nowIST);
-  shiftDayIST.setUTCHours(19, 30, 0, 0); // 19:30 IST expressed as UTC fields
+  // 19:30 IST on the shift start calendar day
+  const startIST = new Date(nowIST);
+  startIST.setUTCHours(19, 30, 0, 0);
 
   if (!isPastShiftStart) {
-    // Shift started yesterday: move back one full day
-    shiftDayIST.setUTCDate(shiftDayIST.getUTCDate() - 1);
+    // If before 19:30 IST, the active/most recent shift began yesterday at 19:30 IST
+    startIST.setUTCDate(startIST.getUTCDate() - 1);
   }
 
-  // Convert IST-arithmetic result back to true UTC
-  return new Date(shiftDayIST.getTime() - IST_OFFSET_MS);
+  // Shift ends next morning at 04:30 AM IST (+ 30m grace period up to 05:00 AM IST)
+  const endIST = new Date(startIST);
+  endIST.setUTCDate(endIST.getUTCDate() + 1);
+  endIST.setUTCHours(5, 0, 0, 0);
+
+  const year = startIST.getUTCFullYear();
+  const month = startIST.getUTCMonth() + 1;
+  const day = startIST.getUTCDate();
+  const businessDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+  const startUTC = new Date(startIST.getTime() - IST_OFFSET_MS);
+  const endUTC = new Date(endIST.getTime() - IST_OFFSET_MS);
+
+  return {
+    start: startUTC,
+    end: endUTC,
+    businessDate,
+    label: 'US Shift (7:30 PM – 4:30 AM IST)',
+  };
+};
+
+/**
+ * Returns the UTC Date object representing the START of the current operational shift.
+ * Standardized with getUSShiftRange.
+ */
+export const getShiftStart = (): Date => {
+  return getUSShiftRange().start;
 };
 
 /**
@@ -175,14 +202,18 @@ export const getNextDayString = (dateStr: string): string => {
 };
 
 /**
- * Returns true if the given ISO date string falls inside the current operational shift.
- * Refactored to match the Business Date logic.
+ * Returns true if the given ISO date string falls inside the current US operational shift (7:30 PM – 4:30 AM IST).
  *
- * @param isoDate - Any ISO 8601 string
+ * @param isoDate - Any ISO 8601 string or Date
  */
-export const isInCurrentShift = (isoDate: string | null | undefined): boolean => {
+export const isInCurrentShift = (isoDate: string | Date | null | undefined): boolean => {
   if (!isoDate) return false;
-  return getBDBusinessDate(isoDate) === getBDBusinessDate(new Date());
+  const d = new Date(isoDate);
+  if (isNaN(d.getTime())) return false;
+  const { start, end, businessDate } = getUSShiftRange();
+  if (d >= start && d <= end) return true;
+  return getBDBusinessDate(d) === businessDate;
 };
 
 export const getBusinessDate = getBDBusinessDate;
+

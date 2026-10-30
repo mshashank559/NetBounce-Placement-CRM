@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { TrendingUp, CheckCircle, Phone, DollarSign, AlertTriangle, Clock, UserPlus, Eye, Search, RefreshCw, XCircle } from 'lucide-react';
 import LeadDetailDialog from './LeadDetailDialog';
-import { getWorkingDaysDifference, getISTYearAndMonth, getISTDateString, formatToISTDateString, getBDBusinessDate, isInCurrentShift, getShiftStart } from '@/lib/dateUtils';
+import { getWorkingDaysDifference, getISTYearAndMonth, getISTDateString, formatToISTDateString, getBDBusinessDate, isInCurrentShift, getShiftStart, getUSShiftRange } from '@/lib/dateUtils';
 import { useDeferredRender } from '@/hooks/useDeferredRender';
 import { DebouncedSearchInput } from '@/components/ui/DebouncedSearchInput';
 import {
@@ -340,7 +340,7 @@ const SalesTLDashboard: React.FC = () => {
   );
 
   // ── KPIs ──
-  const today = getISTDateString(new Date());
+  const { businessDate: today, start: shiftStart, end: shiftEnd } = getUSShiftRange();
   const activeLeads = filteredLeads.filter(l => l.lead_status !== 'Closed').length;
   
   const closures = useMemo(() => {
@@ -373,9 +373,17 @@ const SalesTLDashboard: React.FC = () => {
 
   const todayCalls = useMemo(() => {
     return callLogs
-      .filter(c => c.call_date === today && filteredLeadIds.has(c.lead_id))
+      .filter(c => {
+        if (!filteredLeadIds.has(c.lead_id)) return false;
+        if (c.call_date === today) return true;
+        if (c.created_at) {
+          const d = new Date(c.created_at);
+          return d >= shiftStart && d <= shiftEnd;
+        }
+        return false;
+      })
       .reduce((s, c) => s + (c.call_count || 0), 0);
-  }, [callLogs, today, filteredLeadIds]);
+  }, [callLogs, today, shiftStart, shiftEnd, filteredLeadIds]);
 
   const totalCalls = useMemo(() => {
     return callLogs
@@ -982,8 +990,15 @@ const SalesTLDashboard: React.FC = () => {
                     const currentISTMonth = getISTYearAndMonth(new Date()).month;
                     const targetMonth = parseInt(monthFilter === 'all' ? String(currentISTMonth) : monthFilter);
                     const mMonthLeads = mLeads.filter(l => getISTYearAndMonth(l.created_at).month === targetMonth);
-                    const mClosed = mLeads.filter(l => l.lead_status === 'Closed').length;
-                    const mDailyCalls = callLogs.filter(c => c.user_id === m.user_id && c.call_date === today).reduce((s, c) => s + (c.call_count || 0), 0);
+                    const mDailyCalls = callLogs.filter(c => {
+                      if (c.user_id !== m.user_id) return false;
+                      if (c.call_date === today) return true;
+                      if (c.created_at) {
+                        const d = new Date(c.created_at);
+                        return d >= shiftStart && d <= shiftEnd;
+                      }
+                      return false;
+                    }).reduce((s, c) => s + (c.call_count || 0), 0);
                     const mMonthlyCalls = callLogs.filter(c => c.user_id === m.user_id && parseInt(c.call_date.split('-')[1], 10) === targetMonth).reduce((s, c) => s + (c.call_count || 0), 0);
                     const convRate = mLeads.length > 0 ? ((mClosed / mLeads.length) * 100).toFixed(1) : '0.0';
                     const isInactive = mDailyCalls === 0;

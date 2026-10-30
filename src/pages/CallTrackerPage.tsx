@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Phone, User, Calendar, MessageSquare, Search } from 'lucide-react';
-import { getISTDateString, getShiftStart, isInCurrentShift, getBDBusinessDate } from '@/lib/dateUtils';
+import { getISTDateString, getShiftStart, isInCurrentShift, getBDBusinessDate, getUSShiftRange } from '@/lib/dateUtils';
 
 const CallTrackerPage: React.FC = () => {
   const { user, role } = useAuth();
@@ -61,8 +61,7 @@ const CallTrackerPage: React.FC = () => {
   const { data: callCounts } = useQuery({
     queryKey: ['call-tracker-counts', user?.id, role, viewMode, teamMemberIds],
     queryFn: async () => {
-      const shiftStart = getShiftStart();
-      const today = getBDBusinessDate(new Date()) || getISTDateString(new Date());
+      const { start: shiftStart, end: shiftEnd } = getUSShiftRange();
 
       let baseTotal = supabase
         .from('followups')
@@ -73,7 +72,8 @@ const CallTrackerPage: React.FC = () => {
         .from('followups')
         .select('*', { count: 'exact', head: true })
         .or('way_of_contact.is.null,way_of_contact.ilike.call')
-        .gte('created_at', shiftStart.toISOString());
+        .gte('created_at', shiftStart.toISOString())
+        .lte('created_at', shiftEnd.toISOString());
 
       if (role === 'SALES_TM') {
         baseTotal = baseTotal.eq('user_id', user.id);
@@ -162,14 +162,17 @@ const CallTrackerPage: React.FC = () => {
     let todayCalls = 0;
     let totalCalls = 0;
 
-    const shiftStart = getShiftStart();
-    const today = getBDBusinessDate(new Date()) || getISTDateString(new Date());
+    const { start: shiftStart, end: shiftEnd, businessDate: today } = getUSShiftRange();
     filteredFollowups.forEach((item: any) => {
       const isCall = !item.way_of_contact || item.way_of_contact.trim().toUpperCase() === 'CALL';
       if (isCall) {
         totalCalls++;
         const itemDate = new Date(item.created_at);
-        if (itemDate >= shiftStart || isInCurrentShift(item.created_at) || getISTDateString(item.created_at) === today) {
+        if (
+          (itemDate >= shiftStart && itemDate <= shiftEnd) ||
+          isInCurrentShift(item.created_at) ||
+          getBDBusinessDate(item.created_at) === today
+        ) {
           todayCalls++;
         }
       }
@@ -244,7 +247,7 @@ const CallTrackerPage: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="text-4xl font-display font-bold">{stats.todayCalls}</div>
-              <p className="text-xs text-muted-foreground mt-1.5">Resets at midnight IST</p>
+              <p className="text-xs text-muted-foreground mt-1.5">US Shift (7:30 PM – 4:30 AM IST)</p>
             </CardContent>
           </Card>
         </motion.div>
