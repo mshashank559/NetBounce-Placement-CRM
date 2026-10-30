@@ -52,16 +52,7 @@ export const useSLA = () => {
         }
       });
 
-      const safeInsertNotifs = async (notifsToInsert: any[]) => {
-        if (!notifsToInsert.length) return true;
-        const { error } = await supabase.from('notifications').insert(notifsToInsert);
-        if (error) {
-          if ((error as any).status === 401 || (error as any).code === '401') {
-            return false;
-          }
-        }
-        return true;
-      };
+      const allNotifsToInsert: any[] = [];
 
       // ── Rule 1: Unassigned Lead (5 Working Days) Rule ──
       const fiveDaysAgo = getWorkingDaysAgo(5);
@@ -94,8 +85,7 @@ export const useSLA = () => {
                 type: 'sla_sales_update_missed',
                 lead_id: lead.unique_id,
               }));
-              const ok = await safeInsertNotifs(notifs);
-              if (!ok) return;
+              allNotifsToInsert.push(...notifs);
               targets.forEach(() => existingNotifsSet.add(key));
             }
           }
@@ -155,8 +145,7 @@ export const useSLA = () => {
                   type: 'sla_document_pending',
                   lead_id: lead.unique_id,
                 }));
-                const ok = await safeInsertNotifs(notifs);
-                if (!ok) return;
+                allNotifsToInsert.push(...notifs);
                 existingNotifsSet.add(key);
               }
             }
@@ -178,8 +167,8 @@ export const useSLA = () => {
         for (const ledger of dueToday) {
           const key = `${ledger.lead_id}_payment_due`;
           if (!existingNotifsSet.has(key) && paymentTargets.length > 0) {
-            const ok = await safeInsertNotifs(
-              paymentTargets.map(userId => ({
+            allNotifsToInsert.push(
+              ...paymentTargets.map(userId => ({
                 user_id: userId,
                 title: '💰 Payment Due Today',
                 message: `Candidate "${(ledger.leads as any)?.name}" has a payment of $${ledger.next_payment_amount} due today.`,
@@ -187,7 +176,6 @@ export const useSLA = () => {
                 lead_id: ledger.lead_id,
               }))
             );
-            if (!ok) return;
             existingNotifsSet.add(key);
           }
         }
@@ -206,8 +194,8 @@ export const useSLA = () => {
         for (const ledger of overdueLeads) {
           const key = `${ledger.lead_id}_payment_overdue_escalation`;
           if (!existingNotifsSet.has(key) && admins.length > 0) {
-            const ok = await safeInsertNotifs(
-              admins.map(userId => ({
+            allNotifsToInsert.push(
+              ...admins.map(userId => ({
                 user_id: userId,
                 title: '🚨 Payment Overdue Escalation',
                 message: `Candidate "${(ledger.leads as any)?.name}" payment has been PENDING for 3+ days past due date (${ledger.next_payment_date}).`,
@@ -215,7 +203,6 @@ export const useSLA = () => {
                 lead_id: ledger.lead_id,
               }))
             );
-            if (!ok) return;
             existingNotifsSet.add(key);
           }
         }
@@ -309,13 +296,24 @@ export const useSLA = () => {
                     type: 'sla_followup_reminder',
                     lead_id: lead.unique_id,
                   }));
-                  const ok = await safeInsertNotifs(notificationsToInsert);
-                  if (!ok) return;
+                  allNotifsToInsert.push(...notificationsToInsert);
                   existingNotifsSet.add(key);
                 }
               }
             }
           }
+        }
+      }
+
+      // ── Single Batch Insert for All Rules ──
+      if (allNotifsToInsert.length > 0) {
+        try {
+          const { error: insertErr } = await supabase.from('notifications').insert(allNotifsToInsert);
+          if (insertErr) {
+            console.warn('SLA notification batch insert skipped (DB permission check required):', insertErr.message);
+          }
+        } catch (e: any) {
+          console.warn('SLA notification insert caught:', e?.message || e);
         }
       }
     };
