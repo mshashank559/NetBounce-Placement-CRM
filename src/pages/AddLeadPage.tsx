@@ -14,7 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useNavigate } from 'react-router-dom';
 import { User } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { normalizeSource } from '@/lib/leads';
+import { normalizeSource, invalidateLeadsCache } from '@/lib/leads';
 
 const AddLeadPage: React.FC = () => {
   const { user, role, profile } = useAuth();
@@ -151,6 +151,7 @@ const AddLeadPage: React.FC = () => {
           : (profile?.full_name || 'BD Member'),
         // Sales auto-assign to self; BD leaves null
         assigned_to: (role === 'SALES_TM' || role === 'SALES_TL') ? user?.id : null,
+        assigned_at: (role === 'SALES_TM' || role === 'SALES_TL') ? new Date().toISOString() : null,
         visa_status: form.visa_status || null,
         lead_status: (selectedBdm && selectedBdm !== 'none') ? form.lead_status : 'New',
       };
@@ -252,11 +253,18 @@ const AddLeadPage: React.FC = () => {
     },
     onSuccess: () => {
       toast.success('Lead added successfully!');
-      // Invalidate all lead-related caches so every view (Leads page, Admin Dashboard, KPIs) updates immediately
+      // Invalidate all lead-related caches so every view (Leads page, Sales panels, BD panels, KPIs) updates immediately
+      invalidateLeadsCache();
       queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['sm-leads-paginated'] });
+      queryClient.invalidateQueries({ queryKey: ['salestl-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['bd-member-leads-paginated'] });
+      queryClient.invalidateQueries({ queryKey: ['bdtl-leads'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-leads'] });
       queryClient.invalidateQueries({ queryKey: ['all-leads-admin'] });
       queryClient.invalidateQueries({ queryKey: ['admin-dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['team-queue-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['aging-leads'] });
       navigate('/leads');
     },
     onError: (err: Error) => {

@@ -398,14 +398,9 @@ const SalesMemberDashboard: React.FC = () => {
       const from = (page - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
-      let orderQuery = query;
-      if (viewMode === 'personal') {
-        orderQuery = orderQuery
-          .order('assigned_at', { ascending: false, nullsFirst: false })
-          .order('created_at', { ascending: false });
-      } else {
-        orderQuery = orderQuery.order('created_at', { ascending: false });
-      }
+      let orderQuery = query
+        .order('created_at', { ascending: false })
+        .order('unique_id', { ascending: false });
 
       const { data, count, error } = await orderQuery
         .range(from, to);
@@ -428,7 +423,13 @@ const SalesMemberDashboard: React.FC = () => {
 
   // ── Dual-Layer Instant In-Memory Filter for 0ms visual rendering ──
   const filteredLeads = useMemo(() => {
-    const serverLeads = leadsResponse?.leads || [];
+    let serverLeads = leadsResponse?.leads || [];
+    serverLeads = [...serverLeads].sort((a: any, b: any) => {
+      const timeA = new Date(a.created_at).getTime();
+      const timeB = new Date(b.created_at).getTime();
+      if (timeB !== timeA) return timeB - timeA;
+      return String(b.unique_id || '').localeCompare(String(a.unique_id || ''));
+    });
     if (!nameSearch.trim()) return serverLeads;
 
     const raw = nameSearch.trim().toLowerCase();

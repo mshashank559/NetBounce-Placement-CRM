@@ -314,14 +314,9 @@ const LeadsPage: React.FC = () => {
       const from = (page - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
-      let orderQuery = query;
-      if (role === 'SALES_TL' || role === 'SALES_TM') {
-        orderQuery = orderQuery
-          .order('assigned_at', { ascending: false, nullsFirst: false })
-          .order('created_at', { ascending: false });
-      } else {
-        orderQuery = orderQuery.order('created_at', { ascending: false });
-      }
+      let orderQuery = query
+        .order('created_at', { ascending: false })
+        .order('unique_id', { ascending: false });
 
       const { data, count, error } = await orderQuery
         .range(from, to);
@@ -340,13 +335,12 @@ const LeadsPage: React.FC = () => {
 
   const leads = useMemo(() => {
     let serverLeads = leadsData?.leads || [];
-    if (role === 'SALES_TL' || role === 'SALES_TM') {
-      serverLeads = [...serverLeads].sort((a: any, b: any) => {
-        const timeA = new Date(a.assigned_at || a.created_at).getTime();
-        const timeB = new Date(b.assigned_at || b.created_at).getTime();
-        return timeB - timeA;
-      });
-    }
+    serverLeads = [...serverLeads].sort((a: any, b: any) => {
+      const timeA = new Date(a.created_at).getTime();
+      const timeB = new Date(b.created_at).getTime();
+      if (timeB !== timeA) return timeB - timeA;
+      return String(b.unique_id || '').localeCompare(String(a.unique_id || ''));
+    });
     if (!search.trim()) return serverLeads;
 
     const raw = search.trim().toLowerCase();

@@ -322,22 +322,28 @@ const SalesTLDashboard: React.FC = () => {
       return true;
     });
 
-    if (viewMode !== 'global') {
-      list.sort((a, b) => {
-        const timeA = new Date(a.assigned_at || a.created_at).getTime();
-        const timeB = new Date(b.assigned_at || b.created_at).getTime();
-        return timeB - timeA;
-      });
-    }
+    list.sort((a, b) => {
+      const timeA = new Date(a.created_at).getTime();
+      const timeB = new Date(b.created_at).getTime();
+      if (timeB !== timeA) return timeB - timeA;
+      return String(b.unique_id || '').localeCompare(String(a.unique_id || ''));
+    });
 
     return list;
   }, [leads, viewMode, monthFilter, dateFrom, dateTo, nameSearch, statusFilter, user?.id, myTeamIds, globalMemberFilter, globalLeadGenFilter]);
 
   // ── Unassigned to team member (pool leads) ──
-  const poolLeads = leads.filter(l => 
-    (l.assigned_to === user?.id && l.assignment_type === 'Team') ||
-    (!l.assigned_to && (l.team_lead_id === user?.id || (l.lead_generated_by && (myTeamIds.has(l.lead_generated_by) || l.lead_generated_by === user?.id))))
-  );
+  const poolLeads = leads
+    .filter(l => 
+      (l.assigned_to === user?.id && l.assignment_type === 'Team') ||
+      (!l.assigned_to && (l.team_lead_id === user?.id || (l.lead_generated_by && (myTeamIds.has(l.lead_generated_by) || l.lead_generated_by === user?.id))))
+    )
+    .sort((a, b) => {
+      const timeA = new Date(a.created_at).getTime();
+      const timeB = new Date(b.created_at).getTime();
+      if (timeB !== timeA) return timeB - timeA;
+      return String(b.unique_id || '').localeCompare(String(a.unique_id || ''));
+    });
 
   // ── KPIs ──
   const { businessDate: today, start: shiftStart, end: shiftEnd } = getUSShiftRange();
