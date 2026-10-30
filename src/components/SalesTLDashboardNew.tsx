@@ -990,6 +990,7 @@ const SalesTLDashboard: React.FC = () => {
                     const currentISTMonth = getISTYearAndMonth(new Date()).month;
                     const targetMonth = parseInt(monthFilter === 'all' ? String(currentISTMonth) : monthFilter);
                     const mMonthLeads = mLeads.filter(l => getISTYearAndMonth(l.created_at).month === targetMonth);
+                    const mClosed = mLeads.filter(l => l.lead_status === 'Closed').length;
                     const mDailyCalls = callLogs.filter(c => {
                       if (c.user_id !== m.user_id) return false;
                       if (c.call_date === today) return true;
