@@ -290,7 +290,7 @@ const SalesTLDashboard: React.FC = () => {
   const myTeamIds = useMemo(() => new Set(salesMembers.map(m => m.user_id)), [salesMembers]);
 
   const filteredLeads = useMemo(() => {
-    return leads.filter(l => {
+    const list = leads.filter(l => {
       if (viewMode === 'personal' && l.assigned_to !== user?.id) return false;
       if (viewMode === 'team') {
         const isAssignedToMeOrTeam = l.assigned_to && (myTeamIds.has(l.assigned_to) || l.assigned_to === user?.id);
