@@ -530,6 +530,8 @@ const AssignLeadsPage: React.FC = () => {
   const filteredTeamQueueLeads = useMemo(() => {
     if (!teamQueueLeads) return [];
     return teamQueueLeads.filter(lead => {
+      // Must NOT be already assigned to an individual team member
+      if (lead.assigned_to && lead.assigned_to !== activeTlId) return false;
       // Must be Team queue assignment or unassigned from team member
       if (lead.assignment_type && lead.assignment_type !== 'Team') return false;
       // Must NOT be Reassign type
@@ -540,7 +542,7 @@ const AssignLeadsPage: React.FC = () => {
       const days = lastActionDate ? getWorkingDaysDifference(lastActionDate, new Date()) : 0;
       return days < threshold;
     });
-  }, [teamQueueLeads]);
+  }, [teamQueueLeads, activeTlId]);
 
   const filteredUnassigned = useMemo(() => {
     if (!unassignedLeads) return [];
@@ -729,6 +731,7 @@ const AssignLeadsPage: React.FC = () => {
     onSuccess: () => {
       invalidateLeadsCache();
       queryClient.invalidateQueries({ queryKey: ['unassigned-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['team-queue-leads'] });
       queryClient.invalidateQueries({ queryKey: ['aging-leads'] });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       toast.success('Round robin assignment complete!');
