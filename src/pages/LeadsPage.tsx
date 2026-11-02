@@ -1649,12 +1649,21 @@ const LeadsPage: React.FC = () => {
                     .from('user_roles')
                     .select('user_id, role');
 
-                  // ── Delete the lead ──
-                  const { error: delErr } = await supabase
-                    .from('leads')
-                    .delete()
-                    .eq('unique_id', deleteConfirmLead.unique_id);
-                  if (delErr) throw delErr;
+                  // ── Delete the lead (Try RPC first for maximum speed/bypass timeout, fallback to direct delete) ──
+                  const { data: rpcRes, error: rpcErr } = await (supabase.rpc as any)('delete_lead_by_admin', {
+                    target_lead_id: deleteConfirmLead.unique_id,
+                  });
+
+                  if (rpcErr) {
+                    console.warn('RPC delete_lead_by_admin failed or not migrated, falling back to direct delete:', rpcErr);
+                    const { error: delErr } = await supabase
+                      .from('leads')
+                      .delete()
+                      .eq('unique_id', deleteConfirmLead.unique_id);
+                    if (delErr) throw delErr;
+                  } else if (rpcRes && !rpcRes.success) {
+                    throw new Error(rpcRes.message || 'Failed to delete lead');
+                  }
 
                   // ── Build notification recipients ──
                   if (allProfiles && allUserRoles) {
