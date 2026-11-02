@@ -391,7 +391,7 @@ const AssignLeadsPage: React.FC = () => {
 
       for (const lead of (allLeads || [])) {
         const statusLower = (lead.lead_status || '').toLowerCase();
-        if (['closed', 'enrolled', 'won', 'lost'].includes(statusLower)) {
+        if (['closed', 'enrolled', 'won', 'lost', 'non interested', 'not interested'].includes(statusLower)) {
           continue;
         }
 
@@ -536,11 +536,13 @@ const AssignLeadsPage: React.FC = () => {
       if (lead.assignment_type && lead.assignment_type !== 'Team') return false;
       // Must NOT be Reassign type
       if (lead.assignment_type === 'Reassign') return false;
-      // Exclude leads exceeding aging threshold
-      const threshold = getStatusThreshold(lead.lead_status);
-      const lastActionDate = lead.updated_at || lead.assigned_at || lead.created_at;
-      const days = lastActionDate ? getWorkingDaysDifference(lastActionDate, new Date()) : 0;
-      return days < threshold;
+      // Only genuinely fresh/new unworked leads waiting to be assigned belong in the team queue.
+      // Once a lead has been worked on (e.g. Non Interested, Connected, Qualified, Closed, DNR, etc.),
+      // it has already been processed and must NOT appear in the assignment queue!
+      const status = (lead.lead_status || 'New').trim().toLowerCase();
+      if (status !== 'new') return false;
+
+      return true;
     });
   }, [teamQueueLeads, activeTlId]);
 
