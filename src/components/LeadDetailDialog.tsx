@@ -608,7 +608,9 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
 
                         {log.comments && (
                           <p className="mt-2 text-sm text-foreground/90 bg-accent/20 p-2 rounded leading-relaxed border-l-2 border-primary/50">
-                            {log.comments}
+                            {(!canSeeClosureDetails && (log.comments.includes('[Closure Details]') || log.comments.includes('[Closure Payment]')))
+                              ? 'Lead Closed'
+                              : log.comments}
                           </p>
                         )}
 
