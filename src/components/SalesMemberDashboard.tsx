@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { motion } from 'framer-motion';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { TrendingUp, CheckCircle, Phone, Calendar, Eye, AlertTriangle, CheckCircle2, Clock, FileText as FileTextIcon, Send, MessageSquare, DollarSign } from 'lucide-react';
+import { TrendingUp, CheckCircle, Phone, Calendar, Eye, AlertTriangle, CheckCircle2, Clock, FileText as FileTextIcon, Send, MessageSquare, DollarSign, Gift, Sparkles } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import LeadDetailDialog from '@/components/LeadDetailDialog';
 import CallActivityDialog from '@/components/CallActivityDialog';
@@ -50,6 +50,7 @@ const statusColors: Record<string, string> = {
   'Closed': 'bg-green-500/10 text-green-600',
   'Non Interested': 'bg-destructive/10 text-destructive',
   'Stagnant': 'bg-red-500/10 text-red-600 border border-red-500/20 font-semibold',
+  'Xmas': 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 font-semibold',
 };
 
 const COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'];
@@ -591,6 +592,18 @@ const SalesMemberDashboard: React.FC = () => {
 
   const { start: shiftStart, end: shiftEnd, businessDate: today } = getUSShiftRange();
   const activeLeads = statsLeads.filter(l => l.lead_status !== 'Closed').length;
+    // Xmas KPIs (Personal scope)
+    const xmasEnrollment = useMemo(() => {
+      return statsLeads.filter(l => l.lead_status === 'Xmas').length;
+    }, [statsLeads]);
+
+    const xmasConvertToClosed = useMemo(() => {
+      return statsLeads.filter(l => {
+        if (l.lead_status !== 'Xmas' || !l.marketing_start || !l.marketing_started_at) return false;
+        const diffDays = (Date.now() - new Date(l.marketing_started_at).getTime()) / (1000 * 60 * 60 * 24);
+        return diffDays >= 8;
+      }).length;
+    }, [statsLeads]);
   const closures = statsLeads.filter(l => l.lead_status === 'Closed').length;
   
   // Strictly count today's actual calls
@@ -782,7 +795,7 @@ const SalesMemberDashboard: React.FC = () => {
 
       {/* SECTION 1: KPI Cards */}
       {viewMode !== 'global' && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-9 gap-3">
           {[
             { label: 'Active Leads', value: activeLeads, icon: TrendingUp, color: 'text-primary' },
             { label: 'Closures', value: closures, icon: CheckCircle, color: 'text-green-500' },
@@ -791,6 +804,8 @@ const SalesMemberDashboard: React.FC = () => {
             { label: 'Due Today', value: dueTodayLeads.length, icon: Clock, color: 'text-amber-500' },
             { label: 'Overdue', value: overdueLeads.length, icon: AlertTriangle, color: 'text-red-500' },
             { label: 'Stagnant Leads', value: stagnantLeadsCount, icon: AlertTriangle, color: 'text-red-600' },
+              { label: 'Xmas Enrollment', value: xmasEnrollment, icon: Gift, color: 'text-emerald-500' },
+              { label: 'Xmas Convert to closed', value: xmasConvertToClosed, icon: Sparkles, color: 'text-red-500 font-bold' },
           ].map(({ label, value, icon: Icon, color }, i) => (
             <motion.div key={label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
               <Card className="glass-card hover:nb-glow transition-shadow">
@@ -997,7 +1012,13 @@ const SalesMemberDashboard: React.FC = () => {
                     <tr
                       key={lead.unique_id}
                       className={`border-b border-border/50 hover:bg-accent/30 transition-colors ${
-                        isDNR ? 'bg-orange-500/5' : isHot ? 'bg-amber-500/5' : isStale ? 'bg-red-500/5' : ''
+                        (() => {
+                          if (lead.lead_status === 'Xmas' && lead.marketing_start && lead.marketing_started_at) {
+                            const diffDays = (Date.now() - new Date(lead.marketing_started_at).getTime()) / (1000 * 60 * 60 * 24);
+                            if (diffDays >= 8) return 'bg-red-500/15 border-l-4 border-l-red-500 font-semibold';
+                          }
+                          return isDNR ? 'bg-orange-500/5' : isHot ? 'bg-amber-500/5' : isStale ? 'bg-red-500/5' : '';
+                        })()
                       }`}
                     >
                       <td className="p-2 text-xs text-muted-foreground font-medium">{idx + 1}</td>

@@ -21,7 +21,7 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [form, setForm] = useState({
-    plan: '' as 'Starter' | 'Premium' | 'Elite' | 'Pro' | 'Custom' | '',
+    plan: '' as 'Starter' | 'Premium' | 'Elite' | 'Pro' | 'Custom' | 'Xmas' | '',
     interview_plan: false,
     interviews_guaranteed: '',
     movement: '',
@@ -345,6 +345,7 @@ const ClosureDialog: React.FC<ClosureDialogProps> = ({ lead, open, onClose }) =>
                 <SelectItem value="Elite">Elite</SelectItem>
                 <SelectItem value="Pro">Pro</SelectItem>
                 <SelectItem value="Custom">Custom</SelectItem>
+                  <SelectItem value="Xmas">Xmas</SelectItem>
               </SelectContent>
             </Select>
           </div>

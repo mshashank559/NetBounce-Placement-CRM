@@ -558,6 +558,26 @@ const LeadDetailDialog: React.FC<LeadDetailDialogProps> = ({ lead, open, onClose
 
           {/* Tab 2: Status History logs */}
           <TabsContent value="history" className="mt-4 outline-none">
+              {/* Xmas 8-Day Duration Expired Banner (9th Day+) */}
+              {lead?.lead_status === 'Xmas' && lead?.marketing_start && lead?.marketing_started_at && (() => {
+                const start = new Date(lead.marketing_started_at).getTime();
+                const now = Date.now();
+                const daysDiff = (now - start) / (1000 * 60 * 60 * 24);
+                if (daysDiff >= 8) {
+                  return (
+                    <div className="mb-4 p-3 rounded-lg border border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400 text-sm flex items-start gap-2 shadow-sm animate-pulse">
+                      <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-red-600" />
+                      <div>
+                        <span className="font-semibold block text-xs uppercase tracking-wide">System Notice</span>
+                        <p className="mt-0.5 font-medium">
+                          This lead was enrolled in the Xmas plan and its duration has ended. Kindly proceed to close this lead.
+                        </p>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             {effectiveHistory && effectiveHistory.length > 0 ? (
               <div className="relative border-l border-accent/30 pl-4 space-y-5 py-2 max-h-[50vh] overflow-y-auto pr-1">
                 {effectiveHistory.map((log) => {

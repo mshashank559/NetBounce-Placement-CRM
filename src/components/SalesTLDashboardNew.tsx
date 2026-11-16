@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
-import { TrendingUp, CheckCircle, Phone, DollarSign, AlertTriangle, Clock, UserPlus, Eye, Search, RefreshCw, XCircle } from 'lucide-react';
+import { TrendingUp, CheckCircle, Phone, DollarSign, AlertTriangle, Clock, UserPlus, Eye, Search, RefreshCw, XCircle, Gift, Sparkles } from 'lucide-react';
 import LeadDetailDialog from './LeadDetailDialog';
 import { getWorkingDaysDifference, getISTYearAndMonth, getISTDateString, formatToISTDateString, getBDBusinessDate, isInCurrentShift, getShiftStart, getUSShiftRange } from '@/lib/dateUtils';
 import { useDeferredRender } from '@/hooks/useDeferredRender';
@@ -348,6 +348,19 @@ const SalesTLDashboard: React.FC = () => {
   // ── KPIs ──
   const { businessDate: today, start: shiftStart, end: shiftEnd } = getUSShiftRange();
   const activeLeads = filteredLeads.filter(l => l.lead_status !== 'Closed').length;
+
+  // Xmas KPIs for Sales TL (Scoped strictly to filteredLeads based on My View / Team View)
+  const xmasEnrollment = useMemo(() => {
+    return filteredLeads.filter(l => l.lead_status === 'Xmas').length;
+  }, [filteredLeads]);
+
+  const xmasConvertToClosed = useMemo(() => {
+    return filteredLeads.filter(l => {
+      if (l.lead_status !== 'Xmas' || !l.marketing_start || !l.marketing_started_at) return false;
+      const diffDays = (Date.now() - new Date(l.marketing_started_at).getTime()) / (1000 * 60 * 60 * 24);
+      return diffDays >= 8;
+    }).length;
+  }, [filteredLeads]);
   
   const closures = useMemo(() => {
     const closedLeadsCount = filteredLeads.filter(l => l.lead_status === 'Closed').length;
@@ -864,11 +877,13 @@ const SalesTLDashboard: React.FC = () => {
 
       {/* SECTION 1: KPI Cards */}
       {viewMode !== 'global' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           {[
             { label: 'Active Leads', value: activeLeads, icon: TrendingUp, color: 'text-primary' },
             { label: 'Closures', value: closures, icon: CheckCircle, color: 'text-green-500' },
-            { label: 'Revenue', value: `$${revenue.toLocaleString()}`, icon: DollarSign, color: 'text-amber-500' },
+            { label: 'Revenue', value: `${revenue.toLocaleString()}`, icon: DollarSign, color: 'text-amber-500' },
+              { label: 'Xmas Enrollment', value: xmasEnrollment, icon: Gift, color: 'text-emerald-500' },
+              { label: 'Xmas Convert to closed', value: xmasConvertToClosed, icon: Sparkles, color: 'text-red-500 font-bold' },
           ].map(({ label, value, icon: Icon, color }, i) => (
             <motion.div key={label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
               <Card className="glass-card hover:nb-glow transition-shadow">
@@ -1144,7 +1159,13 @@ const SalesTLDashboard: React.FC = () => {
                     const isStale = hoursSince > 48 && !['Closed','Non Interested'].includes(lead.lead_status || '');
                     const isDNR = lead.lead_status?.startsWith('DNR');
                     return (
-                      <tr key={lead.unique_id} className={`border-b border-border/50 hover:bg-accent/30 ${isStale ? 'bg-red-500/5' : isDNR ? 'bg-orange-500/5' : ''}`}>
+                      <tr key={lead.unique_id} className={`border-b border-border/50 hover:bg-accent/30 ${(() => {
+                        if (lead.lead_status === 'Xmas' && lead.marketing_start && lead.marketing_started_at) {
+                          const diffDays = (Date.now() - new Date(lead.marketing_started_at).getTime()) / (1000 * 60 * 60 * 24);
+                          if (diffDays >= 8) return 'bg-red-500/15 border-l-4 border-l-red-500 font-semibold';
+                        }
+                        return isStale ? 'bg-red-500/5' : isDNR ? 'bg-orange-500/5' : '';
+                      })()}`}>
                         <td className="p-2 text-xs text-muted-foreground font-medium">{(leadsPage - 1) * 50 + idx + 1}</td>
                         <td className="p-2 font-mono text-xs text-primary font-bold">{(lead as any).display_id || '—'}</td>
                         <td className="p-2 text-xs text-muted-foreground whitespace-nowrap">{formatDate(lead.created_at)}</td>

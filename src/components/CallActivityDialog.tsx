@@ -21,7 +21,7 @@ interface CallActivityDialogProps {
   initialStatus?: string;
 }
 
-const ALL_STATUSES = ['DNR1','DNR2','DNR3','Connected','Qualified','Hot Prospect','Closed','Non Interested'];
+const ALL_STATUSES = ['DNR1','DNR2','DNR3','Connected','Qualified','Hot Prospect','Closed','Non Interested','Xmas'];
 
 const STATUS_FLOW: Record<string, string[]> = {
   'New':          ALL_STATUSES,
@@ -34,6 +34,7 @@ const STATUS_FLOW: Record<string, string[]> = {
   'Stagnant':     ALL_STATUSES,
   'Closed':       ALL_STATUSES,
   'Non Interested': ALL_STATUSES,
+  'Xmas':         ALL_STATUSES,
 };
 
 const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onClose, initialStatus }) => {
@@ -42,7 +43,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
 
   const currentStatus = lead.lead_status || 'New';
   const nextStatuses = role === 'ADMIN'
-    ? ['New', 'DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', 'Hot Prospect', 'Closed', 'Non Interested']
+    ? ['New', 'DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', 'Hot Prospect', 'Closed', 'Non Interested', 'Xmas']
     : (STATUS_FLOW[currentStatus] || []);
 
   const [notes, setNotes] = useState('');
@@ -50,6 +51,7 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
   const [newStatus, setNewStatus] = useState(initialStatus || currentStatus);
   const [emailSent, setEmailSent] = useState(false);
   const [nextFollowUpDate, setNextFollowUpDate] = useState(lead.next_followup_date || '');
+  const [marketingStart, setMarketingStart] = useState<boolean>(!!lead.marketing_start);
 
   const handleStatusChange = (status: string) => {
     setNewStatus(status);
@@ -605,7 +607,26 @@ const CallActivityDialog: React.FC<CallActivityDialogProps> = ({ lead, open, onC
           )}
 
           {/* Send Document block (available on any status for SALES_TL, SALES_TM, ADMIN) */}
+            {/* Marketing Start checkbox for Xmas status */}
+            {newStatus === 'Xmas' && (
+              <div className="border border-green-500/30 rounded-lg p-3 space-y-2 bg-green-500/5 mt-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="marketing-start-chk"
+                    checked={marketingStart}
+                    onCheckedChange={(checked) => setMarketingStart(!!checked)}
+                  />
+                  <Label htmlFor="marketing-start-chk" className="text-sm font-semibold cursor-pointer text-foreground">
+                    Marketing Start
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground pl-6">
+                  Check this once process team confirms marketing has started. An 8-day timer will begin.
+                </p>
+              </div>
+            )}
           {(role === 'SALES_TL' || role === 'SALES_TM' || role === 'ADMIN') && (
+
             <div className="border border-border/50 rounded-lg p-3 space-y-3 bg-background/50 mt-4">
               <button
                 type="button"

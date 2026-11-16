@@ -35,9 +35,10 @@ const statusColors: Record<string, string> = {
   'Closed': 'bg-green-500/10 text-green-600',
   'Non Interested': 'bg-destructive/10 text-destructive',
   'Stagnant': 'bg-red-500/10 text-red-600 border border-red-500/20 font-semibold',
+  'Xmas': 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 font-semibold',
 };
 
-const allStatuses = ['New', 'DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', 'Hot Prospect', 'Closed', 'Non Interested', 'Stagnant'];
+const allStatuses = ['New', 'DNR1', 'DNR2', 'DNR3', 'Connected', 'Qualified', 'Hot Prospect', 'Closed', 'Non Interested', 'Stagnant', 'Xmas'];
 
 // ── Ordered status flow (Sales role only) ───────────────────────────────────
 const STATUS_FLOW: Record<string, string[]> = {
@@ -51,6 +52,7 @@ const STATUS_FLOW: Record<string, string[]> = {
   'Stagnant':     allStatuses,
   'Closed':       allStatuses,
   'Non Interested': allStatuses,
+  'Xmas':         allStatuses,
 };
 
 const getNextStatuses = (current: string, role: string | null): string[] => {
@@ -727,8 +729,27 @@ const LeadsPage: React.FC = () => {
         action_type: 'STATUS_CHANGE',
         old_value: oldStatus,
         new_value: status,
-        comments: comment || null
+        comments: status === 'Xmas' ? `Lead closed under Xmas plan${comment ? ` - ${comment}` : ''}` : (comment || null)
       });
+
+      // Notify Accountant on Xmas status
+      if (status === 'Xmas') {
+        const { data: accountants } = await supabase
+          .from('user_roles')
+          .select('user_id')
+          .eq('role', 'ACCOUNTANT');
+        if (accountants && accountants.length > 0) {
+          await supabase.from('notifications').insert(
+            accountants.map(a => ({
+              user_id: a.user_id,
+              title: '🎄 Xmas Plan Enrollment',
+              message: `Lead "${lead?.name}" has been enrolled in the Xmas plan by ${profile?.full_name || 'Sales'}.`,
+              type: 'xmas_enrollment',
+              lead_id: leadId,
+            }))
+          );
+        }
+      }
 
       // Notify BD member on DNR / Non Interested
       if (['DNR1', 'DNR2', 'DNR3', 'Non Interested'].includes(status)) {
@@ -1222,7 +1243,15 @@ const LeadsPage: React.FC = () => {
                         animate={{ opacity: 1 }}
                         transition={{ delay: i * 0.03 }}
                         className="border-b border-border/50 hover:bg-accent/30 transition-colors"
-                        style={lead.highlight_color ? { backgroundColor: lead.highlight_color + '20' } : {}}
+                        style={(() => {
+                            if (lead.lead_status === 'Xmas' && lead.marketing_start && lead.marketing_started_at) {
+                              const diffDays = (Date.now() - new Date(lead.marketing_started_at).getTime()) / (1000 * 60 * 60 * 24);
+                              if (diffDays >= 8) {
+                                return { backgroundColor: 'rgba(239, 68, 68, 0.15)', borderLeft: '4px solid #ef4444' };
+                              }
+                            }
+                            return lead.highlight_color ? { backgroundColor: lead.highlight_color + '20' } : {};
+                          })()}
                       >
                         <td className="p-3 text-xs font-mono text-muted-foreground">{(lead as any).display_id || '—'}</td>
                         <td className="p-3 text-xs text-muted-foreground">{formatDate(lead.created_at)}</td>

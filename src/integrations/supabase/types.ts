@@ -264,6 +264,9 @@ export type Database = {
           university: string | null
           updated_at: string
           visa_status: string | null
+            marketing_start: boolean | null
+            marketing_started_at: string | null
+            xmas_expired_notified: boolean | null
           next_followup_date: string | null
           generated_by_name: string | null
         }
@@ -613,6 +616,7 @@ export type Database = {
         | "Closed"
         | "Non Interested"
         | "Stagnant"
+          | "Xmas"
       lead_type: "New" | "Reference"
       payment_mode:
         | "Cash"
@@ -622,7 +626,7 @@ export type Database = {
         | "Other"
         | "Stripe"
       performa_type: "Pre-Performa" | "Post-Performa"
-      plan_type: "Starter" | "Premium" | "Elite" | "Pro" | "Custom"
+      plan_type: "Starter" | "Premium" | "Elite" | "Pro" | "Custom" | "Xmas"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -777,11 +781,12 @@ export const Constants = {
         "Closed",
         "Non Interested",
         "Stagnant",
+        "Xmas",
       ],
       lead_type: ["New", "Reference"],
       payment_mode: ["Cash", "Card", "UPI", "Bank Transfer", "Other", "Stripe"],
       performa_type: ["Pre-Performa", "Post-Performa"],
-      plan_type: ["Starter", "Premium", "Elite", "Pro", "Custom"],
+      plan_type: ["Starter", "Premium", "Elite", "Pro", "Custom", "Xmas"],
     },
   },
 } as const
