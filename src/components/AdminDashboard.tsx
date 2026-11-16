@@ -1202,11 +1202,13 @@ const AdminDashboard: React.FC = () => {
       <AnimatePresence mode="wait">
         {activeTab === 'control' && (
           <motion.div key="control" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <StatCard title="Total Leads" value={(dashboardStats && !isFilterActive) ? dashboardStats.totalLeads : filteredData.leads.length} icon={Users} delay={0} isLoading={isLoadingStats} />
               <StatCard title="Pipeline" value={(dashboardStats && !isFilterActive) ? dashboardStats.pipeline : filteredData.leads.filter(l => !['Closed', 'Non Interested'].includes(l.lead_status || '')).length} icon={TrendingUp} delay={0.1} isLoading={isLoadingStats} />
               <StatCard title="Closures" value={(dashboardStats && !isFilterActive) ? dashboardStats.closures : filteredData.leads.filter(l => l.lead_status === 'Closed').length} icon={CheckCircle} delay={0.2} isLoading={isLoadingStats} />
               <StatCard title="Revenue" value={`$${((dashboardStats && !isFilterActive) ? dashboardStats.revenue : revenueStats.total).toLocaleString()}`} icon={DollarSign} delay={0.3} isLoading={isLoadingStats} />
+                <StatCard title="Xmas Enrollment" value={xmasStats.enrollment} icon={Gift} delay={0.2} isLoading={isLoadingStats} />
+                <StatCard title="Xmas Convert to closed" value={xmasStats.convertToClosed} icon={Sparkles} delay={0.25} isLoading={isLoadingStats} />
             </div>
             {isAdmin && (
               <>
