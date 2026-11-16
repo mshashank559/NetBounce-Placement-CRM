@@ -723,6 +723,19 @@ const AdminDashboard: React.FC = () => {
   }, [allUsers]);
 
   // Revenue
+  // Total combined Xmas KPIs for Admin across all Sales TLs and Members
+  const xmasStats = useMemo(() => {
+    const list = filteredData.leads || [];
+    const enrollment = list.filter(l => l.lead_status === 'Xmas').length;
+    const convertToClosed = list.filter(l => {
+      if (l.lead_status !== 'Xmas' || !l.marketing_start || !l.marketing_started_at) return false;
+      const diffDays = (Date.now() - new Date(l.marketing_started_at).getTime()) / (1000 * 60 * 60 * 24);
+      return diffDays >= 8;
+    }).length;
+
+    return { enrollment, convertToClosed };
+  }, [filteredData.leads]);
+
   const revenueStats = useMemo(() => {
     const isFilterActive = (monthFilter && monthFilter !== 'all') || dateFrom || dateTo;
     // If server-side stats are already fetched and no filter is active, bypass calculations
