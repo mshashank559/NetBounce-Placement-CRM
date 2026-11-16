@@ -23,6 +23,8 @@ import {
   ExternalLink,
   DollarSign,
   Bell,
+  Gift,
+  Sparkles,
   Clock,
   BarChart3,
   Activity,
