@@ -8,6 +8,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -44,20 +45,20 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
   const { user, role } = useAuth();
   const queryClient = useQueryClient();
 
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    technology: '',
-    lead_status: '',
-    lead_category: '',
-    lead_source: '',
-    linkedin_url: '',
-    university: '',
-    visa_status: '',
-    next_followup_date: '',
-    referee_name: '',
-  });
+  const [formData, setFormData] = useState(() => ({
+    name: norm(lead?.name),
+    email: norm(lead?.email),
+    phone: norm(lead?.phone),
+    technology: norm(lead?.technology),
+    lead_status: norm(lead?.lead_status) || 'New',
+    lead_category: norm(lead?.lead_category),
+    lead_source: norm(lead?.lead_source),
+    linkedin_url: norm(lead?.linkedin_url),
+    university: norm(lead?.university),
+    visa_status: norm(lead?.visa_status),
+    next_followup_date: norm(lead?.next_followup_date),
+    referee_name: norm(lead?.referee_name),
+  }));
 
   // Reset form whenever dialog opens with a new lead
   useEffect(() => {
@@ -84,6 +85,10 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
       if (!lead?.unique_id) throw new Error('Lead ID is missing');
       if (!user?.id) throw new Error('User not authenticated');
 
+      const finalStatus = (updatedData.lead_status && updatedData.lead_status.trim() !== '')
+        ? updatedData.lead_status.trim()
+        : (norm(lead.lead_status) || 'New');
+
       // ── 1. Detect actual changes (null-safe) ─────────────────────
       const changes: string[] = [];
       const trimmedEmail = updatedData.email.replace(/['"]/g, '').trim();
@@ -95,8 +100,8 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
         changes.push(`Phone: "${norm(lead.phone)}" → "${updatedData.phone}"`);
       if (norm(lead.technology) !== updatedData.technology)
         changes.push(`Technology: "${norm(lead.technology)}" → "${updatedData.technology}"`);
-      if (norm(lead.lead_status) !== updatedData.lead_status)
-        changes.push(`Status: "${norm(lead.lead_status)}" → "${updatedData.lead_status}"`);
+      if (norm(lead.lead_status) !== finalStatus)
+        changes.push(`Status: "${norm(lead.lead_status)}" → "${finalStatus}"`);
       if (norm(lead.lead_category) !== updatedData.lead_category)
         changes.push(`Category: "${norm(lead.lead_category)}" → "${updatedData.lead_category}"`);
       const oldSourceNormalized = normalizeSource(lead.lead_source);
@@ -125,7 +130,7 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
             email: trimmedEmail,
             phone: updatedData.phone,
             technology: updatedData.technology || null,
-            lead_status: updatedData.lead_status as any,
+            lead_status: finalStatus as any,
             lead_category: (updatedData.lead_category || null) as any,
             lead_source: updatedData.lead_source ? normalizeSource(updatedData.lead_source) : null,
             linkedin_url: updatedData.linkedin_url || null,
@@ -144,8 +149,8 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
         lead_id: lead.unique_id,
         changed_by: user.id,
         action_type: 'LEAD_EDIT',
-        old_value: norm(lead.lead_status),
-        new_value: updatedData.lead_status,
+        old_value: norm(lead.lead_status) || 'New',
+        new_value: finalStatus,
         comments: `Edited fields: ${changes.join(' | ')}`,
       });
 
@@ -337,8 +342,13 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
       return;
     }
 
+    const safeStatus = (formData.lead_status && formData.lead_status.trim() !== '')
+      ? formData.lead_status.trim()
+      : (norm(lead?.lead_status) || 'New');
+
     updateLeadMutation.mutate({
       ...formData,
+      lead_status: safeStatus,
       email: formData.email.replace(/['"]/g, '').trim()
     });
   };
@@ -350,6 +360,9 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
           <DialogTitle className="text-xl font-bold bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-transparent">
             Edit Lead Details
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Edit lead information and status details
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
@@ -404,7 +417,7 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
             <div className="space-y-2">
               <Label htmlFor="edit-status">Lead Status</Label>
               <Select
-                value={formData.lead_status}
+                value={formData.lead_status || 'New'}
                 onValueChange={val => setFormData({ ...formData, lead_status: val })}
               >
                 <SelectTrigger id="edit-status">
@@ -421,6 +434,7 @@ const EditLeadDialog: React.FC<EditLeadDialogProps> = ({
                   <SelectItem value="Closed">Closed</SelectItem>
                   <SelectItem value="Non Interested">Non Interested</SelectItem>
                   <SelectItem value="Stagnant">Stagnant</SelectItem>
+                  <SelectItem value="Xmas">Xmas</SelectItem>
                 </SelectContent>
               </Select>
             </div>
