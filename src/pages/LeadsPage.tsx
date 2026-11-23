@@ -200,7 +200,7 @@ const LeadsPage: React.FC = () => {
         } catch {}
       })();
 
-      let query = supabase.from('leads').select('*', { count: 'exact' });
+      let query = supabase.from('leads').select('*', { count: 'estimated' });
       let teamUserIds: string[] = [user!.id];
 
       // Role permission constraints

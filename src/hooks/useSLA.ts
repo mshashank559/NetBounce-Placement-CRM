@@ -93,10 +93,22 @@ export const useSLA = () => {
       }
 
       // ── Rule 2: Document Dispatch SLA ──
-      const { data: closures } = await supabase
-        .from('leads')
-        .select('unique_id, name, agreement_status, agreement_sent_at')
-        .eq('lead_status', 'Closed');
+      // Fetch closures older than 24h first to avoid unindexed table scan on leads
+      const { data: allLeadClosures } = await supabase
+        .from('lead_closures')
+        .select('lead_id, created_at')
+        .lt('created_at', twentyFourHoursAgo);
+
+      const targetLeadIds = allLeadClosures?.map(c => c.lead_id).filter(Boolean) || [];
+
+      let closures: any[] = [];
+      if (targetLeadIds.length > 0) {
+        const { data } = await supabase
+          .from('leads')
+          .select('unique_id, name, agreement_status, agreement_sent_at')
+          .in('unique_id', targetLeadIds);
+        closures = data || [];
+      }
 
       if (closures && closures.length > 0) {
         const admins = await getRoleUserIds(['ADMIN']);
@@ -105,12 +117,6 @@ export const useSLA = () => {
         const dispatchTargets = Array.from(new Set([...admins, ...accountants, ...analysts]));
 
         const closedLeadIdsSet = new Set(closures.map(l => l.unique_id));
-
-        // Batch fetch lead closures without passing hundreds of IDs in URL
-        const { data: allLeadClosures } = await supabase
-          .from('lead_closures')
-          .select('lead_id, created_at')
-          .lt('created_at', twentyFourHoursAgo);
 
         const closureCreatedMap = new Map<string, string>();
         allLeadClosures?.forEach(c => {

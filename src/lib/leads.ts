@@ -10,9 +10,27 @@ export function invalidateLeadsCache() {
   lastFetchTime = 0;
 }
 
+const ESSENTIAL_LEAD_COLUMNS = `
+  unique_id,
+  display_id,
+  name,
+  email,
+  phone,
+  technology,
+  lead_status,
+  created_at,
+  lead_generated_by,
+  assigned_to,
+  team_lead_id,
+  lead_source,
+  lead_category,
+  agreement_status,
+  university
+`;
+
 /**
- * Fetches all leads from the database, handling Supabase's default 1000-row pagination limit.
- * Uses parallel chunk downloads and an in-memory cache for instant subsequent reads.
+ * Fetches leads from the database with controlled concurrency and selective columns
+ * to prevent Supabase connection pool exhaustion and statement timeouts.
  */
 export async function fetchAllLeads(forceFresh = false) {
   const now = Date.now();
@@ -27,94 +45,54 @@ export async function fetchAllLeads(forceFresh = false) {
   pendingPromise = (async () => {
     const STEP = 1000;
     try {
-      // 1. Try to get exact total lead count
+      // 1. Try to get total lead count (estimated to prevent statement timeout)
       let total = 0;
       const { count, error: countErr } = await supabase
         .from('leads')
-        .select('*', { count: 'exact', head: true });
+        .select('unique_id', { count: 'estimated', head: true });
 
       if (!countErr && typeof count === 'number' && count > 0) {
         total = count;
       } else {
-        const { count: c2 } = await supabase
-          .from('leads')
-          .select('unique_id', { count: 'exact', head: true });
-        if (typeof c2 === 'number' && c2 > 0) total = c2;
+        total = 9000; // sensible upper bound fallback
       }
 
-      // 2. If total is known, parallel download all chunks with retry
-      if (total > 0) {
-        const chunkPromises = [];
-        for (let from = 0; from < total; from += STEP) {
-          const to = Math.min(from + STEP - 1, total - 1);
-          chunkPromises.push((async () => {
-            let attempts = 0;
-            while (attempts < 3) {
-              attempts++;
-              const res = await supabase
-                .from('leads')
-                .select('*')
-                .order('created_at', { ascending: false })
-                .range(from, to);
-
-              if (!res.error && res.data) {
-                return res.data;
-              }
-              if (attempts < 3) {
-                await new Promise(r => setTimeout(r, 400 * attempts));
-              }
-            }
-            return [];
-          })());
-        }
-
-        const chunkResults = await Promise.all(chunkPromises);
-        const allLeads = chunkResults.flat();
-        if (allLeads.length > 0) {
-          cachedLeads = allLeads;
-          lastFetchTime = Date.now();
-          return allLeads;
-        }
-      }
-
-      // 3. Fallback: Sequential paging if count was 0 or parallel chunks returned empty
-      let from = 0;
+      // 2. Fetch chunks sequentially (never flood database connection pool with parallel Promise.all)
       let allLeads: any[] = [];
-      while (true) {
+      for (let from = 0; from < total; from += STEP) {
+        const to = from + STEP - 1;
         const { data, error } = await supabase
           .from('leads')
-          .select('*')
+          .select(ESSENTIAL_LEAD_COLUMNS)
           .order('created_at', { ascending: false })
-          .range(from, from + STEP - 1);
+          .range(from, to);
 
-        if (error || !data || data.length === 0) break;
-        allLeads.push(...data);
-        if (data.length < STEP) break;
-        from += STEP;
+        if (error) {
+          console.warn(`fetchAllLeads chunk [${from}-${to}] failed:`, error);
+          break;
+        }
+
+        if (data && data.length > 0) {
+          allLeads.push(...data);
+          if (data.length < STEP) break; // Reached last chunk
+        } else {
+          break;
+        }
+
+        // Small 30ms throttle between chunks to allow other app queries (notifications, SLA) to breathe
+        await new Promise(r => setTimeout(r, 30));
       }
 
-      cachedLeads = allLeads;
-      lastFetchTime = Date.now();
-      return allLeads;
+      if (allLeads.length > 0) {
+        cachedLeads = allLeads;
+        lastFetchTime = Date.now();
+        return allLeads;
+      }
+
+      return cachedLeads || [];
     } catch (err) {
       console.error('fetchAllLeads exception:', err);
-      // Emergency fallback with sequential paging, never capping at 1000
-      let from = 0;
-      let allLeads: any[] = [];
-      try {
-        while (true) {
-          const { data, error } = await supabase
-            .from('leads')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .range(from, from + STEP - 1);
-          if (error || !data || data.length === 0) break;
-          allLeads.push(...data);
-          if (data.length < STEP) break;
-          from += STEP;
-        }
-      } catch {}
-      return allLeads.length > 0 ? allLeads : (cachedLeads || []);
+      return cachedLeads || [];
     } finally {
       pendingPromise = null;
     }
