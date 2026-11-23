@@ -22,7 +22,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useLocation } from 'react-router-dom';
 import LeadDetailDialog from './LeadDetailDialog';
 import AgreementDialog from './AgreementDialog';
-import { fetchAllLeads } from '@/lib/leads';
 import { 
   AreaChart, Area, PieChart, Pie, Cell, 
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend 
@@ -148,40 +147,197 @@ export default function AccountantDashboard() {
   // Agreement Workflow state
   const [agreementLead, setAgreementLead] = useState<any>(null);
 
-  // Fetch closed leads with payment data
+  // Fetch closed leads with payment data (targeted columns to prevent statement timeout)
   const { data: closures, isLoading } = useQuery({
     queryKey: ['account-closures'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('leads')
         .select(`
-          *,
-          lead_closures (*),
-          payment_ledgers (*)
+          unique_id,
+          display_id,
+          name,
+          email,
+          phone,
+          comment,
+          created_at,
+          lead_status,
+          lead_closures (
+            id,
+            plan,
+            amount,
+            interviews_guaranteed,
+            upfront_amount,
+            candidate_email,
+            created_at
+          ),
+          payment_ledgers (
+            id,
+            total_amount,
+            total_paid,
+            total_due,
+            next_payment_amount,
+            next_payment_date,
+            payment_status,
+            created_at
+          )
         `)
-        .eq('lead_status', 'Closed');
+        .eq('lead_status', 'Closed')
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
       return data || [];
-    }
+    },
+    staleTime: 60 * 1000,
   });
 
-  // Fetch leads for Leads View (Only Closed, or Global when isGlobalView is true)
-  const { data: allLeads, isLoading: isAllLeadsLoading, refetch: refetchAllLeads } = useQuery({
-    queryKey: ['all-leads-accountant', isGlobalView],
+  // Fetch leads for Leads View (Server-side paginated & targeted columns, 50 per page)
+  const { data: leadsData, isLoading: isAllLeadsLoading, refetch: refetchAllLeads } = useQuery({
+    queryKey: [
+      'all-leads-accountant',
+      isGlobalView,
+      leadsPage,
+      leadsSearch,
+      leadsTypeFilter,
+      leadsStatusFilter,
+      startDateFilter,
+      endDateFilter,
+      selectedSalesFilter,
+      selectedBdFilter,
+    ],
     queryFn: async () => {
-      if (isGlobalView) {
-        return fetchAllLeads();
-      } else {
-        const { data, error } = await supabase
-          .from('leads')
-          .select('*')
-          .eq('lead_status', 'Closed')
-          .order('created_at', { ascending: false });
-        if (error) throw error;
-        return data || [];
+      let query = supabase
+        .from('leads')
+        .select(`
+          unique_id,
+          display_id,
+          name,
+          email,
+          phone,
+          technology,
+          lead_status,
+          created_at,
+          lead_generated_by,
+          assigned_to,
+          team_lead_id,
+          comment,
+          linkedin_url,
+          resume_url,
+          university,
+          passout_year,
+          visa_status,
+          lead_source,
+          lead_category
+        `, { count: 'exact' });
+
+      // If not global view, only show Closed leads
+      if (!isGlobalView) {
+        query = query.eq('lead_status', 'Closed');
       }
-    }
+
+      // Search filter (display_id, name, email, phone)
+      if (leadsSearch.trim()) {
+        const raw = leadsSearch.trim();
+        const digitsOnly = raw.replace(/\D/g, '');
+        const cleanStr = raw.replace(/\s+/g, '');
+        const isNumeric = digitsOnly.length > 0 && /^\d+$/.test(raw.replace(/[\s\-\(\)\+]/g, ''));
+
+        let orConditions: string[] = [];
+        if (isNumeric && digitsOnly.length >= 7) {
+          orConditions = [`phone.ilike.%${digitsOnly}%`, `phone.ilike.%${raw}%`];
+        } else if (/^nbc/i.test(cleanStr)) {
+          orConditions = [`display_id.ilike.%${cleanStr}%`, `display_id.ilike.%${raw}%`];
+        } else if (isNumeric && digitsOnly.length < 7) {
+          orConditions = [`display_id.ilike.%NBC${digitsOnly}%`, `display_id.ilike.%${digitsOnly}%`, `phone.ilike.%${digitsOnly}%`];
+        } else {
+          orConditions = [
+            `email.ilike.%${raw}%`,
+            `name.ilike.%${raw}%`,
+            `display_id.ilike.%${cleanStr}%`,
+          ];
+          if (digitsOnly.length >= 4) {
+            orConditions.push(`phone.ilike.%${digitsOnly}%`);
+          }
+        }
+        query = query.or(orConditions.join(','));
+      }
+
+      // Date range filter
+      if (startDateFilter) {
+        query = query.gte('created_at', `${startDateFilter}T00:00:00+05:30`);
+      }
+      if (endDateFilter) {
+        query = query.lte('created_at', `${endDateFilter}T23:59:59+05:30`);
+      }
+
+      // Sales filter: match assigned_to or team_lead_id
+      if (selectedSalesFilter !== 'all') {
+        query = query.or(`assigned_to.eq.${selectedSalesFilter},team_lead_id.eq.${selectedSalesFilter}`);
+      }
+
+      // BD filter: match generator or their TL
+      if (selectedBdFilter !== 'all') {
+        const reportingIds = profilesMap
+          ? Object.entries(profilesMap)
+              .filter(([id, p]) => id === selectedBdFilter || p.reports_to === selectedBdFilter)
+              .map(([id]) => id)
+          : [selectedBdFilter];
+
+        if (reportingIds.length > 1) {
+          query = query.in('lead_generated_by', reportingIds);
+        } else {
+          query = query.eq('lead_generated_by', selectedBdFilter);
+        }
+      }
+
+      // Lead Type filter (New <= 3d, Existing <= 15d, Old > 15d)
+      if (leadsTypeFilter === 'New') {
+        const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+        query = query.gte('created_at', threeDaysAgo);
+      } else if (leadsTypeFilter === 'Existing') {
+        const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+        const fifteenDaysAgo = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+        query = query.lt('created_at', threeDaysAgo).gte('created_at', fifteenDaysAgo);
+      } else if (leadsTypeFilter === 'Old') {
+        const fifteenDaysAgo = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+        query = query.lt('created_at', fifteenDaysAgo);
+      }
+
+      // Document status filter
+      if (leadsStatusFilter !== 'all' && allPerformas) {
+        const matchingLeadIds = allPerformas
+          .filter(p => safeParseNotes(p.notes).status === leadsStatusFilter)
+          .map(p => p.lead_id);
+
+        if (leadsStatusFilter === 'Not Sent') {
+          const sentLeadIds = allPerformas.map(p => p.lead_id);
+          if (sentLeadIds.length > 0) {
+            query = query.not('unique_id', 'in', `(${sentLeadIds.join(',')})`);
+          }
+        } else {
+          if (matchingLeadIds.length > 0) {
+            query = query.in('unique_id', matchingLeadIds);
+          } else {
+            return { leads: [], totalCount: 0 };
+          }
+        }
+      }
+
+      const from = (leadsPage - 1) * 50;
+      const to = from + 50 - 1;
+
+      const { data, count, error } = await query
+        .order('created_at', { ascending: false })
+        .range(from, to);
+
+      if (error) throw error;
+      return {
+        leads: data || [],
+        totalCount: count || 0,
+      };
+    },
+    placeholderData: (previousData) => previousData,
+    staleTime: 30 * 1000,
   });
 
   // Fetch all performas
@@ -254,76 +410,9 @@ export default function AccountantDashboard() {
     return true;
   }) || [];
 
-  // Filter and sort Leads for Leads View
-  const filteredLeads = React.useMemo(() => {
-    if (!allLeads) return [];
-    return allLeads
-      .filter(lead => {
-        // Search filter
-        if (leadsSearch.trim()) {
-          const s = leadsSearch.toLowerCase();
-          const nameMatch = lead.name?.toLowerCase().includes(s);
-          const emailMatch = lead.email?.toLowerCase().includes(s);
-          const phoneMatch = lead.phone?.toLowerCase().includes(s);
-          const idMatch = lead.display_id?.toLowerCase().includes(s) || lead.unique_id?.toLowerCase().includes(s);
-          if (!nameMatch && !emailMatch && !phoneMatch && !idMatch) return false;
-        }
-
-        // Type filter
-        if (leadsTypeFilter !== 'all') {
-          const type = getLeadType(lead.created_at);
-          if (type !== leadsTypeFilter) return false;
-        }
-
-        // Document status filter
-        if (leadsStatusFilter !== 'all') {
-          const perf = performasByLead[lead.unique_id]?.[0];
-          let status = 'Not Sent';
-          if (perf) {
-            status = safeParseNotes(perf.notes).status;
-          }
-          if (status !== leadsStatusFilter) return false;
-        }
-
-        // Date range filter (fixed: included in dep array)
-        const leadDateStr = getISTDateString(lead.created_at);
-        if (startDateFilter && leadDateStr < startDateFilter) return false;
-        if (endDateFilter && leadDateStr > endDateFilter) return false;
-
-        // Sales filter: match assigned_to or team_lead_id
-        if (selectedSalesFilter !== 'all') {
-          const matchesSales =
-            lead.assigned_to === selectedSalesFilter ||
-            lead.team_lead_id === selectedSalesFilter;
-          if (!matchesSales) return false;
-        }
-
-        // BD filter: match lead_generated_by directly, or if generator reports to selected BD TL
-        if (selectedBdFilter !== 'all') {
-          const generatorId = lead.lead_generated_by;
-          const generatorProfile = generatorId && profilesMap ? profilesMap[generatorId] : null;
-          const matchesBd =
-            generatorId === selectedBdFilter ||
-            (generatorProfile?.reports_to === selectedBdFilter);
-          if (!matchesBd) return false;
-        }
-
-        return true;
-      })
-      .sort((a, b) => {
-        const timeA = getLastActivity(a, performasByLead[a.unique_id] || []);
-        const timeB = getLastActivity(b, performasByLead[b.unique_id] || []);
-        return timeB - timeA;
-      });
-  }, [allLeads, leadsSearch, leadsTypeFilter, leadsStatusFilter, performasByLead, startDateFilter, endDateFilter, selectedSalesFilter, selectedBdFilter, profilesMap]);
-
-  // Paginated leads for Leads View
-  const paginatedLeads = React.useMemo(() => {
-    const startIndex = (leadsPage - 1) * 50;
-    return filteredLeads.slice(startIndex, startIndex + 50);
-  }, [filteredLeads, leadsPage]);
-
-  const totalLeadsPages = Math.max(1, Math.ceil(filteredLeads.length / 50));
+  const paginatedLeads = leadsData?.leads || [];
+  const totalLeadsCount = leadsData?.totalCount || 0;
+  const totalLeadsPages = Math.max(1, Math.ceil(totalLeadsCount / 50));
 
   // Reset page when search or filters change
   React.useEffect(() => {
@@ -934,7 +1023,7 @@ export default function AccountantDashboard() {
                 )}
 
                 <Badge className="bg-primary/10 text-primary hover:bg-primary/20 border-primary/20 py-1">
-                  {filteredLeads.length} Matches
+                  {totalLeadsCount} Matches
                 </Badge>
               </div>
             </div>
@@ -1067,10 +1156,10 @@ export default function AccountantDashboard() {
             </div>
 
             {/* Pagination Controls */}
-            {filteredLeads.length > 0 && (
+            {totalLeadsCount > 0 && (
               <div className="p-4 border-t border-border/50 bg-background/50 flex justify-between items-center gap-4 text-xs flex-wrap">
                 <span className="text-muted-foreground font-medium">
-                  Showing {((leadsPage - 1) * 50) + 1} - {Math.min(leadsPage * 50, filteredLeads.length)} of {filteredLeads.length} leads
+                  Showing {((leadsPage - 1) * 50) + 1} - {Math.min(leadsPage * 50, totalLeadsCount)} of {totalLeadsCount} leads
                 </span>
                 <div className="flex gap-2">
                   <Button 
@@ -1085,7 +1174,7 @@ export default function AccountantDashboard() {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    disabled={leadsPage === totalLeadsPages} 
+                    disabled={leadsPage >= totalLeadsPages} 
                     onClick={() => setLeadsPage(prev => prev + 1)}
                     className="h-8 border-accent/20 hover:bg-accent/10"
                   >
