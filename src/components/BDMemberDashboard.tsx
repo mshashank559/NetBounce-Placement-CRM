@@ -127,20 +127,31 @@ const BDMemberDashboard: React.FC = () => {
         let orConditions: string[] = [];
 
         if (isNumeric && digitsOnly.length >= 7) {
-          // Direct Phone Number index lookup
-          orConditions = [`phone.ilike.%${digitsOnly}%`, `phone.ilike.%${raw}%`];
-        } else if (/^nbc/i.test(cleanStr)) {
-          // Direct NBC ID index lookup
-          orConditions = [`display_id.ilike.%${cleanStr}%`, `display_id.ilike.%${raw}%`];
+          // Direct Phone Number index lookup, plus email and ID fallback
+          orConditions = [
+            `phone.ilike.%${digitsOnly}%`,
+            `phone.ilike.%${raw}%`,
+            `display_id.ilike.%${cleanStr}%`,
+            `email.ilike.%${raw}%`,
+          ];
         } else if (isNumeric && digitsOnly.length < 7) {
           // Short number -> NBC ID or phone lookup
-          orConditions = [`display_id.ilike.%NBC${digitsOnly}%`, `display_id.ilike.%${digitsOnly}%`, `phone.ilike.%${digitsOnly}%`];
-        } else if (raw.includes('@')) {
-          // Direct Email index lookup
-          orConditions = [`email.ilike.%${raw}%`];
+          orConditions = [
+            `display_id.ilike.%NBC${digitsOnly}%`,
+            `display_id.ilike.%${digitsOnly}%`,
+            `phone.ilike.%${digitsOnly}%`,
+            `email.ilike.%${raw}%`,
+          ];
         } else {
-          // Direct Name index lookup
-          orConditions = [`name.ilike.%${raw}%`, `display_id.ilike.%${cleanStr}%`];
+          // Comprehensive lookup: ALWAYS search email, name, display_id, and phone
+          orConditions = [
+            `email.ilike.%${raw}%`,
+            `name.ilike.%${raw}%`,
+            `display_id.ilike.%${cleanStr}%`,
+          ];
+          if (digitsOnly.length >= 4) {
+            orConditions.push(`phone.ilike.%${digitsOnly}%`);
+          }
         }
 
         query = query.or(orConditions.join(','));
@@ -218,7 +229,7 @@ const BDMemberDashboard: React.FC = () => {
       return nameMatch || emailMatch || phoneMatch || idMatch;
     });
 
-    return inMem.length > 0 ? inMem : serverLeads;
+    return inMem;
   }, [leadsResponse?.leads, nameSearch]);
 
   const totalCount = nameSearch.trim() ? filteredLeads.length : (leadsResponse?.totalCount || 0);

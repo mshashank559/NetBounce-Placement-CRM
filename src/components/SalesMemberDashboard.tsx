@@ -338,10 +338,15 @@ const SalesMemberDashboard: React.FC = () => {
           orConditions = [`display_id.ilike.%${cleanStr}%`, `display_id.ilike.%${raw}%`];
         } else if (isNumeric && digitsOnly.length < 7) {
           orConditions = [`display_id.ilike.%NBC${digitsOnly}%`, `display_id.ilike.%${digitsOnly}%`, `phone.ilike.%${digitsOnly}%`];
-        } else if (raw.includes('@')) {
-          orConditions = [`email.ilike.%${raw}%`];
         } else {
-          orConditions = [`name.ilike.%${raw}%`, `display_id.ilike.%${cleanStr}%`];
+          orConditions = [
+            `email.ilike.%${raw}%`,
+            `name.ilike.%${raw}%`,
+            `display_id.ilike.%${cleanStr}%`,
+          ];
+          if (digitsOnly.length >= 4) {
+            orConditions.push(`phone.ilike.%${digitsOnly}%`);
+          }
         }
 
         query = query.or(orConditions.join(','));
