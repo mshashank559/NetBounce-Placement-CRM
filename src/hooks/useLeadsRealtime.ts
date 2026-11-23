@@ -29,6 +29,8 @@ export const useLeadsRealtime = () => {
           queryClient.invalidateQueries({ queryKey: ['admin-dashboard-stats'] });
           queryClient.invalidateQueries({ queryKey: ['dashboard-leads'] });
           queryClient.invalidateQueries({ queryKey: ['bd-member-leads'] });
+          queryClient.invalidateQueries({ queryKey: ['all-leads-accountant'] });
+          queryClient.invalidateQueries({ queryKey: ['account-closures'] });
         }
       )
       .subscribe();
@@ -43,6 +45,19 @@ export const useLeadsRealtime = () => {
           queryClient.invalidateQueries({ queryKey: ['all-closures-admin'] });
           queryClient.invalidateQueries({ queryKey: ['admin-dashboard-stats'] });
           queryClient.invalidateQueries({ queryKey: ['account-closures'] });
+          queryClient.invalidateQueries({ queryKey: ['all-leads-accountant'] });
+        }
+      )
+      .subscribe();
+
+    // Subscribe to changes on payment_ledgers table
+    const ledgersChannel = supabase
+      .channel('ledgers-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'payment_ledgers' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['account-closures'] });
         }
       )
       .subscribe();
@@ -51,6 +66,7 @@ export const useLeadsRealtime = () => {
     return () => {
       supabase.removeChannel(leadsChannel);
       supabase.removeChannel(closuresChannel);
+      supabase.removeChannel(ledgersChannel);
     };
   }, [queryClient]);
 };

@@ -224,7 +224,6 @@ export default function AccountantDashboard() {
           linkedin_url,
           resume_url,
           university,
-          passout_year,
           visa_status,
           lead_source,
           lead_category
@@ -418,6 +417,40 @@ export default function AccountantDashboard() {
   React.useEffect(() => {
     setLeadsPage(1);
   }, [leadsSearch, leadsTypeFilter, leadsStatusFilter, isGlobalView, startDateFilter, endDateFilter, selectedSalesFilter, selectedBdFilter]);
+
+  // Realtime subscription: When any lead is updated/closed or closure logged, live update row without refresh
+  React.useEffect(() => {
+    const channel = supabase
+      .channel('accountant-leads-live')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'leads' },
+        () => {
+          refetchAllLeads();
+          queryClient.invalidateQueries({ queryKey: ['account-closures'] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'lead_closures' },
+        () => {
+          refetchAllLeads();
+          queryClient.invalidateQueries({ queryKey: ['account-closures'] });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'payment_ledgers' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['account-closures'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient, refetchAllLeads]);
 
   // KPI Calculations
   const activeEnrollments = closures?.length || 0;
