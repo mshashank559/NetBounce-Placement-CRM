@@ -15,8 +15,8 @@ export const useSLA = () => {
 
   useEffect(() => {
     if (!user) return;
-    // SLA checks are run by TLs, Admins, Accountants, and Process Analysts
-    if (role !== 'ADMIN' && role !== 'SALES_TL' && role !== 'LEAD_TL' && role !== 'ACCOUNTANT' && role !== 'PROCESS_ANALYST') return;
+    // SLA checks are run by TLs, Admins, and Process Analysts (not Accountant)
+    if (role !== 'ADMIN' && role !== 'SALES_TL' && role !== 'LEAD_TL' && role !== 'PROCESS_ANALYST') return;
 
     const runSLAChecks = async () => {
       const today = new Date().toISOString().split('T')[0];
