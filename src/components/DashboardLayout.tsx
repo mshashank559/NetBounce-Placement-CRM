@@ -29,17 +29,22 @@ const DashboardLayout: React.FC = memo(() => {
     queryKey: ['unread-count', user?.id],
     queryFn: async () => {
       if (!user?.id) return 0;
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('read', false)
-        .limit(10);
-      if (error) {
-        console.warn('Unread count query warning:', error);
+      try {
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('read', false)
+          .limit(10);
+        if (error) {
+          console.warn('Unread count query warning:', error);
+          return 0;
+        }
+        return data?.length || 0;
+      } catch (err) {
+        console.warn('Unread count query error:', err);
         return 0;
       }
-      return data?.length || 0;
     },
     enabled: !!user?.id,
     retry: false,

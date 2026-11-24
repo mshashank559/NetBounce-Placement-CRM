@@ -11,8 +11,9 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
-import { TrendingUp, CheckCircle, Phone, DollarSign, AlertTriangle, Clock, UserPlus, Eye, Search, RefreshCw, XCircle, Gift, Sparkles } from 'lucide-react';
+import { TrendingUp, CheckCircle, Phone, DollarSign, AlertTriangle, Clock, UserPlus, Eye, Search, RefreshCw, XCircle, Gift, Sparkles, Calendar } from 'lucide-react';
 import LeadDetailDialog from './LeadDetailDialog';
+import CallActivityDialog from './CallActivityDialog';
 import { getWorkingDaysDifference, getISTYearAndMonth, getISTDateString, formatToISTDateString, getBDBusinessDate, isInCurrentShift, getShiftStart, getUSShiftRange } from '@/lib/dateUtils';
 import { useDeferredRender } from '@/hooks/useDeferredRender';
 import { DebouncedSearchInput } from '@/components/ui/DebouncedSearchInput';
@@ -94,6 +95,7 @@ const SalesTLDashboard: React.FC = () => {
 
   const [viewMode, setViewMode] = useState('team'); // 'personal', 'team', or 'global'
   const [selectedLead, setSelectedLead] = useState<any>(null);
+  const [callLead, setCallLead] = useState<any>(null);
   const [reassigningLeadId, setReassigningLeadId] = useState<string | null>(null);
   const [monthFilter, setMonthFilter] = useState(() => {
     const saved = localStorage.getItem('netbounce_crm_month_filter_month_num');
@@ -503,6 +505,30 @@ const SalesTLDashboard: React.FC = () => {
     });
   }, [leads, myTeamIds, user?.id]);
 
+  // ── Follow-Up Alerts for Sales TL (Scoped to My View / Team View) ──
+  const dueTodayLeads = useMemo(() => {
+    return leads.filter(l => {
+      if (viewMode === 'personal' && l.assigned_to !== user?.id) return false;
+      if (viewMode === 'team' && l.assigned_to !== user?.id && !myTeamIds.has(l.assigned_to)) return false;
+      return (
+        l.next_followup_date === today &&
+        !['Closed', 'Non Interested'].includes(l.lead_status || '')
+      );
+    });
+  }, [leads, today, viewMode, user?.id, myTeamIds]);
+
+  const overdueLeads = useMemo(() => {
+    return leads.filter(l => {
+      if (viewMode === 'personal' && l.assigned_to !== user?.id) return false;
+      if (viewMode === 'team' && l.assigned_to !== user?.id && !myTeamIds.has(l.assigned_to)) return false;
+      return (
+        l.next_followup_date &&
+        l.next_followup_date < today &&
+        !['Closed', 'Non Interested', 'Stagnant'].includes(l.lead_status || '')
+      );
+    });
+  }, [leads, today, viewMode, user?.id, myTeamIds]);
+
 
 
   // ── Chart Data ──
@@ -895,6 +921,73 @@ const SalesTLDashboard: React.FC = () => {
               </Card>
             </motion.div>
           ))}
+        </div>
+      )}
+
+      {/* Follow-Up Action Required Alert */}
+      {viewMode !== 'global' && (dueTodayLeads.length > 0 || overdueLeads.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {dueTodayLeads.length > 0 && (
+            <Card className="border-amber-500/50 bg-amber-500/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold text-amber-600 flex items-center gap-2">
+                  <Calendar className="h-4 w-4" /> Follow-Up Due Today ({dueTodayLeads.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-2 max-h-48 overflow-y-auto">
+                {dueTodayLeads.map(l => {
+                  const assignedMember = salesMembers.find(m => m.user_id === l.assigned_to);
+                  return (
+                    <Button
+                      key={l.unique_id}
+                      size="sm"
+                      variant="outline"
+                      className="border-amber-500/30 text-xs h-7 hover:bg-amber-500/10"
+                      onClick={() => setCallLead(l)}
+                      title={`Assigned: ${assignedMember?.full_name || 'Unassigned'} | Status: ${l.lead_status || 'New'}`}
+                    >
+                      <Phone className="h-3 w-3 mr-1" />
+                      <span className="font-semibold">{l.name}</span>
+                      {viewMode === 'team' && assignedMember && (
+                        <span className="text-[10px] text-muted-foreground ml-1">({assignedMember.full_name})</span>
+                      )}
+                    </Button>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
+
+          {overdueLeads.length > 0 && (
+            <Card className="border-red-500/50 bg-red-500/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold text-red-600 flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" /> Overdue Follow-Up ({overdueLeads.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-2 max-h-48 overflow-y-auto">
+                {overdueLeads.map(l => {
+                  const assignedMember = salesMembers.find(m => m.user_id === l.assigned_to);
+                  return (
+                    <Button
+                      key={l.unique_id}
+                      size="sm"
+                      variant="outline"
+                      className="border-red-500/30 text-xs h-7 text-red-600 hover:text-red-700 hover:bg-red-500/10"
+                      onClick={() => setCallLead(l)}
+                      title={`Assigned: ${assignedMember?.full_name || 'Unassigned'} | Due: ${l.next_followup_date}`}
+                    >
+                      <Phone className="h-3 w-3 mr-1" />
+                      <span className="font-semibold">{l.name}</span>
+                      {viewMode === 'team' && assignedMember && (
+                        <span className="text-[10px] text-muted-foreground ml-1">({assignedMember.full_name})</span>
+                      )}
+                    </Button>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 
@@ -1304,6 +1397,18 @@ const SalesTLDashboard: React.FC = () => {
           open={selectedLead !== null}
           onClose={() => setSelectedLead(null)}
           lead={selectedLead}
+        />
+      )}
+      {/* Call Activity Dialog */}
+      {callLead && (
+        <CallActivityDialog
+          lead={callLead}
+          open={!!callLead}
+          onClose={() => {
+            setCallLead(null);
+            invalidateLeadsCache();
+            queryClient.invalidateQueries({ queryKey: ['salestl-leads'] });
+          }}
         />
       )}
     </div>

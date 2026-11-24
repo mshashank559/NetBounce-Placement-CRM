@@ -483,16 +483,26 @@ const AdminDashboard: React.FC = () => {
   const { data: notificationsData } = useQuery({
     queryKey: ['all-notifications-admin', notifPage],
     queryFn: async () => {
-      const from = (notifPage - 1) * NOTIF_PAGE_SIZE;
-      const to = from + NOTIF_PAGE_SIZE - 1;
-      const { data, count, error } = await supabase
-        .from('notifications')
-        .select('*', { count: 'exact' })
-        .order('created_at', { ascending: false })
-        .range(from, to);
-      if (error) throw error;
-      return { list: data || [], totalCount: count || 0 };
+      try {
+        const from = (notifPage - 1) * NOTIF_PAGE_SIZE;
+        const to = from + NOTIF_PAGE_SIZE - 1;
+        const { data, count, error } = await supabase
+          .from('notifications')
+          .select('id, title, message, created_at', { count: 'estimated' })
+          .order('created_at', { ascending: false })
+          .range(from, to);
+        if (error) {
+          console.warn('Admin notifications query warning:', error);
+          return { list: [], totalCount: 0 };
+        }
+        return { list: data || [], totalCount: count || 0 };
+      } catch (err) {
+        console.warn('Admin notifications query error:', err);
+        return { list: [], totalCount: 0 };
+      }
     },
+    enabled: activeTab === 'monitoring',
+    retry: false,
   });
 
   const notifications = notificationsData?.list || [];
