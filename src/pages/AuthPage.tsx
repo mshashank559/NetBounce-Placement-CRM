@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { FORCED_LOGOUT_KEY } from '@/contexts/AuthContext';
+import { useAuth, FORCED_LOGOUT_KEY } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import logoDarkIcon from '@/assets/logo-dark.png';
-import { Eye, EyeOff, ShieldAlert, Snowflake, Sparkles } from 'lucide-react';
+import { Eye, EyeOff, ShieldAlert, Sparkles } from 'lucide-react';
 
-/* ─── 1. Continuous Falling Snow Canvas ───────────────────────────────────── */
-const ChristmasSnowfall: React.FC = () => {
+/* ─── 1. Multi-Layer Interactive 3D Snowfall Canvas ───────────────────────── */
+const ChristmasSnowCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mouseRef = useRef({ x: -1000, y: -1000, active: false });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -28,46 +28,77 @@ const ChristmasSnowfall: React.FC = () => {
     resize();
     window.addEventListener('resize', resize);
 
+    const handleMouseMove = (e: MouseEvent) => {
+      mouseRef.current.x = e.clientX;
+      mouseRef.current.y = e.clientY;
+      mouseRef.current.active = true;
+    };
+
+    const handleMouseLeave = () => {
+      mouseRef.current.active = false;
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseleave', handleMouseLeave);
+
     interface Flake {
       x: number;
       y: number;
       radius: number;
       speed: number;
-      drift: number;
-      swaySpeed: number;
-      swayOffset: number;
-      opacity: number;
+      wind: number;
+      swing: number;
+      swingSpeed: number;
+      alpha: number;
+      isSparkle: boolean;
+      sparklePhase: number;
     }
 
-    const flakeCount = Math.min(130, Math.floor(window.innerWidth / 11));
+    const count = 120;
     const flakes: Flake[] = [];
 
-    for (let i = 0; i < flakeCount; i++) {
+    for (let i = 0; i < count; i++) {
+      const radius = Math.random() * 2.8 + 0.8;
       flakes.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        radius: Math.random() * 2.8 + 1,
-        speed: Math.random() * 1.2 + 0.6,
-        drift: Math.random() * 0.8 - 0.4,
-        swaySpeed: Math.random() * 0.02 + 0.01,
-        swayOffset: Math.random() * Math.PI * 2,
-        opacity: Math.random() * 0.55 + 0.35,
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+        radius: radius,
+        speed: (Math.random() * 1.2 + 0.6) * (radius * 0.45 + 0.5),
+        wind: (Math.random() - 0.5) * 0.4,
+        swing: Math.random() * Math.PI * 2,
+        swingSpeed: Math.random() * 0.02 + 0.01,
+        alpha: Math.random() * 0.65 + 0.35,
+        isSparkle: Math.random() < 0.2,
+        sparklePhase: Math.random() * Math.PI * 2,
       });
     }
 
-    let frame = 0;
-    const render = () => {
+    const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      frame++;
+      const mouse = mouseRef.current;
 
       for (let i = 0; i < flakes.length; i++) {
         const f = flakes[i];
-        f.y += f.speed;
-        f.x += Math.sin(frame * f.swaySpeed + f.swayOffset) * 0.6 + f.drift;
 
-        // Reset if past screen bounds
-        if (f.y > canvas.height + 5) {
-          f.y = -8;
+        f.swing += f.swingSpeed;
+        f.x += f.wind + Math.sin(f.swing) * 0.6;
+        f.y += f.speed;
+
+        // Subtle mouse wind swirl interaction
+        if (mouse.active) {
+          const dx = mouse.x - f.x;
+          const dy = mouse.y - f.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 120) {
+            const force = (120 - dist) / 120;
+            f.x -= (dx / dist) * force * 1.8;
+            f.y += (dy / dist) * force * 1.2;
+          }
+        }
+
+        // Wrap around boundaries
+        if (f.y > canvas.height + 10) {
+          f.y = -10;
           f.x = Math.random() * canvas.width;
         }
         if (f.x > canvas.width + 10) f.x = -10;
@@ -75,313 +106,454 @@ const ChristmasSnowfall: React.FC = () => {
 
         ctx.beginPath();
         ctx.arc(f.x, f.y, f.radius, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 255, 255, ${f.opacity})`;
-        ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
-        ctx.shadowBlur = f.radius > 2 ? 6 : 2;
+
+        if (f.isSparkle) {
+          f.sparklePhase += 0.05;
+          const sparkleAlpha = (Math.sin(f.sparklePhase) * 0.35 + 0.65) * f.alpha;
+          ctx.fillStyle = `rgba(255, 245, 210, ${sparkleAlpha})`;
+          ctx.shadowColor = 'rgba(255, 220, 150, 0.8)';
+          ctx.shadowBlur = 6;
+        } else {
+          ctx.fillStyle = `rgba(255, 255, 255, ${f.alpha})`;
+          ctx.shadowColor = 'rgba(255, 255, 255, 0.4)';
+          ctx.shadowBlur = 2;
+        }
         ctx.fill();
-        ctx.shadowBlur = 0;
+        ctx.shadowBlur = 0; // reset
       }
 
-      animId = requestAnimationFrame(render);
+      animId = requestAnimationFrame(draw);
     };
 
-    render();
+    draw();
 
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', resize);
+      window.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseleave', handleMouseLeave);
     };
   }, []);
 
-  return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-20" />;
+  return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 3 }} />;
 };
 
-/* ─── 2. Stylized Pine Tree (Green & Frosted Pink) ────────────────────────── */
-interface PineTreeProps {
-  x: string | number;
-  bottom: string | number;
-  height: number;
-  colorType: 'green' | 'pink' | 'emerald';
-  zIndex?: number;
-  twinkleDelay?: number;
-}
-
-const PineTree: React.FC<PineTreeProps> = ({ x, bottom, height, colorType, zIndex = 2, twinkleDelay = 0 }) => {
-  const isPink = colorType === 'pink';
-  const width = height * 0.65;
-
-  const needleBase = isPink ? '#9d174d' : '#064e3b';
-  const needleMid = isPink ? '#db2777' : '#047857';
-  const needleTop = isPink ? '#f472b6' : '#10b981';
-  const trunkColor = '#451a03';
-
+/* ─── 2. Realistic 3D Snowy Winter Cabin (Hut with Chimney Smoke) ─────────── */
+const WinterCabinScene: React.FC = () => {
   return (
+    <div className="absolute right-3 md:right-12 bottom-6 md:bottom-12 z-[2] pointer-events-none select-none opacity-85 hover:opacity-100 transition-opacity">
+      {/* ── Chimney Smoke Animation ── */}
+      <div className="relative">
+        <div className="absolute -top-16 left-6 flex flex-col items-center">
+          <span className="smoke-puff smoke-1" />
+          <span className="smoke-puff smoke-2" />
+          <span className="smoke-puff smoke-3" />
+        </div>
+
+        {/* ── Stylized 3D Cabin SVG ── */}
+        <svg width="220" height="180" viewBox="0 0 220 180" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-[0_15px_30px_rgba(0,0,0,0.6)]">
+          <defs>
+            {/* Cabin wall wood gradient */}
+            <linearGradient id="cabinWall" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#4a1c12" />
+              <stop offset="50%" stopColor="#36140d" />
+              <stop offset="100%" stopColor="#220b07" />
+            </linearGradient>
+
+            {/* Snow on roof gradient */}
+            <linearGradient id="roofSnow" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#ffffff" />
+              <stop offset="70%" stopColor="#e8effc" />
+              <stop offset="100%" stopColor="#cbd5e1" />
+            </linearGradient>
+
+            {/* Warm window glow */}
+            <linearGradient id="windowGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#fef08a" />
+              <stop offset="100%" stopColor="#f59e0b" />
+            </linearGradient>
+
+            {/* Chimney brick */}
+            <linearGradient id="chimneyGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#572216" />
+              <stop offset="50%" stopColor="#6e2b1c" />
+              <stop offset="100%" stopColor="#3d160e" />
+            </linearGradient>
+          </defs>
+
+          {/* Stone Chimney */}
+          <rect x="52" y="32" width="22" height="42" rx="2" fill="url(#chimneyGrad)" />
+          {/* Snow cap on chimney */}
+          <path d="M48 32 C50 27, 76 27, 78 32 C78 35, 48 35, 48 32 Z" fill="#ffffff" filter="drop-shadow(0 2px 3px rgba(0,0,0,0.2))" />
+
+          {/* Main Cabin Body */}
+          <path d="M30 85 L180 85 L175 160 L35 160 Z" fill="url(#cabinWall)" />
+
+          {/* Horizontal Wood Planks Styling */}
+          <line x1="32" y1="102" x2="178" y2="102" stroke="#220b07" strokeWidth="1.5" opacity="0.6" />
+          <line x1="33" y1="120" x2="177" y2="120" stroke="#220b07" strokeWidth="1.5" opacity="0.6" />
+          <line x1="34" y1="138" x2="176" y2="138" stroke="#220b07" strokeWidth="1.5" opacity="0.6" />
+
+          {/* Cabin Door */}
+          <rect x="50" y="108" width="28" height="50" rx="3" fill="#2d1009" stroke="#1c0905" strokeWidth="1" />
+          <circle cx="72" cy="132" r="2" fill="#fbbf24" />
+          {/* Christmas Wreath on Door */}
+          <circle cx="64" cy="122" r="7" stroke="#15803d" strokeWidth="3" fill="none" />
+          <circle cx="64" cy="115" r="2" fill="#dc2626" />
+
+          {/* Warm Glowing Windows with Cross Bars */}
+          {/* Window 1 */}
+          <rect x="98" y="104" width="32" height="32" rx="4" fill="url(#windowGlow)" filter="drop-shadow(0 0 14px rgba(251,191,36,0.85))" />
+          <line x1="114" y1="104" x2="114" y2="136" stroke="#4a1c12" strokeWidth="2" />
+          <line x1="98" y1="120" x2="130" y2="120" stroke="#4a1c12" strokeWidth="2" />
+
+          {/* Window 2 */}
+          <rect x="140" y="104" width="26" height="32" rx="4" fill="url(#windowGlow)" filter="drop-shadow(0 0 14px rgba(251,191,36,0.85))" />
+          <line x1="153" y1="104" x2="153" y2="136" stroke="#4a1c12" strokeWidth="2" />
+          <line x1="140" y1="120" x2="166" y2="120" stroke="#4a1c12" strokeWidth="2" />
+
+          {/* 3D Snow-covered Sloped Roof */}
+          <path
+            d="M10 88 
+               Q105 20 205 88 
+               Q190 98 175 92 
+               Q150 96 135 90 
+               Q105 97 85 91 
+               Q55 98 35 90 
+               Z"
+            fill="url(#roofSnow)"
+            filter="drop-shadow(0 6px 10px rgba(0,0,0,0.35))"
+          />
+
+          {/* Dripping Icicles under roof */}
+          <path d="M42 91 L44 98 L46 91" fill="#e2e8f0" />
+          <path d="M78 91 L80 102 L82 91" fill="#e2e8f0" />
+          <path d="M125 91 L127 101 L129 91" fill="#e2e8f0" />
+          <path d="M162 92 L164 97 L166 92" fill="#e2e8f0" />
+
+          {/* Snowdrift at base of cabin */}
+          <path d="M20 168 Q60 152 110 162 Q160 150 205 168 Z" fill="#ffffff" opacity="0.95" />
+        </svg>
+      </div>
+
+      <style>{`
+        .smoke-puff {
+          position: absolute;
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          background: radial-gradient(circle, rgba(255,255,255,0.7) 0%, rgba(220,230,245,0.3) 60%, transparent 100%);
+          filter: blur(4px);
+          animation: chimneySmoke 4.2s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
+        }
+        .smoke-1 { animation-delay: 0s; }
+        .smoke-2 { animation-delay: 1.4s; }
+        .smoke-3 { animation-delay: 2.8s; }
+
+        @keyframes chimneySmoke {
+          0% {
+            transform: translate(0, 0) scale(0.6);
+            opacity: 0;
+          }
+          20% {
+            opacity: 0.75;
+          }
+          60% {
+            transform: translate(-14px, -45px) scale(1.6);
+            opacity: 0.45;
+          }
+          100% {
+            transform: translate(-30px, -90px) scale(2.6);
+            opacity: 0;
+          }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+/* ─── 3. Snow-Dusted Christmas Pine Trees (with Soft Ambient Glow) ────────── */
+const ChristmasPineTrees: React.FC = () => {
+  return (
+    <div className="absolute inset-0 pointer-events-none select-none overflow-hidden z-[1]">
+      {/* Left Far Trees (Subtle pink-green glow) */}
+      <div className="absolute -left-6 bottom-4 md:bottom-8 opacity-75">
+        <svg width="240" height="260" viewBox="0 0 240 260" fill="none">
+          {/* Tree 1 (Large Pine) */}
+          <g filter="drop-shadow(0 10px 20px rgba(0,0,0,0.5))">
+            {/* Trunk */}
+            <rect x="72" y="190" width="16" height="40" fill="#2d150b" />
+            {/* Bottom tier */}
+            <polygon points="80,110 20,195 140,195" fill="#0d4a22" />
+            <path d="M20 195 Q80 180 140 195 Q110 185 80 185 Q50 185 20 195 Z" fill="#ffffff" />
+            {/* Middle tier */}
+            <polygon points="80,70 35,140 125,140" fill="#145a2d" />
+            <path d="M35 140 Q80 128 125 140 Q105 130 80 130 Q55 130 35 140 Z" fill="#ffffff" />
+            {/* Top tier */}
+            <polygon points="80,30 50,85 110,85" fill="#1b6e38" />
+            <path d="M50 85 Q80 75 110 85 Q95 78 80 78 Q65 78 50 85 Z" fill="#ffffff" />
+            {/* Golden Star topper */}
+            <circle cx="80" cy="28" r="5" fill="#fbbf24" filter="drop-shadow(0 0 8px rgba(251,191,36,0.9))" />
+            {/* Colorful fairy lights */}
+            <circle cx="65" cy="110" r="3" fill="#f43f5e" className="animate-pulse" />
+            <circle cx="95" cy="125" r="3" fill="#38bdf8" className="animate-pulse" style={{ animationDelay: '0.6s' }} />
+            <circle cx="70" cy="160" r="3" fill="#fbbf24" className="animate-pulse" style={{ animationDelay: '1.2s' }} />
+            <circle cx="105" cy="175" r="3" fill="#ec4899" className="animate-pulse" style={{ animationDelay: '1.8s' }} />
+          </g>
+
+          {/* Tree 2 (Smaller accent pine in background) */}
+          <g opacity="0.65" transform="translate(100, 45) scale(0.75)">
+            <rect x="72" y="190" width="16" height="40" fill="#2d150b" />
+            <polygon points="80,110 20,195 140,195" fill="#063817" />
+            <path d="M20 195 Q80 180 140 195 Z" fill="#ffffff" />
+            <polygon points="80,70 35,140 125,140" fill="#0d4a22" />
+            <path d="M35 140 Q80 128 125 140 Z" fill="#ffffff" />
+            <polygon points="80,30 50,85 110,85" fill="#145a2d" />
+            <path d="M50 85 Q80 75 110 85 Z" fill="#ffffff" />
+            <circle cx="80" cy="28" r="4" fill="#fbbf24" filter="drop-shadow(0 0 6px rgba(251,191,36,0.8))" />
+          </g>
+        </svg>
+      </div>
+
+      {/* Right Background Pine Tree next to Cabin */}
+      <div className="absolute right-48 md:right-64 bottom-6 md:bottom-10 opacity-70 hidden sm:block">
+        <svg width="150" height="190" viewBox="0 0 150 190" fill="none">
+          <g filter="drop-shadow(0 8px 16px rgba(0,0,0,0.4))">
+            <rect x="68" y="145" width="14" height="35" fill="#2d150b" />
+            <polygon points="75,85 25,150 125,150" fill="#0d4a22" />
+            <path d="M25 150 Q75 138 125 150 Z" fill="#ffffff" />
+            <polygon points="75,50 38,105 112,105" fill="#145a2d" />
+            <path d="M38 105 Q75 95 112 105 Z" fill="#ffffff" />
+            <polygon points="75,18 50,65 100,65" fill="#1b6e38" />
+            <path d="M50 65 Q75 56 100 65 Z" fill="#ffffff" />
+            <circle cx="75" cy="16" r="4" fill="#fbbf24" filter="drop-shadow(0 0 6px rgba(251,191,36,0.8))" />
+          </g>
+        </svg>
+      </div>
+    </div>
+  );
+};
+
+/* ─── 4. Hanging Christmas Baubles / Ornaments on Top Corners ──────────────── */
+const HangingChristmasOrnaments: React.FC = () => {
+  return (
+    <div className="absolute top-0 left-0 right-0 pointer-events-none select-none z-[4] flex justify-between px-6 md:px-16 overflow-hidden">
+      {/* Left Ornaments Group */}
+      <div className="flex gap-4 origin-top animate-gentle-swing">
+        {/* Bauble 1 - Gold */}
+        <div className="flex flex-col items-center">
+          <div className="w-[1.5px] h-12 md:h-20 bg-gradient-to-b from-amber-200/20 to-amber-400" />
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-200 via-amber-400 to-amber-600 shadow-[0_0_15px_rgba(251,191,36,0.6)] flex items-center justify-center">
+            <Sparkles className="w-3.5 h-3.5 text-white/90" />
+          </div>
+        </div>
+        {/* Bauble 2 - Emerald */}
+        <div className="flex flex-col items-center -mt-3">
+          <div className="w-[1.5px] h-8 md:h-14 bg-gradient-to-b from-emerald-200/20 to-emerald-400" />
+          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-emerald-300 via-emerald-500 to-emerald-700 shadow-[0_0_12px_rgba(16,185,129,0.5)]" />
+        </div>
+      </div>
+
+      {/* Right Ornaments Group */}
+      <div className="flex gap-4 origin-top animate-gentle-swing" style={{ animationDelay: '1.5s' }}>
+        {/* Bauble 3 - Crimson / Silver */}
+        <div className="flex flex-col items-center -mt-2">
+          <div className="w-[1.5px] h-10 md:h-16 bg-gradient-to-b from-rose-200/20 to-rose-400" />
+          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-rose-300 via-rose-500 to-rose-700 shadow-[0_0_12px_rgba(244,63,94,0.5)]" />
+        </div>
+        {/* Bauble 4 - Champagne Gold */}
+        <div className="flex flex-col items-center">
+          <div className="w-[1.5px] h-14 md:h-24 bg-gradient-to-b from-amber-200/20 to-amber-400" />
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-yellow-200 via-amber-400 to-yellow-600 shadow-[0_0_18px_rgba(251,191,36,0.7)] flex items-center justify-center">
+            <div className="w-2 h-2 rounded-full bg-white/70" />
+          </div>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes gentleSwing {
+          0%, 100% { transform: rotate(-2.5deg); }
+          50% { transform: rotate(2.5deg); }
+        }
+        .animate-gentle-swing {
+          animation: gentleSwing 6s ease-in-out infinite;
+        }
+      `}</style>
+    </div>
+  );
+};
+
+/* ─── 5. Realistic Frosted Snow Cap on Top of the Login Container ─────────── */
+const LoginBoxSnowCap: React.FC = () => {
+  return (
+    <div className="absolute -top-[14px] left-0 right-0 z-20 pointer-events-none select-none">
+      <svg
+        viewBox="0 0 960 28"
+        preserveAspectRatio="none"
+        className="w-full h-[24px] drop-shadow-[0_4px_6px_rgba(0,0,0,0.25)]"
+      >
+        <defs>
+          <linearGradient id="snowCapGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#ffffff" />
+            <stop offset="65%" stopColor="#f1f5f9" />
+            <stop offset="100%" stopColor="#cbd5e1" />
+          </linearGradient>
+        </defs>
+        {/* Organic curved snowdrifts resting on the card edge */}
+        <path
+          d="M0,20 
+             Q40,4 90,14 
+             Q140,2 190,12 
+             Q250,5 310,16 
+             Q370,3 430,13 
+             Q490,4 550,15 
+             Q610,2 670,12 
+             Q730,6 790,15 
+             Q850,2 910,13 
+             Q940,5 960,18
+             L960,28 L0,28 Z"
+          fill="url(#snowCapGrad)"
+        />
+        {/* Glistening highlight crest */}
+        <path
+          d="M0,19 Q40,3 90,13 Q140,1 190,11 Q250,4 310,15 Q370,2 430,12 Q490,3 550,14 Q610,1 670,11 Q730,5 790,14 Q850,1 910,12 Q940,4 960,17"
+          stroke="#ffffff"
+          strokeWidth="1.5"
+          fill="none"
+          opacity="0.9"
+        />
+      </svg>
+    </div>
+  );
+};
+
+/* ─── 6. Bottom Ground Snowbanks Layer ─────────────────────────────────────── */
+const GroundSnowBanks: React.FC = () => {
+  return (
+    <div className="absolute bottom-0 left-0 right-0 pointer-events-none select-none z-[2]">
+      <svg
+        viewBox="0 0 1440 120"
+        preserveAspectRatio="none"
+        className="w-full h-16 md:h-24 opacity-95 drop-shadow-[0_-5px_15px_rgba(0,0,0,0.3)]"
+      >
+        <defs>
+          <linearGradient id="groundSnowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#ffffff" />
+            <stop offset="40%" stopColor="#f8fafc" />
+            <stop offset="100%" stopColor="#e2e8f0" />
+          </linearGradient>
+        </defs>
+        {/* Rolling soft snow hills */}
+        <path
+          d="M0,60 
+             Q280,15 620,55 
+             Q960,10 1200,45 
+             Q1350,25 1440,50 
+             L1440,120 L0,120 Z"
+          fill="url(#groundSnowGrad)"
+        />
+        {/* Secondary foreground hill for depth */}
+        <path
+          d="M0,85 
+             Q400,45 820,80 
+             Q1180,50 1440,75 
+             L1440,120 L0,120 Z"
+          fill="#f1f5f9"
+          opacity="0.8"
+        />
+      </svg>
+    </div>
+  );
+};
+
+/* ─── 6.5. PS5-Style Animated Floating Orbs in Christmas Red (CSS-only) ─────── */
+const RedFloatingOrbs: React.FC = () => (
+  <div className="absolute inset-0 overflow-hidden pointer-events-none">
+    {/* Primary large orb */}
     <div
       style={{
         position: 'absolute',
-        left: x,
-        bottom: bottom,
-        width: `${width}px`,
-        height: `${height}px`,
-        zIndex,
-        pointerEvents: 'none',
+        width: '280px',
+        height: '280px',
+        borderRadius: '50%',
+        background: 'radial-gradient(circle at 40% 40%, rgba(225, 29, 72, 0.45), rgba(159, 18, 57, 0.15) 60%, transparent 80%)',
+        top: '10%',
+        right: '-5%',
+        animation: 'ps5Float1 12s ease-in-out infinite',
+        filter: 'blur(2px)',
       }}
-    >
-      <svg viewBox="0 0 100 150" className="w-full h-full overflow-visible drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]">
-        <defs>
-          <linearGradient id={`treeGrad-${colorType}-${height}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={needleTop} />
-            <stop offset="50%" stopColor={needleMid} />
-            <stop offset="100%" stopColor={needleBase} />
-          </linearGradient>
-          <linearGradient id={`snowCap-${colorType}-${height}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#ffffff" />
-            <stop offset="100%" stopColor={isPink ? '#fce7f3' : '#e2e8f0'} />
-          </linearGradient>
-        </defs>
-
-        {/* Tree Trunk */}
-        <rect x="44" y="125" width="12" height="25" rx="3" fill={trunkColor} />
-
-        {/* Bottom Tier */}
-        <polygon points="50,45 10,130 90,130" fill={`url(#treeGrad-${colorType}-${height})`} />
-        {/* Bottom Tier Snow Cap */}
-        <path d="M 12 128 Q 30 118 50 120 Q 70 118 88 128 Q 70 122 50 123 Q 30 122 12 128 Z" fill={`url(#snowCap-${colorType}-${height})`} />
-
-        {/* Middle Tier */}
-        <polygon points="50,25 22,85 78,85" fill={`url(#treeGrad-${colorType}-${height})`} />
-        {/* Middle Tier Snow Cap */}
-        <path d="M 23 83 Q 36 76 50 78 Q 64 76 77 83 Q 64 79 50 80 Q 36 79 23 83 Z" fill={`url(#snowCap-${colorType}-${height})`} />
-
-        {/* Top Tier */}
-        <polygon points="50,5 32,50 68,50" fill={`url(#treeGrad-${colorType}-${height})`} />
-        {/* Top Tier Snow Cap */}
-        <path d="M 33 48 Q 41 43 50 45 Q 59 43 67 48 Q 59 45 50 46 Q 41 45 33 48 Z" fill={`url(#snowCap-${colorType}-${height})`} />
-
-        {/* Star / Sparkle on top */}
-        <polygon points="50,0 52,4 56,5 53,8 54,12 50,9 46,12 47,8 44,5 48,4" fill={isPink ? '#fef08a' : '#fde047'} className="animate-pulse" />
-
-        {/* Twinkling fairy ornaments */}
-        <circle cx="35" cy="110" r="2.5" fill={isPink ? '#fef08a' : '#f43f5e'} style={{ animation: `twinkle 2s infinite ease-in-out ${twinkleDelay}s` }} />
-        <circle cx="65" cy="115" r="2.5" fill={isPink ? '#67e8f9' : '#fbbf24'} style={{ animation: `twinkle 2.4s infinite ease-in-out ${twinkleDelay + 0.4}s` }} />
-        <circle cx="42" cy="70" r="2" fill={isPink ? '#fde047' : '#ec4899'} style={{ animation: `twinkle 1.8s infinite ease-in-out ${twinkleDelay + 0.8}s` }} />
-        <circle cx="58" cy="72" r="2" fill={isPink ? '#ffffff' : '#38bdf8'} style={{ animation: `twinkle 2.2s infinite ease-in-out ${twinkleDelay + 1.2}s` }} />
-      </svg>
-    </div>
-  );
-};
-
-/* ─── 3. Cozy Winter Cabin with Chimney Smoke & Glowing Windows ───────────── */
-const CozyHutWithSmoke: React.FC = () => {
-  return (
+    />
+    {/* Secondary medium orb */}
     <div
-      className="absolute hidden lg:block pointer-events-none"
       style={{
-        right: '4%',
-        bottom: '8%',
-        width: '260px',
-        height: '210px',
-        zIndex: 4,
+        position: 'absolute',
+        width: '180px',
+        height: '180px',
+        borderRadius: '50%',
+        background: 'radial-gradient(circle at 50% 50%, rgba(244, 63, 94, 0.35), rgba(190, 18, 60, 0.1) 60%, transparent 80%)',
+        top: '50%',
+        left: '10%',
+        animation: 'ps5Float2 15s ease-in-out infinite',
+        filter: 'blur(3px)',
       }}
-    >
-      {/* ── Animated Chimney Smoke Puffs ── */}
-      <div className="absolute" style={{ top: '-42px', left: '172px' }}>
-        <span className="smoke-puff smoke-1" />
-        <span className="smoke-puff smoke-2" />
-        <span className="smoke-puff smoke-3" />
-        <span className="smoke-puff smoke-4" />
-      </div>
-
-      <svg viewBox="0 0 240 180" className="w-full h-full overflow-visible drop-shadow-[0_15px_30px_rgba(0,0,0,0.6)]">
-        <defs>
-          {/* Wood Planks Gradient */}
-          <linearGradient id="cabinWood" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#451a03" />
-            <stop offset="25%" stopColor="#78350f" />
-            <stop offset="50%" stopColor="#92400e" />
-            <stop offset="75%" stopColor="#78350f" />
-            <stop offset="100%" stopColor="#451a03" />
-          </linearGradient>
-
-          {/* Roof Snow Gradient */}
-          <linearGradient id="roofSnow" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#ffffff" />
-            <stop offset="60%" stopColor="#f1f5f9" />
-            <stop offset="100%" stopColor="#cbd5e1" />
-          </linearGradient>
-
-          {/* Window Glow Filter */}
-          <radialGradient id="windowLight" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#fef08a" stopOpacity="1" />
-            <stop offset="60%" stopColor="#eab308" stopOpacity="0.85" />
-            <stop offset="100%" stopColor="#ca8a04" stopOpacity="0.6" />
-          </radialGradient>
-
-          <filter id="cozyGlow" x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur stdDeviation="8" result="blur" />
-            <feComposite in="SourceGraphic" in2="blur" operator="over" />
-          </filter>
-        </defs>
-
-        {/* Ambient Window Glow Light Casting on Ground */}
-        <ellipse cx="120" cy="155" rx="55" ry="18" fill="#fef08a" opacity="0.18" filter="url(#cozyGlow)" />
-
-        {/* Stone / Brick Chimney */}
-        <rect x="170" y="25" width="22" height="48" rx="2" fill="#334155" stroke="#1e293b" strokeWidth="1.5" />
-        {/* Snow Cap on Chimney */}
-        <path d="M 167 25 Q 181 19 195 25 Q 181 22 167 25 Z" fill="#ffffff" />
-
-        {/* Main Cabin Walls */}
-        <rect x="50" y="80" width="140" height="75" rx="3" fill="url(#cabinWood)" />
-        {/* Log Lines */}
-        <line x1="50" y1="95" x2="190" y2="95" stroke="#291203" strokeWidth="2" opacity="0.6" />
-        <line x1="50" y1="110" x2="190" y2="110" stroke="#291203" strokeWidth="2" opacity="0.6" />
-        <line x1="50" y1="125" x2="190" y2="125" stroke="#291203" strokeWidth="2" opacity="0.6" />
-        <line x1="50" y1="140" x2="190" y2="140" stroke="#291203" strokeWidth="2" opacity="0.6" />
-
-        {/* Cabin Door */}
-        <rect x="135" y="105" width="32" height="50" rx="3" fill="#291203" stroke="#1c0c02" strokeWidth="2" />
-        <circle cx="160" cy="130" r="2.5" fill="#fde047" />
-
-        {/* Christmas Wreath on Door */}
-        <circle cx="151" cy="120" r="7.5" fill="none" stroke="#15803d" strokeWidth="3.5" strokeDasharray="3,1" />
-        <circle cx="151" cy="120" r="7.5" fill="none" stroke="#166534" strokeWidth="2.5" />
-        <circle cx="151" cy="114" r="2" fill="#ef4444" />
-
-        {/* Cozy Glowing Window */}
-        <rect x="72" y="98" width="38" height="34" rx="3" fill="url(#windowLight)" filter="url(#cozyGlow)" />
-        <rect x="72" y="98" width="38" height="34" rx="3" fill="url(#windowLight)" stroke="#451a03" strokeWidth="3" />
-        {/* Window Pane Grid */}
-        <line x1="91" y1="98" x2="91" y2="132" stroke="#451a03" strokeWidth="2" />
-        <line x1="72" y1="115" x2="110" y2="115" stroke="#451a03" strokeWidth="2" />
-
-        {/* Roof Structure */}
-        <polygon points="120,38 35,84 205,84" fill="#1c0c02" />
-
-        {/* Heavy Snow Covering on Roof */}
-        <path
-          d="M 120 30 
-             Q 160 52 210 82 
-             Q 195 90 185 86 
-             Q 175 92 165 87 
-             Q 150 93 140 86 
-             Q 120 90 100 86 
-             Q 85 92 75 86 
-             Q 60 93 50 86 
-             Q 40 91 30 82 
-             Q 80 52 120 30 Z"
-          fill="url(#roofSnow)"
-          stroke="#e2e8f0"
-          strokeWidth="1"
-        />
-
-        {/* Hanging Icicles along Roof Edge */}
-        <polygon points="42,88 44,97 46,88" fill="#ffffff" opacity="0.9" />
-        <polygon points="68,88 70,100 73,88" fill="#ffffff" opacity="0.9" />
-        <polygon points="98,87 100,99 103,87" fill="#ffffff" opacity="0.9" />
-        <polygon points="135,88 137,102 140,88" fill="#ffffff" opacity="0.9" />
-        <polygon points="175,88 177,98 180,88" fill="#ffffff" opacity="0.9" />
-        <polygon points="198,85 200,94 202,85" fill="#ffffff" opacity="0.9" />
-      </svg>
-    </div>
-  );
-};
-
-/* ─── 4. Snow Cap on Top of Login Box ─────────────────────────────────────── */
-const SnowCappedRoof: React.FC = () => {
-  return (
+    />
+    {/* Tertiary small accent orb */}
     <div
-      className="absolute pointer-events-none select-none z-30"
       style={{
-        top: '-18px',
-        left: '-12px',
-        right: '-12px',
-        height: '42px',
+        position: 'absolute',
+        width: '120px',
+        height: '120px',
+        borderRadius: '50%',
+        background: 'radial-gradient(circle at 30% 30%, rgba(251, 113, 133, 0.4), rgba(225, 29, 72, 0.1) 60%, transparent 80%)',
+        bottom: '25%',
+        right: '15%',
+        animation: 'ps5Float3 10s ease-in-out infinite',
+        filter: 'blur(1px)',
       }}
-    >
-      <svg
-        viewBox="0 0 1000 65"
-        preserveAspectRatio="none"
-        className="w-full h-full drop-shadow-[0_8px_12px_rgba(0,0,0,0.45)]"
-      >
-        <defs>
-          <linearGradient id="snowBoxGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#ffffff" />
-            <stop offset="55%" stopColor="#f8fafc" />
-            <stop offset="85%" stopColor="#e2e8f0" />
-            <stop offset="100%" stopColor="#cbd5e1" />
-          </linearGradient>
-        </defs>
+    />
+    {/* Fourth tiny orb for depth */}
+    <div
+      style={{
+        position: 'absolute',
+        width: '80px',
+        height: '80px',
+        borderRadius: '50%',
+        background: 'radial-gradient(circle at 50% 50%, rgba(244, 63, 94, 0.3), transparent 70%)',
+        top: '35%',
+        left: '40%',
+        animation: 'ps5Float4 18s ease-in-out infinite',
+        filter: 'blur(4px)',
+      }}
+    />
 
-        {/* Organic wavy snow cover sitting right on top of card */}
-        <path
-          d="M 0 35 
-             C 30 18, 70 14, 110 24 
-             C 150 34, 190 12, 240 18 
-             C 290 24, 330 38, 380 22 
-             C 430 8, 480 32, 530 20 
-             C 580 10, 620 28, 670 16 
-             C 720 6, 770 30, 820 18 
-             C 870 8, 920 26, 960 16 
-             C 980 12, 995 24, 1000 35 
-             L 1000 44
-             C 980 42, 965 52, 955 45
-             C 940 40, 930 48, 915 44
-             C 890 38, 875 50, 855 42
-             C 830 36, 815 48, 790 41
-             C 750 36, 735 52, 705 44
-             C 670 37, 650 49, 620 42
-             C 580 35, 560 50, 525 43
-             C 490 37, 475 49, 440 42
-             C 400 36, 385 53, 350 44
-             C 310 37, 290 50, 260 43
-             C 220 36, 200 48, 170 41
-             C 130 36, 115 52, 85 44
-             C 50 38, 30 48, 0 42
-             Z"
-          fill="url(#snowBoxGrad)"
-        />
-
-        {/* Small hanging frosty icicles on corners */}
-        <polygon points="60,42 63,56 66,42" fill="#ffffff" opacity="0.95" />
-        <polygon points="195,43 198,54 201,43" fill="#ffffff" opacity="0.95" />
-        <polygon points="410,42 413,57 416,42" fill="#ffffff" opacity="0.95" />
-        <polygon points="635,42 638,58 641,42" fill="#ffffff" opacity="0.95" />
-        <polygon points="840,42 843,55 846,42" fill="#ffffff" opacity="0.95" />
-        <polygon points="945,43 948,53 951,43" fill="#ffffff" opacity="0.95" />
-      </svg>
-    </div>
-  );
-};
-
-/* ─── 5. Realistic Cute Santa Hat on NetBounce Logo ───────────────────────── */
-const SantaHat: React.FC<{ style?: React.CSSProperties }> = ({ style }) => (
-  <div style={{ position: 'absolute', width: '36px', height: '32px', zIndex: 15, pointerEvents: 'none', ...style }}>
-    <svg viewBox="0 0 40 36" className="w-full h-full overflow-visible drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]">
-      {/* Red Cone Body */}
-      <path
-        d="M 8 26 
-           C 12 12, 22 2, 34 8 
-           C 30 14, 25 22, 26 26 Z"
-        fill="#dc2626"
-      />
-      {/* Darker red crease shading */}
-      <path
-        d="M 12 24 C 16 16, 22 8, 28 10 C 24 16, 20 22, 21 24 Z"
-        fill="#b91c1c"
-        opacity="0.45"
-      />
-      {/* White Fluffy Pom-Pom on tip */}
-      <circle cx="35" cy="8" r="4.5" fill="#ffffff" stroke="#f1f5f9" strokeWidth="0.5" />
-      <circle cx="35" cy="8" r="3.5" fill="#f8fafc" />
-
-      {/* White Fluffy Brim */}
-      <rect x="4" y="24" width="26" height="7.5" rx="3.8" fill="#ffffff" stroke="#e2e8f0" strokeWidth="0.5" />
-    </svg>
+    <style>{`
+      @keyframes ps5Float1 {
+        0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.7; }
+        25% { transform: translate(-30px, 40px) scale(1.08); opacity: 0.9; }
+        50% { transform: translate(20px, -20px) scale(0.95); opacity: 0.6; }
+        75% { transform: translate(-15px, -35px) scale(1.05); opacity: 0.85; }
+      }
+      @keyframes ps5Float2 {
+        0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
+        33% { transform: translate(40px, -30px) scale(1.1); opacity: 0.75; }
+        66% { transform: translate(-25px, 25px) scale(0.9); opacity: 0.55; }
+      }
+      @keyframes ps5Float3 {
+        0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
+        20% { transform: translate(25px, 20px) scale(1.12); opacity: 0.8; }
+        40% { transform: translate(-10px, -30px) scale(0.92); opacity: 0.5; }
+        60% { transform: translate(30px, -10px) scale(1.06); opacity: 0.7; }
+        80% { transform: translate(-20px, 15px) scale(0.98); opacity: 0.65; }
+      }
+      @keyframes ps5Float4 {
+        0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.4; }
+        50% { transform: translate(-35px, -40px) scale(1.15); opacity: 0.65; }
+      }
+    `}</style>
   </div>
 );
 
-/* ─── 6. Main AuthPage Component ─────────────────────────────────────────── */
+/* ─── 7. Main AuthPage Component with Modern 3D Christmas Theme ───────────── */
 const AuthPage: React.FC = () => {
   const { signIn } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -422,200 +594,167 @@ const AuthPage: React.FC = () => {
     }
   };
 
-  const inputClassName =
-    'h-11 bg-[#091224]/85 border border-[#1e2f4d] rounded-lg text-white placeholder:text-[#52637f] focus:border-[#4361ee] focus:ring-1 focus:ring-[#4361ee]/40 transition-all backdrop-blur-sm';
-  const labelClassName = 'text-sm font-medium text-[#cbd5e1] mb-1.5 block';
+  /* ─── Shared 3D Glassmorphic Input Styling ─── */
+  const inputClassName = "h-11 bg-white/10 hover:bg-white/[0.14] border border-white/20 rounded-xl text-white placeholder:text-white/40 focus:border-amber-300 focus:ring-2 focus:ring-amber-300/30 backdrop-blur-md transition-all duration-200 shadow-inner";
+  const labelClassName = "text-sm font-semibold text-rose-100/90 mb-1.5 block tracking-wide";
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center relative overflow-hidden select-none"
+      className="min-h-screen flex items-center justify-center relative overflow-hidden font-sans"
       style={{
-        background: 'radial-gradient(ellipse at 50% 25%, #0f1f42 0%, #081126 45%, #030712 100%)',
+        /* NetBounce Rich Christmas Velvet Red Background (matching netbounceplacement.com) */
+        background: 'radial-gradient(ellipse at 50% 30%, #a81124 0%, #7f000e 55%, #490008 100%)',
       }}
     >
-      {/* ── Falling Snow Canvas ── */}
-      <ChristmasSnowfall />
+      {/* ── Ambient Holiday Lighting Highlights ── */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] bg-red-500/20 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-10 left-10 w-[350px] h-[350px] bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none" />
+      <div className="absolute bottom-12 right-16 w-[350px] h-[350px] bg-amber-400/15 rounded-full blur-[90px] pointer-events-none" />
 
-      {/* ── Background Deep Winter Sky Ambient Starry Dust ── */}
-      <div className="absolute inset-0 pointer-events-none opacity-40 z-0 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:32px_32px]" />
+      {/* ── Hanging Christmas Ornaments ── */}
+      <HangingChristmasOrnaments />
 
-      {/* ── Pine Trees (Left Forest: Green & Frosted Pink) ── */}
-      <PineTree x="1.5%" bottom="4%" height={260} colorType="green" zIndex={2} twinkleDelay={0} />
-      <PineTree x="6.5%" bottom="6%" height={210} colorType="pink" zIndex={3} twinkleDelay={0.5} />
-      <PineTree x="12%" bottom="3%" height={170} colorType="green" zIndex={2} twinkleDelay={1.1} />
-      <PineTree x="16%" bottom="5%" height={130} colorType="pink" zIndex={1} twinkleDelay={1.6} />
+      {/* ── Continuous 3D Snowfall System ── */}
+      <ChristmasSnowCanvas />
 
-      {/* ── Pine Trees (Right Forest behind/around Cabin) ── */}
-      <PineTree x="74%" bottom="7%" height={190} colorType="pink" zIndex={2} twinkleDelay={0.3} />
-      <PineTree x="80%" bottom="9%" height={240} colorType="green" zIndex={1} twinkleDelay={0.9} />
-      <PineTree x="91%" bottom="4%" height={270} colorType="pink" zIndex={3} twinkleDelay={1.4} />
+      {/* ── Snow-Dusted Pine Trees ── */}
+      <ChristmasPineTrees />
 
-      {/* ── Right Side Cozy Hut with Chimney Smoke & Warm Light ── */}
-      <CozyHutWithSmoke />
+      {/* ── Right-Side Cozy Winter Hut with Chimney Smoke ── */}
+      <WinterCabinScene />
 
-      {/* ── Layered Ground Snowdrifts / Rolling Hills ── */}
-      <div className="absolute bottom-0 left-0 right-0 h-[110px] pointer-events-none z-10 overflow-hidden">
-        <svg viewBox="0 0 1440 120" preserveAspectRatio="none" className="w-full h-full">
-          <defs>
-            {/* Distant Snow Hill */}
-            <linearGradient id="snowBack" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#94a3b8" stopOpacity="0.4" />
-              <stop offset="100%" stopColor="#0f172a" stopOpacity="0.8" />
-            </linearGradient>
-            {/* Mid Snow Hill */}
-            <linearGradient id="snowMid" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#cbd5e1" stopOpacity="0.65" />
-              <stop offset="100%" stopColor="#1e293b" stopOpacity="0.9" />
-            </linearGradient>
-            {/* Foreground Crisp Snow Blanket */}
-            <linearGradient id="snowFore" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#ffffff" />
-              <stop offset="40%" stopColor="#f1f5f9" />
-              <stop offset="100%" stopColor="#cbd5e1" />
-            </linearGradient>
-          </defs>
+      {/* ── Bottom Ground Snowbanks ── */}
+      <GroundSnowBanks />
 
-          {/* Far Layer */}
-          <path d="M 0 65 Q 360 25 720 50 T 1440 40 L 1440 120 L 0 120 Z" fill="url(#snowBack)" />
-          {/* Mid Layer */}
-          <path d="M 0 75 Q 420 40 840 70 T 1440 60 L 1440 120 L 0 120 Z" fill="url(#snowMid)" />
-          {/* Foreground Blanket with Frost Shadow */}
-          <path d="M 0 90 Q 280 65 620 85 T 1440 80 L 1440 120 L 0 120 Z" fill="url(#snowFore)" />
-        </svg>
-      </div>
+      {/* ── Center 3D Frosted Glass Login Container ── */}
+      <motion.div
+        layout
+        initial={{ opacity: 0, y: 35, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ type: 'spring', stiffness: 90, damping: 18 }}
+        className="flex w-full max-w-[960px] min-h-[560px] mx-4 rounded-3xl overflow-visible relative z-10 shadow-[0_30px_90px_rgba(0,0,0,0.65)]"
+        style={{
+          /* 3D Frosted Crystal Glass Layer */
+          background: 'rgba(25, 4, 8, 0.65)',
+          backdropFilter: 'blur(28px)',
+          WebkitBackdropFilter: 'blur(28px)',
+          border: '1px solid rgba(255, 255, 255, 0.22)',
+          boxShadow: '0 25px 80px rgba(0, 0, 0, 0.6), 0 0 45px rgba(244, 63, 94, 0.15), inset 0 1px 1px rgba(255, 255, 255, 0.25)',
+        }}
+      >
+        {/* ── Realistic Snow Collecting on Top of Login Box ── */}
+        <LoginBoxSnowCap />
 
-      {/* ── Main Central Login Card with Snow-Capped Top ── */}
-      <div className="relative z-30 w-full max-w-[960px] mx-4 my-8">
-        {/* Snow Drift Collected on Top of Login Box */}
-        <SnowCappedRoof />
-
-        <motion.div
-          layout
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ type: 'spring', stiffness: 100, damping: 17 }}
-          className="flex w-full min-h-[580px] rounded-2xl overflow-hidden relative"
-          style={{
-            background: 'rgba(9, 16, 36, 0.88)',
-            backdropFilter: 'blur(20px)',
-            boxShadow: '0 30px 90px rgba(0,0,0,0.7), 0 0 50px rgba(56, 189, 248, 0.12), 0 0 30px rgba(244, 114, 182, 0.08)',
-            border: '1px solid rgba(226, 232, 240, 0.22)',
-          }}
-        >
-          {/* ── LEFT PANEL: Festive Theme with Santa Hat Logo & Winter Copy ── */}
+        {/* ── Inner layout wrapper with rounded corners ── */}
+        <div className="flex flex-col md:flex-row w-full rounded-3xl overflow-hidden">
+          {/* ── LEFT PANEL: Festive Brand Showcase with Santa Accents ─────── */}
           <motion.div
             layout
             className="relative hidden md:flex flex-col justify-between w-[420px] min-w-[380px] p-8 overflow-hidden"
             style={{
-              background: 'linear-gradient(135deg, #0b153b 0%, #101c4d 40%, #0d1740 75%, #08102e 100%)',
-              borderRadius: '16px',
-              margin: '12px',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'linear-gradient(145deg, rgba(160, 15, 32, 0.8) 0%, rgba(90, 5, 15, 0.85) 60%, rgba(45, 2, 8, 0.95) 100%)',
+              borderRight: '1px solid rgba(255, 255, 255, 0.12)',
             }}
           >
-            {/* Top Logo with Cute Santa Hat */}
-            <div className="flex items-center relative z-10 pt-1">
+            {/* Ambient inner glow */}
+            <div className="absolute -top-16 -left-16 w-48 h-48 bg-amber-400/20 rounded-full blur-3xl pointer-events-none" />
+
+            {/* Top Logo with Christmas Holly Badge */}
+            <div className="flex items-center justify-between relative z-10">
               <div className="relative inline-block">
-                <SantaHat style={{ top: '-14px', left: '-6px', transform: 'rotate(-10deg)' }} />
                 <img
                   src={logoDarkIcon}
                   alt="NetBounce Placement"
-                  className="h-12 w-auto object-contain max-w-[240px]"
+                  className="h-12 w-auto object-contain max-w-[230px] drop-shadow-[0_2px_12px_rgba(0,0,0,0.4)]"
                 />
+                {/* Cute festive Santa Hat perched on the logo icon */}
+                <span
+                  className="absolute -top-3.5 -left-2 text-xl pointer-events-none transform -rotate-12 drop-shadow-md select-none"
+                  title="Happy Holidays!"
+                >
+                  🎅
+                </span>
               </div>
+              <span className="text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-full bg-white/10 text-amber-300 border border-amber-300/30 backdrop-blur-sm shadow-sm flex items-center gap-1">
+                <Sparkles className="w-2.5 h-2.5 text-amber-300" /> Holiday Edition
+              </span>
             </div>
 
-            {/* Ambient Festive Floating Orbs inside Left Panel */}
-            <div className="absolute inset-0 pointer-events-none overflow-hidden">
-              <div
-                style={{
-                  position: 'absolute',
-                  width: '260px',
-                  height: '260px',
-                  borderRadius: '50%',
-                  background: 'radial-gradient(circle at 40% 40%, rgba(14, 165, 233, 0.3), rgba(2, 132, 199, 0.08) 60%, transparent 80%)',
-                  top: '12%',
-                  right: '-10%',
-                  filter: 'blur(4px)',
-                }}
-              />
-              <div
-                style={{
-                  position: 'absolute',
-                  width: '200px',
-                  height: '200px',
-                  borderRadius: '50%',
-                  background: 'radial-gradient(circle at 50% 50%, rgba(244, 114, 182, 0.22), rgba(219, 39, 119, 0.05) 60%, transparent 80%)',
-                  bottom: '22%',
-                  left: '5%',
-                  filter: 'blur(5px)',
-                }}
-              />
-            </div>
+            {/* PS5-Style Red Floating Orbs */}
+            <RedFloatingOrbs />
 
-            {/* Bottom Tagline with Holiday Sparkle */}
+            {/* Bottom Tagline with festive styling */}
             <div className="relative z-10">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] tracking-wider uppercase font-semibold text-sky-200 bg-sky-500/15 border border-sky-400/30 mb-3 shadow-[0_0_12px_rgba(56,189,248,0.2)]">
-                <Snowflake className="h-3 w-3 text-sky-300 animate-spin" style={{ animationDuration: '10s' }} />
-                <span>Internal Platform • Holiday 2026</span>
+              <div className="flex items-center gap-2 text-amber-300/90 text-[11px] font-bold tracking-[0.25em] uppercase mb-2">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping inline-block" />
+                INTERNAL PLATFORM
               </div>
-              <h2 className="text-white text-[28px] font-bold leading-tight">
-                Managing Every<br />Candidate, End to End.
+              <h2 className="text-white text-[27px] font-bold leading-tight drop-shadow-md">
+                Managing Every<br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-white to-rose-200">
+                  Candidate, End to End.
+                </span>
               </h2>
-              <p className="text-slate-400 text-xs mt-2 flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-amber-300" /> Season of High Performance & Milestones
+              <p className="text-xs text-rose-200/70 mt-2 font-medium">
+                Season's greetings & high closing velocity.
               </p>
             </div>
           </motion.div>
 
-          {/* ── RIGHT PANEL: Clean, High-Contrast Auth Form ── */}
+          {/* ── RIGHT PANEL: Sleek 3D Glassmorphic Auth Form ─────────────── */}
           <motion.div
             layout
             className="flex-1 flex flex-col justify-center px-8 md:px-12 py-10 max-h-[90vh] overflow-y-auto"
             style={{ scrollbarWidth: 'thin' }}
           >
-            {/* Logo + Header */}
+            {/* Header */}
             <div className="flex flex-col items-center mb-7">
-              <div className="flex items-center mb-4 relative">
-                <SantaHat style={{ top: '-13px', left: '-5px', transform: 'rotate(-10deg)' }} />
+              {/* Logo display for mobile */}
+              <div className="flex md:hidden items-center mb-4">
                 <img
                   src={logoDarkIcon}
                   alt="NetBounce Placement"
-                  className="h-12 w-auto object-contain max-w-[250px]"
-                  style={{ filter: 'drop-shadow(0 0 14px rgba(56,189,248,0.3))' }}
+                  className="h-11 w-auto object-contain max-w-[220px]"
                 />
               </div>
-              <h1 className="text-[22px] font-bold text-white flex items-center gap-2">
+
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/20 border border-rose-300/30 text-rose-200 text-xs font-semibold mb-2.5 backdrop-blur-sm">
+                <span>❄️</span> Welcome to NetBounce CRM
+              </div>
+
+              <h1 className="text-[24px] font-extrabold text-white text-center tracking-tight drop-shadow-sm">
                 Sign in to your account
               </h1>
-              <p className="text-[#8e9fb5] text-sm mt-1">
-                Track candidates, closures, and your team pipeline.
+              <p className="text-rose-200/75 text-sm mt-1 text-center font-normal">
+                Track candidates, closures, and team pipeline.
               </p>
             </div>
 
-            {/* Security banner (if force-logout or alert active) */}
+            {/* Security Alert if Admin Force Logged Out */}
             {securityMessage && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mb-5 rounded-lg p-4 flex gap-3"
+                className="mb-5 rounded-xl p-4 flex gap-3 backdrop-blur-md"
                 style={{
-                  background: 'rgba(220, 38, 38, 0.15)',
-                  border: '1px solid rgba(220, 38, 38, 0.4)',
+                  background: 'rgba(239, 68, 68, 0.2)',
+                  border: '1px solid rgba(248, 113, 113, 0.45)',
+                  boxShadow: '0 4px 15px rgba(220, 38, 38, 0.25)',
                 }}
               >
-                <ShieldAlert className="h-5 w-5 mt-0.5 shrink-0" style={{ color: '#f87171' }} />
-                <p className="text-sm leading-relaxed" style={{ color: '#fca5a5' }}>
+                <ShieldAlert className="h-5 w-5 mt-0.5 shrink-0 text-red-300" />
+                <p className="text-sm leading-relaxed text-red-100 font-medium">
                   {securityMessage}
                 </p>
               </motion.div>
             )}
 
+            {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Email */}
               <div>
                 <Label htmlFor="email" className={labelClassName}>
-                  Your email
+                  Work Email
                 </Label>
                 <Input
                   id="email"
@@ -631,7 +770,9 @@ const AuthPage: React.FC = () => {
 
               {/* Password */}
               <div>
-                <Label htmlFor="password" className={labelClassName}>Password</Label>
+                <Label htmlFor="password" className={labelClassName}>
+                  Password
+                </Label>
                 <div className="relative">
                   <Input
                     id="password"
@@ -641,12 +782,12 @@ const AuthPage: React.FC = () => {
                     required
                     placeholder="••••••••"
                     minLength={6}
-                    className={`${inputClassName} pr-10`}
+                    className={`${inputClassName} pr-11`}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(p => !p)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#52637f] hover:text-[#94a3b8] transition-colors"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-colors p-1"
                     tabIndex={-1}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -654,72 +795,45 @@ const AuthPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Submit Button */}
-              <Button
-                type="submit"
-                className="w-full h-11 text-[15px] font-semibold rounded-lg transition-all duration-200 shadow-lg text-white hover:brightness-110 active:scale-[0.99]"
-                disabled={loading}
-                style={{
-                  background: 'linear-gradient(135deg, #1d4ed8 0%, #2563eb 50%, #0284c7 100%)',
-                  boxShadow: '0 4px 20px rgba(37,99,235,0.4)',
-                }}
-              >
-                {loading ? 'Please wait...' : 'Sign In'}
-              </Button>
+              {/* Submit Button with 3D Festive Gradient */}
+              <div className="pt-2">
+                <Button
+                  type="submit"
+                  className="w-full h-12 text-[15px] font-bold rounded-xl transition-all duration-300 shadow-xl relative overflow-hidden group cursor-pointer text-white"
+                  disabled={loading}
+                  style={{
+                    background: 'linear-gradient(135deg, #e11d48 0%, #be123c 50%, #9f1239 100%)',
+                    boxShadow: '0 8px 25px rgba(225, 29, 72, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.35)',
+                    border: '1px solid rgba(255, 255, 255, 0.25)',
+                  }}
+                >
+                  <span className="relative z-10 flex items-center justify-center gap-2">
+                    {loading ? (
+                      'Authenticating...'
+                    ) : (
+                      <>
+                        Sign In <Sparkles className="w-4 h-4 text-amber-200" />
+                      </>
+                    )}
+                  </span>
+                  {/* Button hover shimmer */}
+                  <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
+                </Button>
+              </div>
             </form>
 
             {/* Footer notice */}
-            <div className="mt-6 text-center space-y-2">
-              <p className="text-xs text-[#718299]">
-                Authorized Team Members Only
+            <div className="mt-7 text-center space-y-1.5">
+              <p className="text-xs font-semibold text-rose-200/80">
+                🔒 Authorized Team Members Only
               </p>
-              <p className="text-[11px] text-[#475569]">
-                Account access is provisioned by CRM Administrator. Public registration is disabled.
+              <p className="text-[11px] text-rose-200/50">
+                Account access is managed by CRM Administrator. Public registration is disabled.
               </p>
             </div>
           </motion.div>
-        </motion.div>
-      </div>
-
-      {/* ── CSS Keyframe Animations for Smoke & Twinkles ── */}
-      <style>{`
-        .smoke-puff {
-          position: absolute;
-          width: 14px;
-          height: 14px;
-          background: rgba(226, 232, 240, 0.7);
-          border-radius: 50%;
-          filter: blur(4px);
-          animation: chimneySmoke 4.2s infinite ease-out;
-        }
-        .smoke-1 { animation-delay: 0s; }
-        .smoke-2 { animation-delay: 1.05s; }
-        .smoke-3 { animation-delay: 2.1s; }
-        .smoke-4 { animation-delay: 3.15s; }
-
-        @keyframes chimneySmoke {
-          0% {
-            transform: translate(0, 0) scale(0.6);
-            opacity: 0;
-          }
-          15% {
-            opacity: 0.75;
-          }
-          65% {
-            opacity: 0.35;
-          }
-          100% {
-            transform: translate(-36px, -110px) scale(2.8);
-            opacity: 0;
-            filter: blur(8px);
-          }
-        }
-
-        @keyframes twinkle {
-          0%, 100% { opacity: 0.25; transform: scale(0.8); }
-          50% { opacity: 1; transform: scale(1.3); filter: drop-shadow(0 0 6px rgba(255,255,255,0.8)); }
-        }
-      `}</style>
+        </div>
+      </motion.div>
     </div>
   );
 };
