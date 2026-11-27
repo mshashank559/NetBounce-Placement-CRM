@@ -659,8 +659,8 @@ const AuthPage: React.FC = () => {
             {/* Ambient inner glow */}
             <div className="absolute -top-16 -left-16 w-48 h-48 bg-amber-400/20 rounded-full blur-3xl pointer-events-none" />
 
-            {/* Top Logo with Christmas Holly Badge */}
-            <div className="flex items-center justify-between relative z-10">
+            {/* Top Logo */}
+            <div className="flex items-center relative z-10">
               <div className="relative inline-block">
                 <img
                   src={logoDarkIcon}
@@ -675,9 +675,6 @@ const AuthPage: React.FC = () => {
                   🎅
                 </span>
               </div>
-              <span className="text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-full bg-white/10 text-amber-300 border border-amber-300/30 backdrop-blur-sm shadow-sm flex items-center gap-1">
-                <Sparkles className="w-2.5 h-2.5 text-amber-300" /> Holiday Edition
-              </span>
             </div>
 
             {/* PS5-Style Red Floating Orbs */}
@@ -709,17 +706,13 @@ const AuthPage: React.FC = () => {
           >
             {/* Header */}
             <div className="flex flex-col items-center mb-7">
-              {/* Logo display for mobile */}
-              <div className="flex md:hidden items-center mb-4">
+              {/* NetBounce Logo */}
+              <div className="flex items-center mb-5">
                 <img
                   src={logoDarkIcon}
                   alt="NetBounce Placement"
-                  className="h-11 w-auto object-contain max-w-[220px]"
+                  className="h-12 w-auto object-contain max-w-[250px] drop-shadow-[0_2px_14px_rgba(0,0,0,0.5)]"
                 />
-              </div>
-
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/20 border border-rose-300/30 text-rose-200 text-xs font-semibold mb-2.5 backdrop-blur-sm">
-                <span>❄️</span> Welcome to NetBounce CRM
               </div>
 
               <h1 className="text-[24px] font-extrabold text-white text-center tracking-tight drop-shadow-sm">
