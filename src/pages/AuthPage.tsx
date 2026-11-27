@@ -383,10 +383,21 @@ const HangingChristmasOrnaments: React.FC = () => {
   );
 };
 
-/* ─── 5. Realistic Frosted Snow Cap on Top of the Login Container ─────────── */
+/* ─── 5. Realistic Frosted Snow Cap on Top of the Login Container with Overflow Snow Fall ─── */
 const LoginBoxSnowCap: React.FC = () => {
+  // Staggered overflow points along the top edge of the box
+  const overflowPoints = [
+    { id: 1, left: '6%', delay: '0s', duration: '7.5s', drift: -16, size: 7 },
+    { id: 2, left: '22%', delay: '2.8s', duration: '8.2s', drift: 12, size: 6 },
+    { id: 3, left: '41%', delay: '5.1s', duration: '7.0s', drift: -10, size: 8 },
+    { id: 4, left: '59%', delay: '1.4s', duration: '8.8s', drift: 14, size: 6 },
+    { id: 5, left: '78%', delay: '3.9s', duration: '7.8s', drift: -12, size: 7.5 },
+    { id: 6, left: '93%', delay: '6.2s', duration: '8.4s', drift: 10, size: 6.5 },
+  ];
+
   return (
     <div className="absolute -top-[14px] left-0 right-0 z-20 pointer-events-none select-none">
+      {/* ── Main Curved Snow Cap ── */}
       <svg
         viewBox="0 0 960 28"
         preserveAspectRatio="none"
@@ -423,6 +434,147 @@ const LoginBoxSnowCap: React.FC = () => {
           opacity="0.9"
         />
       </svg>
+
+      {/* ── Dynamic Overflow: Snow Detaching from Card and Falling to the Ground ── */}
+      {overflowPoints.map(pt => (
+        <div
+          key={pt.id}
+          className="snow-overflow-emitter"
+          style={{
+            position: 'absolute',
+            left: pt.left,
+            top: '18px',
+          }}
+        >
+          {/* Hanging snow drip / accumulating snow lip */}
+          <div
+            className="snow-lip"
+            style={{
+              animationDelay: pt.delay,
+              animationDuration: pt.duration,
+            }}
+          />
+
+          {/* Falling snow clump that drops down to land */}
+          <div
+            className="falling-snow-clump"
+            style={{
+              animationDelay: pt.delay,
+              animationDuration: pt.duration,
+              ['--clump-drift' as any]: `${pt.drift}px`,
+              ['--clump-size' as any]: `${pt.size}px`,
+            }}
+          >
+            <span className="clump-core" />
+            <span className="clump-trailing" />
+            <span className="clump-sparkle" />
+          </div>
+        </div>
+      ))}
+
+      <style>{`
+        /* Snow builds up on the lip */
+        .snow-lip {
+          position: absolute;
+          top: -2px;
+          left: -4px;
+          width: 8px;
+          height: 7px;
+          border-radius: 0 0 50% 50%;
+          background: #ffffff;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+          animation: snowLipSwell infinite ease-in-out;
+        }
+
+        @keyframes snowLipSwell {
+          0%, 100% {
+            transform: scaleY(0.7);
+            opacity: 0.8;
+          }
+          14% {
+            transform: scaleY(1.4) scaleX(1.1);
+            opacity: 1;
+          }
+          20% {
+            transform: scaleY(0.6);
+            opacity: 0.7;
+          }
+        }
+
+        /* Falling clump animation dropping slowly past card to ground */
+        .falling-snow-clump {
+          position: absolute;
+          top: 4px;
+          left: -4px;
+          width: var(--clump-size, 7px);
+          height: var(--clump-size, 7px);
+          pointer-events: none;
+          animation: snowClumpFall infinite cubic-bezier(0.35, 0.1, 0.25, 1);
+        }
+
+        .clump-core {
+          position: absolute;
+          inset: 0;
+          border-radius: 50%;
+          background: radial-gradient(circle, #ffffff 40%, #e2e8f0 90%);
+          box-shadow: 0 2px 6px rgba(255, 255, 255, 0.75), 0 4px 10px rgba(0, 0, 0, 0.2);
+          filter: blur(0.5px);
+        }
+
+        .clump-trailing {
+          position: absolute;
+          top: -4px;
+          left: 1px;
+          width: 4px;
+          height: 4px;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.8);
+          filter: blur(0.8px);
+        }
+
+        .clump-sparkle {
+          position: absolute;
+          bottom: -3px;
+          right: -2px;
+          width: 3px;
+          height: 3px;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.9);
+          box-shadow: 0 0 4px #ffffff;
+        }
+
+        @keyframes snowClumpFall {
+          0% {
+            transform: translate3d(0, 0, 0) scale(0.4);
+            opacity: 0;
+          }
+          12% {
+            /* Accumulates and detaches from card edge */
+            transform: translate3d(0, 6px, 0) scale(1);
+            opacity: 0.98;
+          }
+          35% {
+            /* Slowly drifting past the upper card */
+            transform: translate3d(calc(var(--clump-drift, 10px) * 0.4), 160px, 0) scale(1.05);
+            opacity: 0.95;
+          }
+          65% {
+            /* Drifting past the bottom of the card */
+            transform: translate3d(calc(var(--clump-drift, 10px) * -0.3), 380px, 0) scale(0.92);
+            opacity: 0.88;
+          }
+          85% {
+            /* Gliding towards the ground snowbanks */
+            transform: translate3d(calc(var(--clump-drift, 10px) * 0.7), 540px, 0) scale(0.82);
+            opacity: 0.75;
+          }
+          100% {
+            /* Softly landing onto the ground snowbanks */
+            transform: translate3d(var(--clump-drift, 10px), 680px, 0) scale(0.6);
+            opacity: 0;
+          }
+        }
+      `}</style>
     </div>
   );
 };
