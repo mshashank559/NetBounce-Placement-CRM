@@ -719,10 +719,10 @@ const AuthPage: React.FC = () => {
   });
 
   useEffect(() => {
-    // 2.7s hold + 0.8s fade-out = ~3.5s total logo intro (under 5 seconds)
+    // Page loads with snow background, logo fades in over 3s, then smoothly exits
     const splashTimer = setTimeout(() => {
       setIsSplashActive(false);
-    }, 2700);
+    }, 4200);
     return () => clearTimeout(splashTimer);
   }, []);
 
@@ -788,64 +788,44 @@ const AuthPage: React.FC = () => {
       {/* ── Bottom Ground Snowbanks ── */}
       <GroundSnowBanks />
 
-      {/* ── AnimatePresence: Splash Logo (Under 5s) -> 3D Frosted Login Box ── */}
+      {/* ── AnimatePresence: Splash Logo (3s Fade In) -> 3D Frosted Login Box ── */}
       <AnimatePresence mode="wait">
         {isSplashActive ? (
           <motion.div
             key="splash-logo"
-            initial={{ opacity: 0, scale: 0.88, filter: 'blur(10px)' }}
+            initial={{ opacity: 0, scale: 0.9, filter: 'blur(12px)' }}
             animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
             exit={{
               opacity: 0,
-              scale: 1.06,
-              filter: 'blur(8px)',
+              scale: 1.05,
+              filter: 'blur(10px)',
               transition: { duration: 0.8, ease: [0.4, 0, 0.2, 1] },
             }}
-            transition={{ duration: 1.0, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 3.0, ease: [0.16, 1, 0.3, 1] }}
             onClick={() => setIsSplashActive(false)}
             className="relative z-30 flex flex-col items-center justify-center p-6 select-none cursor-pointer"
           >
             <div className="relative flex items-center justify-center">
               {/* Ambient Festive Backlight Pulse */}
-              <div className="absolute w-[380px] h-[200px] bg-red-500/30 rounded-full blur-3xl pointer-events-none" />
-              <div className="absolute w-[240px] h-[130px] bg-amber-400/20 rounded-full blur-2xl pointer-events-none" />
+              <div className="absolute w-[420px] h-[220px] bg-red-500/25 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute w-[260px] h-[140px] bg-amber-400/15 rounded-full blur-2xl pointer-events-none" />
 
               <div className="relative">
                 <motion.img
                   src={logoSplash}
                   alt="NetBounce Placement"
                   animate={{
-                    scale: [1, 1.025, 1],
+                    scale: [1, 1.02, 1],
                   }}
                   transition={{
-                    duration: 2.2,
+                    duration: 3,
                     repeat: Infinity,
                     ease: 'easeInOut',
                   }}
-                  className="relative z-10 max-w-[320px] sm:max-w-[420px] md:max-w-[480px] w-auto h-auto object-contain drop-shadow-[0_12px_36px_rgba(0,0,0,0.65)]"
+                  className="relative z-10 max-w-[340px] sm:max-w-[440px] md:max-w-[520px] w-auto h-auto object-contain drop-shadow-[0_15px_40px_rgba(0,0,0,0.65)]"
                 />
-                {/* Santa hat perched subtly on top of logo */}
-                <span
-                  className="absolute -top-4 -left-2 text-2xl md:text-3xl pointer-events-none transform -rotate-12 drop-shadow-lg select-none"
-                  title="Happy Holidays!"
-                >
-                  🎅
-                </span>
               </div>
             </div>
-
-            {/* Subtle brand tag with shimmering festive sparkle */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 0.9 }}
-              transition={{ delay: 0.8, duration: 0.8 }}
-              className="mt-6 flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/10 border border-white/15 backdrop-blur-md shadow-sm"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-spin" style={{ animationDuration: '4s' }} />
-              <span className="text-[11px] font-semibold tracking-wider text-rose-100 uppercase">
-                NetBounce Placement CRM
-              </span>
-            </motion.div>
           </motion.div>
         ) : (
           <motion.div
