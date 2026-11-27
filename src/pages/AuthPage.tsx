@@ -3,9 +3,10 @@ import { useAuth, FORCED_LOGOUT_KEY } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import logoDarkIcon from '@/assets/logo-dark.png';
+import logoSplash from '@/assets/logo-splash.png';
 import { Eye, EyeOff, ShieldAlert, Sparkles } from 'lucide-react';
 
 /* ─── 1. Multi-Layer Interactive 3D Snowfall Canvas ───────────────────────── */
@@ -711,10 +712,19 @@ const AuthPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [securityMessage, setSecurityMessage] = useState<string | null>(null);
+  const [isSplashActive, setIsSplashActive] = useState(true);
   const [form, setForm] = useState({
     email: '',
     password: '',
   });
+
+  useEffect(() => {
+    // 2.7s hold + 0.8s fade-out = ~3.5s total logo intro (under 5 seconds)
+    const splashTimer = setTimeout(() => {
+      setIsSplashActive(false);
+    }, 2700);
+    return () => clearTimeout(splashTimer);
+  }, []);
 
   useEffect(() => {
     const msg = sessionStorage.getItem(FORCED_LOGOUT_KEY);
@@ -778,22 +788,82 @@ const AuthPage: React.FC = () => {
       {/* ── Bottom Ground Snowbanks ── */}
       <GroundSnowBanks />
 
-      {/* ── Center 3D Frosted Glass Login Container ── */}
-      <motion.div
-        layout
-        initial={{ opacity: 0, y: 35, scale: 0.97 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ type: 'spring', stiffness: 90, damping: 18 }}
-        className="flex w-full max-w-[960px] min-h-[560px] mx-4 rounded-3xl overflow-visible relative z-10 shadow-[0_30px_90px_rgba(0,0,0,0.65)]"
-        style={{
-          /* 3D Frosted Crystal Glass Layer */
-          background: 'rgba(25, 4, 8, 0.65)',
-          backdropFilter: 'blur(28px)',
-          WebkitBackdropFilter: 'blur(28px)',
-          border: '1px solid rgba(255, 255, 255, 0.22)',
-          boxShadow: '0 25px 80px rgba(0, 0, 0, 0.6), 0 0 45px rgba(244, 63, 94, 0.15), inset 0 1px 1px rgba(255, 255, 255, 0.25)',
-        }}
-      >
+      {/* ── AnimatePresence: Splash Logo (Under 5s) -> 3D Frosted Login Box ── */}
+      <AnimatePresence mode="wait">
+        {isSplashActive ? (
+          <motion.div
+            key="splash-logo"
+            initial={{ opacity: 0, scale: 0.88, filter: 'blur(10px)' }}
+            animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+            exit={{
+              opacity: 0,
+              scale: 1.06,
+              filter: 'blur(8px)',
+              transition: { duration: 0.8, ease: [0.4, 0, 0.2, 1] },
+            }}
+            transition={{ duration: 1.0, ease: [0.16, 1, 0.3, 1] }}
+            onClick={() => setIsSplashActive(false)}
+            className="relative z-30 flex flex-col items-center justify-center p-6 select-none cursor-pointer"
+          >
+            <div className="relative flex items-center justify-center">
+              {/* Ambient Festive Backlight Pulse */}
+              <div className="absolute w-[380px] h-[200px] bg-red-500/30 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute w-[240px] h-[130px] bg-amber-400/20 rounded-full blur-2xl pointer-events-none" />
+
+              <div className="relative">
+                <motion.img
+                  src={logoSplash}
+                  alt="NetBounce Placement"
+                  animate={{
+                    scale: [1, 1.025, 1],
+                  }}
+                  transition={{
+                    duration: 2.2,
+                    repeat: Infinity,
+                    ease: 'easeInOut',
+                  }}
+                  className="relative z-10 max-w-[320px] sm:max-w-[420px] md:max-w-[480px] w-auto h-auto object-contain drop-shadow-[0_12px_36px_rgba(0,0,0,0.65)]"
+                />
+                {/* Santa hat perched subtly on top of logo */}
+                <span
+                  className="absolute -top-4 -left-2 text-2xl md:text-3xl pointer-events-none transform -rotate-12 drop-shadow-lg select-none"
+                  title="Happy Holidays!"
+                >
+                  🎅
+                </span>
+              </div>
+            </div>
+
+            {/* Subtle brand tag with shimmering festive sparkle */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.9 }}
+              transition={{ delay: 0.8, duration: 0.8 }}
+              className="mt-6 flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/10 border border-white/15 backdrop-blur-md shadow-sm"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-spin" style={{ animationDuration: '4s' }} />
+              <span className="text-[11px] font-semibold tracking-wider text-rose-100 uppercase">
+                NetBounce Placement CRM
+              </span>
+            </motion.div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="login-box"
+            layout
+            initial={{ opacity: 0, y: 35, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ type: 'spring', stiffness: 90, damping: 18 }}
+            className="flex w-full max-w-[960px] min-h-[560px] mx-4 rounded-3xl overflow-visible relative z-10 shadow-[0_30px_90px_rgba(0,0,0,0.65)]"
+            style={{
+              /* 3D Frosted Crystal Glass Layer */
+              background: 'rgba(25, 4, 8, 0.65)',
+              backdropFilter: 'blur(28px)',
+              WebkitBackdropFilter: 'blur(28px)',
+              border: '1px solid rgba(255, 255, 255, 0.22)',
+              boxShadow: '0 25px 80px rgba(0, 0, 0, 0.6), 0 0 45px rgba(244, 63, 94, 0.15), inset 0 1px 1px rgba(255, 255, 255, 0.25)',
+            }}
+          >
         {/* ── Realistic Snow Collecting on Top of Login Box ── */}
         <LoginBoxSnowCap />
 
@@ -979,7 +1049,9 @@ const AuthPage: React.FC = () => {
           </motion.div>
         </div>
       </motion.div>
-    </div>
+    )}
+  </AnimatePresence>
+</div>
   );
 };
 
