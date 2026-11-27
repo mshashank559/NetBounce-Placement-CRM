@@ -1,10 +1,9 @@
 import React, { memo, useCallback, useTransition, useRef, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useTheme } from '@/contexts/ThemeContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  LayoutDashboard, Users, Plus, BarChart3, Bell, LogOut, Sun, Moon, UserCog, Phone,
+  LayoutDashboard, Users, Plus, BarChart3, Bell, LogOut, UserCog, Phone,
   DollarSign, AlertCircle, UsersRound, Shield, Activity, PieChart, Sparkles
 } from 'lucide-react';
 import logoDark from '@/assets/logo-dark.png';
@@ -232,7 +231,6 @@ interface AppSidebarProps {
 /* ─── 4. Main AppSidebar Component ─────────────────────────────────────────── */
 const AppSidebar: React.FC<AppSidebarProps> = memo(({ isOpen = false, onClose }) => {
   const { role, signOut, profile } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -318,14 +316,6 @@ const AppSidebar: React.FC<AppSidebarProps> = memo(({ isOpen = false, onClose })
             <p className="text-xs font-semibold text-rose-100 truncate">{profile?.full_name}</p>
             <p className="text-[11px] text-rose-200/60 truncate font-mono uppercase tracking-wider">{role?.replace('_', ' ')}</p>
           </div>
-
-          <button
-            onClick={toggleTheme}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-rose-100/80 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-          >
-            {theme === 'dark' ? <Sun className="h-4 w-4 text-amber-300" /> : <Moon className="h-4 w-4 text-rose-200" />}
-            <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
-          </button>
 
           <button
             onClick={handleSignOut}
